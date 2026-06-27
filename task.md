@@ -1,0 +1,10 @@
+Please perform the final production build and pack the application into a "Version 3" named ZIP file by executing these tasks sequentially (do NOT modify the version strings inside package.json or tauri.conf.json):
+
+1. **Trigger Production Build:** Run the official Tauri build command: `npx tauri build --bundles exe`. This ensures all our latest UI, font, and licensing features are compiled cleanly into the latest release binary.
+2. **Isolate Essential Assets into Version 3 Folder:** Once the build completes, look inside `E:\work\poc\pos-app\src-tauri\target\release\` and isolate only the runtime-critical files into a temporary staging directory named `POS-System-Version-3`:
+   - The compiled `app.exe` (or your exact built application executable file).
+   - The entire `resources` or `_up_` folder containing the Node.js sidecar backend, Next.js server, and database layer config.
+   - Strictly exclude huge intermediate compilation artifacts, cache folders, and `.pdb` debugging files to keep the client download lightweight.
+3. **Inject Compatibility Proxy DLL (Ref: 8378db83-5620-46fd-ba01-8cc6d06c8acb):** Automate or include a clear programmatic step in your workflow to inject the compatibility proxy DLL wrapper (like a custom Windows 7 compatible `bcryptprimitives.dll` or `dxgi.dll`) directly into the root `POS-System-Version-3` folder alongside `app.exe`. This resolves the missing 'ProcessPrng' entry point error on the client's legacy system.
+4. **Automate Zip Generation:** Compress this newly created `POS-System-Version-3` directory into a final archive file named `POS-System-Version-3.zip`.
+5. **Output Location & Output Path:** Save the `POS-System-Version-3.zip` file either in the root repository folder or output it cleanly, printing the exact full path in your final response so I can easily grab it and send it to the client.

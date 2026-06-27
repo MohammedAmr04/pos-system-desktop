@@ -1,7 +1,6 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
-import { SubmitButton } from "@/components/common/submit-button"
 import { createProduct, updateProduct } from "@/features/products/actions"
 import { Product } from "@prisma/client"
 import { toast } from "sonner"
@@ -12,6 +11,8 @@ interface ProductFormProps {
   initialData?: Product | null
   onSuccess: () => void
 }
+
+export const PRODUCT_FORM_ID = "product-form"
 
 export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
   const t = useTranslations("Products")
@@ -42,32 +43,29 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
   }
 
   return (
-    <form ref={formRef} action={handleSubmit} className="space-y-4">
-      <div>
+    <form ref={formRef} id={PRODUCT_FORM_ID} action={handleSubmit} className="space-y-6">
+      <div className="space-y-2">
         <label className="text-sm font-medium">{t("name")} *</label>
         <Input name="name" defaultValue={initialData?.name} required />
       </div>
-      <div>
+      <div className="space-y-2">
         <label className="text-sm font-medium">{t("barcode")}</label>
         <Input name="barcode" defaultValue={initialData?.barcode || ""} placeholder={t("barcode")} />
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <div>
+        <div className="space-y-2">
           <label className="text-sm font-medium">{t("buyPrice")} *</label>
           <Input name="buyPrice" type="number" step="0.01" defaultValue={initialData?.buyPrice} required />
         </div>
-        <div>
+        <div className="space-y-2">
           <label className="text-sm font-medium">{t("salePrice")} *</label>
           <Input name="salePrice" type="number" step="0.01" defaultValue={initialData?.salePrice} required />
         </div>
       </div>
-      <div>
+      <div className="space-y-2">
         <label className="text-sm font-medium">{t("stockQuantity")} *</label>
         <Input name="stockQuantity" type="number" defaultValue={initialData?.stockQuantity} required />
       </div>
-      <SubmitButton className="w-full">
-        {initialData ? t("update") : t("create")}
-      </SubmitButton>
     </form>
   )
 }

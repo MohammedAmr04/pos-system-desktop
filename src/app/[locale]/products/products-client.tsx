@@ -3,7 +3,7 @@
 import { Product } from "@prisma/client"
 import { DataTable } from "@/components/common/data-table"
 import { ResponsiveSheet } from "@/components/common/responsive-sheet"
-import { ProductForm } from "./product-form"
+import { ProductForm, PRODUCT_FORM_ID } from "./product-form"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus, Edit, Trash, Printer } from "lucide-react"
@@ -130,6 +130,16 @@ export function ProductsClient({ data }: ProductsClientProps) {
         onOpenChange={setIsSheetOpen}
         title={editingProduct ? t("editProduct") : t("newProduct")}
         description=""
+        footer={
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setIsSheetOpen(false)}>
+              {t("cancel")}
+            </Button>
+            <Button type="submit" form={PRODUCT_FORM_ID}>
+              {editingProduct ? t("update") : t("create")}
+            </Button>
+          </div>
+        }
       >
         <ProductForm 
           initialData={editingProduct} 

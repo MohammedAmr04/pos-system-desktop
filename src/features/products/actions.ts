@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/db"
-import { revalidatePath, unstable_cache } from "next/cache"
+import { revalidatePath, unstable_cache, updateTag } from "next/cache"
 
 function generateBarcode(): string {
   let barcode = ""
@@ -30,6 +30,7 @@ export async function createProduct(data: { barcode?: string | null, name: strin
     }
   })
   revalidatePath('/products')
+  updateTag('products')
 }
 
 export async function updateProduct(id: string, data: { barcode?: string | null, name: string, buyPrice: number, salePrice: number, stockQuantity: number }) {
@@ -38,6 +39,7 @@ export async function updateProduct(id: string, data: { barcode?: string | null,
     data
   })
   revalidatePath('/products')
+  updateTag('products')
 }
 
 export async function deleteProduct(id: string) {
@@ -45,4 +47,5 @@ export async function deleteProduct(id: string) {
     where: { id }
   })
   revalidatePath('/products')
+  updateTag('products')
 }

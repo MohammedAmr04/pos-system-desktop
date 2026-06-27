@@ -14,7 +14,7 @@ pub fn run() {
         )?;
       }
       
-      let resource_path = app.path().resolve("..\\.next\\standalone\\server.js", tauri::path::BaseDirectory::Resource).unwrap();
+      let resource_path = app.path().resolve("..\\.next\\standalone\\startup.js", tauri::path::BaseDirectory::Resource).unwrap();
       
       let sidecar_command = app.shell()
         .sidecar("node")

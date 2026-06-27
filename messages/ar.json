@@ -27,7 +27,16 @@
     "checkoutSuccess": "تم الدفع بنجاح! جاري طباعة الإيصال...",
     "checkoutFailed": "فشل الدفع",
     "each": "للقطعة",
-    "productNotFound": "المنتج غير موجود أو غير متوفر"
+    "productNotFound": "المنتج غير موجود أو غير متوفر",
+    "totalItems": "عدد الأصناف",
+    "discountTypeFixed": "قيمة",
+    "discountTypePercentage": "نسبة",
+    "quantity": "الكمية",
+    "currency": "جنيه",
+    "amountPaid": "المدفوع",
+    "changeDue": "الباقي",
+    "totalDue": "المطلوب",
+    "insufficientPayment": "المبلغ المدفوع أقل من المطلوب"
   },
   "Products": {
     "title": "المنتجات",
@@ -77,13 +86,29 @@
     "totalRevenue": "إجمالي الإيرادات",
     "totalDiscounts": "إجمالي الخصومات",
     "unknownProduct": "منتج غير معروف",
-    "currency": "جنيه"
+    "currency": "جنيه",
+    "fromDate": "من تاريخ",
+    "toDate": "إلى تاريخ",
+    "today": "اليوم",
+    "thisWeek": "هذا الأسبوع",
+    "thisMonth": "هذا الشهر",
+    "all": "الكل"
   },
   "Sidebar": {
     "dashboard": "لوحة التحكم",
     "posCheckout": "نقطة البيع",
     "products": "المنتجات",
     "invoices": "الفواتير"
+  },
+  "License": {
+    "tamperDetected": "تم اكتشاف تلاعب في وقت النظام",
+    "tamperDescription": "تم اكتشاف تلاعب في وقت النظام. يرجى ضبط الساعة والتاريخ بشكل صحيح.",
+    "trialExpired": "انتهت الفترة التجريبية للبرنامج",
+    "trialDescription": "يرجى إدخال رمز التفعيل للمتابعة:",
+    "enterCode": "رمز التفعيل",
+    "codeHint": "أدخل رمز التفعيل المكون من 4 أرقام",
+    "submit": "تأكيد",
+    "invalidCode": "رمز التفعيل غير صحيح"
   },
   "Common": {
     "search": "بحث...",

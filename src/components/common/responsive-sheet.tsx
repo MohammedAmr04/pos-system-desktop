@@ -14,6 +14,7 @@ interface ResponsiveSheetProps {
   title: string
   description?: string
   children: React.ReactNode
+  footer?: React.ReactNode
 }
 
 export function ResponsiveSheet({
@@ -22,17 +23,23 @@ export function ResponsiveSheet({
   title,
   description,
   children,
+  footer,
 }: ResponsiveSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-[540px]">
+      <SheetContent className="sm:max-w-[540px] flex flex-col !gap-0">
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
           {description && <SheetDescription>{description}</SheetDescription>}
         </SheetHeader>
-        <div className="mt-6">
+        <div className="flex-1 overflow-y-auto px-6 py-4">
           {children}
         </div>
+        {footer && (
+          <div className="border-t px-6 py-4 mt-auto">
+            {footer}
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   )

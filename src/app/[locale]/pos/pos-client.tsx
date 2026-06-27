@@ -5,7 +5,7 @@ import { usePOSStore } from "@/features/pos/store/usePOSStore"
 import { Input } from "@/components/ui/input"
 import { createInvoice } from "@/features/invoices/actions"
 import { toast } from "sonner"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,7 +38,10 @@ export function POSClient({ products }: { products: Product[] }) {
     removeItem,
     updateQuantity,
     discount,
+    discountType,
     setDiscount,
+    setDiscountType,
+    toggleDiscountType,
     clearCart
   } = usePOSStore()
 
@@ -46,6 +49,22 @@ export function POSClient({ products }: { products: Product[] }) {
   const [inputValue, setInputValue] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const discountInputRef = useRef<HTMLInputElement>(null)
+
+  const [isCheckingOut, setIsCheckingOut] = useState(false)
+  const [amountPaid, setAmountPaid] = useState(0)
+  const paidTouched = useRef(false)
+
+  const subtotal = cartItems.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
+
+  const total = discountType === 'fixed'
+    ? Math.max(0, subtotal - discount)
+    : Math.max(0, subtotal * (1 - discount / 100))
+
+  const changeDue = Math.max(0, amountPaid - total)
+  const canCheckout = cartItems.length > 0 && amountPaid >= total
+
+  const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
 
   useEffect(() => {
     if (open && inputRef.current) {
@@ -53,37 +72,79 @@ export function POSClient({ products }: { products: Product[] }) {
     }
   }, [open])
 
+  useEffect(() => {
+    if (!paidTouched.current) {
+      setAmountPaid(total)
+    }
+  }, [total])
+
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(inputValue.toLowerCase()) ||
     (p.barcode && p.barcode.includes(inputValue))
   )
 
-  const handleSelect = (product: Product) => {
+  const handleSelect = useCallback((product: Product) => {
     addItem(product)
     setInputValue("")
     setSearchQuery("")
     setOpen(false)
     triggerRef.current?.focus()
-  }
+  }, [addItem, setSearchQuery])
 
-  const subtotal = cartItems.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
-  const total = Math.max(0, subtotal - discount)
-
-  const [isCheckingOut, setIsCheckingOut] = useState(false)
-
-  const handleCheckout = async () => {
+  const handleCheckout = useCallback(async () => {
     if (cartItems.length === 0) return
     setIsCheckingOut(true)
     try {
-      await createInvoice(cartItems, discount)
+      const s = cartItems.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
+      const effectiveDiscount = discountType === 'percentage'
+        ? s * (discount / 100)
+        : discount
+      await createInvoice(cartItems, effectiveDiscount)
       toast.success(t("checkoutSuccess"))
+      paidTouched.current = false
       clearCart()
     } catch (e) {
       toast.error(t("checkoutFailed"))
     } finally {
       setIsCheckingOut(false)
     }
-  }
+  }, [cartItems, discount, discountType, t, clearCart])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
+
+      if (e.key === 'F1') {
+        e.preventDefault()
+        if (!open) setOpen(true)
+        requestAnimationFrame(() => inputRef.current?.focus())
+        return
+      }
+
+      if (e.key === 'F2') {
+        e.preventDefault()
+        discountInputRef.current?.focus()
+        discountInputRef.current?.select()
+        return
+      }
+
+      if ((e.key === 'F12' || (e.ctrlKey && e.key === 'Enter')) && canCheckout) {
+        e.preventDefault()
+        handleCheckout()
+        return
+      }
+
+      if (e.ctrlKey && e.key === ' ') {
+        e.preventDefault()
+        toggleDiscountType()
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, handleCheckout, toggleDiscountType, canCheckout])
 
   return (
     <div className="flex h-full flex-col lg:flex-row gap-4 p-4 lg:p-6 bg-muted/40">
@@ -104,7 +165,10 @@ export function POSClient({ products }: { products: Product[] }) {
                 />
               }
             >
-              {inputValue || t("searchPlaceholder")}
+              <span className="truncate">{inputValue || t("searchPlaceholder")}</span>
+              <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-60">
+                F1
+              </kbd>
             </PopoverTrigger>
             <PopoverPortal>
               <PopoverPositioner>
@@ -125,30 +189,32 @@ export function POSClient({ products }: { products: Product[] }) {
                         }
                       }}
                     />
-                    <CommandList>
-                      <CommandEmpty>{t("productNotFound")}</CommandEmpty>
-                      <CommandGroup>
-                        {filteredProducts.slice(0, 20).map((product) => (
-                          <CommandItem
-                            key={product.id}
-                            onClick={() => handleSelect(product)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault()
-                                handleSelect(product)
-                              }
-                            }}
-                          >
-                            <div className="flex flex-1 items-center justify-between">
-                              <span>{product.name}</span>
-                              <span className="text-muted-foreground text-sm">
-                                {product.salePrice.toFixed(2)}
-                              </span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
+                    {inputValue.length >= 2 && (
+                      <CommandList>
+                        <CommandEmpty>{t("productNotFound")}</CommandEmpty>
+                        <CommandGroup>
+                          {filteredProducts.slice(0, 20).map((product) => (
+                            <CommandItem
+                              key={product.id}
+                              onClick={() => handleSelect(product)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault()
+                                  handleSelect(product)
+                                }
+                              }}
+                            >
+                              <div className="flex flex-1 items-center justify-between">
+                                <span>{product.name}</span>
+                                <span className="text-muted-foreground text-sm">
+                                  {product.salePrice.toFixed(2)}
+                                </span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    )}
                   </Command>
                 </PopoverPopup>
               </PopoverPositioner>
@@ -157,8 +223,13 @@ export function POSClient({ products }: { products: Product[] }) {
         </div>
 
         <Card className="flex-1 flex flex-col min-h-0">
-          <CardHeader className="py-4">
+          <CardHeader className="py-4 flex-row items-center justify-between">
             <CardTitle>{t("currentCart")}</CardTitle>
+            {totalItems > 0 && (
+              <div className="rounded-full bg-primary px-3 py-1 text-xs font-medium text-primary-foreground">
+                {t("totalItems")}: {totalItems}
+              </div>
+            )}
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto px-4 py-0">
             {cartItems.length === 0 ? (
@@ -168,26 +239,36 @@ export function POSClient({ products }: { products: Product[] }) {
             ) : (
               <div className="space-y-4 py-4">
                 {cartItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between border-b pb-4">
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{item.name}</h4>
-                      <p className="text-sm text-muted-foreground">{item.salePrice.toFixed(2)} {t("each")}</p>
+                  <div key={item.id} className="flex items-center justify-between border-b pb-4 gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-lg font-semibold truncate">{item.name}</h4>
+                      <p className="text-base text-muted-foreground">{item.salePrice.toFixed(2)} {t("each")}</p>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 shrink-0">
                       <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
-                          <Minus className="h-4 w-4" />
+                        <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
+                          <Minus className="h-5 w-5" />
                         </Button>
-                        <span className="w-8 text-center font-medium">{item.quantity}</span>
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                          <Plus className="h-4 w-4" />
+                        <Input
+                          type="number"
+                          min={1}
+                          max={item.maxStock}
+                          value={item.quantity}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10)
+                            if (!isNaN(val)) updateQuantity(item.id, val)
+                          }}
+                          className="w-20 h-12 text-lg text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
+                        <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
+                          <Plus className="h-5 w-5" />
                         </Button>
                       </div>
-                      <div className="w-20 text-right font-semibold">
+                      <div className="w-24 text-right text-lg font-semibold">
                         {(item.salePrice * item.quantity).toFixed(2)}
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-destructive">
-                        <Trash2 className="h-4 w-4" />
+                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-destructive h-10 w-10">
+                        <Trash2 className="h-5 w-5" />
                       </Button>
                     </div>
                   </div>
@@ -204,37 +285,103 @@ export function POSClient({ products }: { products: Product[] }) {
             <CardTitle>{t("checkout")}</CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col justify-end gap-6">
-            <div className="space-y-4">
-              <div className="flex justify-between text-lg">
+            <div className="space-y-6">
+              <div className="flex justify-between text-xl">
                 <span className="text-muted-foreground">{t("subtotal")}</span>
-                <span>{subtotal.toFixed(2)}</span>
+                <span className="font-semibold">{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground text-lg">{t("discount")}</span>
-                <div className="relative w-32">
-                  <Input 
-                    type="number" 
-                    min="0" 
-                    step="0.01" 
-                    className="text-right text-lg h-12"
-                    value={discount || ""}
-                    onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                  />
+                <span className="text-muted-foreground text-xl">{t("discount")}</span>
+                <div className="flex items-center gap-2">
+                  <div className="relative w-32">
+                    <Input
+                      ref={discountInputRef}
+                      type="number"
+                      min="0"
+                      step={discountType === 'percentage' ? "1" : "0.01"}
+                      max={discountType === 'percentage' ? "100" : undefined}
+                      className="text-right text-lg h-12"
+                      value={discount || ""}
+                      onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                      onKeyDown={(e) => {
+                        if (e.ctrlKey && e.key === ' ') {
+                          e.preventDefault()
+                          toggleDiscountType()
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-12 w-12 text-xl font-semibold"
+                    onClick={toggleDiscountType}
+                    title={discountType === 'fixed' ? t("discountTypePercentage") : t("discountTypeFixed")}
+                  >
+                    {discountType === 'fixed' ? t("currency") : '%'}
+                  </Button>
+                  <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-60">
+                    ^␣
+                  </kbd>
                 </div>
               </div>
               <div className="border-t pt-4 flex justify-between text-3xl font-bold">
                 <span>{t("total")}</span>
                 <span>{total.toFixed(2)}</span>
               </div>
+
+              <div className="space-y-4 border-t pt-4">
+                <h4 className="text-lg font-semibold">{t("totalDue")}</h4>
+                <div className="flex justify-between text-2xl font-bold">
+                  <span className="text-muted-foreground">{t("totalDue")}</span>
+                  <span>{total.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-muted-foreground text-xl">{t("amountPaid")}</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="w-40 text-right text-lg h-12"
+                    value={amountPaid || ""}
+                    onChange={(e) => {
+                      paidTouched.current = true
+                      setAmountPaid(parseFloat(e.target.value) || 0)
+                    }}
+                    onFocus={() => {
+                      if (!paidTouched.current) {
+                        paidTouched.current = true
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-2xl font-bold">
+                  <span className="text-muted-foreground">{t("changeDue")}</span>
+                  <span className={changeDue > 0 ? "text-green-600" : "text-muted-foreground"}>
+                    {changeDue.toFixed(2)}
+                  </span>
+                </div>
+                {amountPaid > 0 && amountPaid < total && (
+                  <p className="text-destructive text-sm font-medium">
+                    {t("insufficientPayment")}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mt-8">
-              <Button variant="outline" className="h-16 text-lg" onClick={clearCart}>
+              <Button variant="outline" className="h-16 text-lg" onClick={() => {
+                paidTouched.current = false
+                clearCart()
+              }}>
                 {t("clear")}
               </Button>
-              <Button className="h-16 text-lg" size="lg" onClick={handleCheckout} disabled={isCheckingOut || cartItems.length === 0}>
+              <Button className="h-16 text-lg" size="lg" onClick={handleCheckout} disabled={isCheckingOut || !canCheckout}>
                 {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t("saveAndPrint")}
+                <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
+                  F12
+                </kbd>
               </Button>
             </div>
           </CardContent>

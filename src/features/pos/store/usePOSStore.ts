@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 export interface CartItem {
-  id: string // unique instance id for the cart
+  id: string
   productId: string
   name: string
   buyPrice: number
@@ -13,18 +13,22 @@ export interface CartItem {
 interface POSStore {
   cartItems: CartItem[]
   discount: number
+  discountType: 'fixed' | 'percentage'
   searchQuery: string
   setSearchQuery: (query: string) => void
   addItem: (product: { id: string, name: string, buyPrice: number, salePrice: number, stockQuantity: number }) => void
   removeItem: (id: string) => void
   updateQuantity: (id: string, quantity: number) => void
   setDiscount: (discount: number) => void
+  setDiscountType: (type: 'fixed' | 'percentage') => void
+  toggleDiscountType: () => void
   clearCart: () => void
 }
 
 export const usePOSStore = create<POSStore>((set, get) => ({
   cartItems: [],
   discount: 0,
+  discountType: 'fixed',
   searchQuery: '',
 
   setSearchQuery: (query) => set({ searchQuery: query }),
@@ -74,5 +78,11 @@ export const usePOSStore = create<POSStore>((set, get) => ({
 
   setDiscount: (discount) => set({ discount }),
 
-  clearCart: () => set({ cartItems: [], discount: 0, searchQuery: '' }),
+  setDiscountType: (type) => set({ discountType: type }),
+
+  toggleDiscountType: () => set((state) => ({
+    discountType: state.discountType === 'fixed' ? 'percentage' : 'fixed'
+  })),
+
+  clearCart: () => set({ cartItems: [], discount: 0, discountType: 'fixed', searchQuery: '' }),
 }))
