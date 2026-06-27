@@ -5,14 +5,31 @@ import { usePOSStore } from "@/features/pos/store/usePOSStore"
 import { Input } from "@/components/ui/input"
 import { createInvoice } from "@/features/invoices/actions"
 import { toast } from "sonner"
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Trash2, Plus, Minus, Search, ArrowLeft } from "lucide-react"
+import { Trash2, Plus, Minus, ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { useTranslations } from "next-intl"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverPopup,
+  PopoverPortal,
+  PopoverPositioner,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 export function POSClient({ products }: { products: Product[] }) {
+  const t = useTranslations("POS")
   const {
     cartItems,
     searchQuery,
@@ -25,21 +42,28 @@ export function POSClient({ products }: { products: Product[] }) {
     clearCart
   } = usePOSStore()
 
-  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchQuery.trim() !== '') {
-      // Find product by barcode or name
-      const product = products.find(p => 
-        p.barcode === searchQuery.trim() || 
-        p.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
-      )
-      
-      if (product) {
-        addItem(product)
-        setSearchQuery('')
-      } else {
-        alert("Product not found or out of stock")
-      }
+  const [open, setOpen] = useState(false)
+  const [inputValue, setInputValue] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (open && inputRef.current) {
+      inputRef.current.focus()
     }
+  }, [open])
+
+  const filteredProducts = products.filter((p) =>
+    p.name.toLowerCase().includes(inputValue.toLowerCase()) ||
+    (p.barcode && p.barcode.includes(inputValue))
+  )
+
+  const handleSelect = (product: Product) => {
+    addItem(product)
+    setInputValue("")
+    setSearchQuery("")
+    setOpen(false)
+    triggerRef.current?.focus()
   }
 
   const subtotal = cartItems.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
@@ -52,10 +76,10 @@ export function POSClient({ products }: { products: Product[] }) {
     setIsCheckingOut(true)
     try {
       await createInvoice(cartItems, discount)
-      toast.success("Checkout successful! Receipt printing...")
+      toast.success(t("checkoutSuccess"))
       clearCart()
     } catch (e) {
-      toast.error("Checkout failed")
+      toast.error(t("checkoutFailed"))
     } finally {
       setIsCheckingOut(false)
     }
@@ -63,7 +87,6 @@ export function POSClient({ products }: { products: Product[] }) {
 
   return (
     <div className="flex h-full flex-col lg:flex-row gap-4 p-4 lg:p-6 bg-muted/40">
-      {/* Left Panel: Search & Products */}
       <div className="flex flex-1 flex-col gap-4">
         <div className="flex items-center gap-4">
           <Link href="/">
@@ -71,28 +94,76 @@ export function POSClient({ products }: { products: Product[] }) {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Scan barcode or search by name (Press Enter)"
-              className="pl-8 bg-background text-lg h-12"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearch}
-              autoFocus
-            />
-          </div>
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger
+              ref={triggerRef}
+              render={
+                <Button
+                  variant="outline"
+                  className="w-full justify-between bg-background text-lg h-12 font-normal"
+                />
+              }
+            >
+              {inputValue || t("searchPlaceholder")}
+            </PopoverTrigger>
+            <PopoverPortal>
+              <PopoverPositioner>
+                <PopoverPopup className="p-0 w-full" style={{ width: triggerRef.current?.offsetWidth }}>
+                  <Command>
+                    <CommandInput
+                      placeholder={t("searchPlaceholder")}
+                      ref={inputRef}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && filteredProducts.length > 0) {
+                          handleSelect(filteredProducts[0])
+                        }
+                        if (e.key === "Escape") {
+                          setOpen(false)
+                          triggerRef.current?.focus()
+                        }
+                      }}
+                    />
+                    <CommandList>
+                      <CommandEmpty>{t("productNotFound")}</CommandEmpty>
+                      <CommandGroup>
+                        {filteredProducts.slice(0, 20).map((product) => (
+                          <CommandItem
+                            key={product.id}
+                            onClick={() => handleSelect(product)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault()
+                                handleSelect(product)
+                              }
+                            }}
+                          >
+                            <div className="flex flex-1 items-center justify-between">
+                              <span>{product.name}</span>
+                              <span className="text-muted-foreground text-sm">
+                                {product.salePrice.toFixed(2)}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverPopup>
+              </PopoverPositioner>
+            </PopoverPortal>
+          </Popover>
         </div>
 
         <Card className="flex-1 flex flex-col min-h-0">
           <CardHeader className="py-4">
-            <CardTitle>Current Cart</CardTitle>
+            <CardTitle>{t("currentCart")}</CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto px-4 py-0">
             {cartItems.length === 0 ? (
               <div className="flex h-full items-center justify-center text-muted-foreground">
-                Cart is empty. Scan an item to begin.
+                {t("emptyCart")}
               </div>
             ) : (
               <div className="space-y-4 py-4">
@@ -100,7 +171,7 @@ export function POSClient({ products }: { products: Product[] }) {
                   <div key={item.id} className="flex items-center justify-between border-b pb-4">
                     <div className="flex-1">
                       <h4 className="font-semibold">{item.name}</h4>
-                      <p className="text-sm text-muted-foreground">${item.salePrice.toFixed(2)} each</p>
+                      <p className="text-sm text-muted-foreground">{item.salePrice.toFixed(2)} {t("each")}</p>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
@@ -113,7 +184,7 @@ export function POSClient({ products }: { products: Product[] }) {
                         </Button>
                       </div>
                       <div className="w-20 text-right font-semibold">
-                        ${(item.salePrice * item.quantity).toFixed(2)}
+                        {(item.salePrice * item.quantity).toFixed(2)}
                       </div>
                       <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-destructive">
                         <Trash2 className="h-4 w-4" />
@@ -127,45 +198,43 @@ export function POSClient({ products }: { products: Product[] }) {
         </Card>
       </div>
 
-      {/* Right Panel: Checkout */}
       <div className="w-full lg:w-96 flex flex-col gap-4">
         <Card className="flex-1 flex flex-col">
           <CardHeader>
-            <CardTitle>Checkout</CardTitle>
+            <CardTitle>{t("checkout")}</CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col justify-end gap-6">
             <div className="space-y-4">
               <div className="flex justify-between text-lg">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span className="text-muted-foreground">{t("subtotal")}</span>
+                <span>{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground text-lg">Discount</span>
+                <span className="text-muted-foreground text-lg">{t("discount")}</span>
                 <div className="relative w-32">
-                  <span className="absolute left-3 top-2.5">$</span>
                   <Input 
                     type="number" 
                     min="0" 
                     step="0.01" 
-                    className="pl-7 text-right text-lg h-12"
-                    value={discount || ''}
+                    className="text-right text-lg h-12"
+                    value={discount || ""}
                     onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
                   />
                 </div>
               </div>
               <div className="border-t pt-4 flex justify-between text-3xl font-bold">
-                <span>Total</span>
-                <span>${total.toFixed(2)}</span>
+                <span>{t("total")}</span>
+                <span>{total.toFixed(2)}</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mt-8">
               <Button variant="outline" className="h-16 text-lg" onClick={clearCart}>
-                Clear
+                {t("clear")}
               </Button>
               <Button className="h-16 text-lg" size="lg" onClick={handleCheckout} disabled={isCheckingOut || cartItems.length === 0}>
                 {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save & Print
+                {t("saveAndPrint")}
               </Button>
             </div>
           </CardContent>

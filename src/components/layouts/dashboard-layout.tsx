@@ -1,28 +1,29 @@
 "use client"
 
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Package, ShoppingCart, FileText, LayoutDashboard } from "lucide-react"
+import { useTranslations } from "next-intl"
+import { Link } from "@/i18n/navigation"
 
 const sidebarNavItems = [
   {
-    title: "Dashboard",
+    key: "dashboard" as const,
     href: "/",
     icon: LayoutDashboard,
   },
   {
-    title: "POS Checkout",
+    key: "posCheckout" as const,
     href: "/pos",
     icon: ShoppingCart,
   },
   {
-    title: "Products",
+    key: "products" as const,
     href: "/products",
     icon: Package,
   },
   {
-    title: "Invoices",
+    key: "invoices" as const,
     href: "/invoices",
     icon: FileText,
   },
@@ -30,20 +31,21 @@ const sidebarNavItems = [
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const t = useTranslations("Sidebar")
+  const appT = useTranslations("App")
 
-  // Do not show sidebar on POS screen for a distraction-free experience
   if (pathname === '/pos') {
     return <>{children}</>
   }
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
-      <aside className="border-r bg-muted/40 lg:w-64">
+      <aside className="border-l bg-muted/40 lg:w-64">
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <Package className="h-6 w-6" />
-              <span className="">POS System</span>
+              <span>{appT("name")}</span>
             </Link>
           </div>
           <div className="flex-1">
@@ -62,7 +64,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     )}
                   >
                     <Icon className="h-4 w-4" />
-                    {item.title}
+                    {t(item.key)}
                   </Link>
                 )
               })}

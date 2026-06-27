@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Eye } from "lucide-react"
 import { ColumnDef } from "@tanstack/react-table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useTranslations } from "next-intl"
 
 type InvoiceWithDetails = any
 
@@ -15,6 +16,7 @@ interface InvoicesClientProps {
 }
 
 export function InvoicesClient({ data }: InvoicesClientProps) {
+  const t = useTranslations("Invoices")
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithDetails | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
@@ -26,26 +28,27 @@ export function InvoicesClient({ data }: InvoicesClientProps) {
   const columns: ColumnDef<InvoiceWithDetails>[] = [
     {
       accessorKey: "id",
-      header: "Invoice ID",
+      header: t("invoiceId"),
       cell: ({ row }) => row.original.id.split('-')[0].toUpperCase()
     },
     {
       accessorKey: "createdAt",
-      header: "Time",
+      header: t("time"),
       cell: ({ row }) => new Date(row.original.createdAt).toLocaleTimeString()
     },
     {
       accessorKey: "totalAmount",
-      header: "Total",
-      cell: ({ row }) => `$${row.original.totalAmount.toFixed(2)}`
+      header: t("total"),
+      cell: ({ row }) => `${row.original.totalAmount.toFixed(2)}`
     },
     {
       accessorKey: "discount",
-      header: "Discount",
-      cell: ({ row }) => `$${row.original.discount.toFixed(2)}`
+      header: t("discount"),
+      cell: ({ row }) => `${row.original.discount.toFixed(2)}`
     },
     {
       id: "actions",
+      header: t("actions"),
       cell: ({ row }) => (
         <Button variant="ghost" size="icon" onClick={() => handleView(row.original)}>
           <Eye className="h-4 w-4" />
@@ -62,18 +65,18 @@ export function InvoicesClient({ data }: InvoicesClientProps) {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("totalRevenue")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalSales.toFixed(2)}</div>
+            <div className="text-2xl font-bold">{totalSales.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Given Discounts</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("totalDiscounts")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalDiscounts.toFixed(2)}</div>
+            <div className="text-2xl font-bold">{totalDiscounts.toFixed(2)}</div>
           </CardContent>
         </Card>
       </div>
