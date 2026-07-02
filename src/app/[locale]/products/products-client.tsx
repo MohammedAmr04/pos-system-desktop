@@ -58,7 +58,7 @@ export function ProductsClient({ data }: ProductsClientProps) {
   const handleBarcodePrintConfirm = async () => {
     if (!barcodePrintProduct) return
     try {
-      await fetch("http://localhost:3001/print-barcode", {
+      await fetch("http://localhost:3001/api/printing/print-barcode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

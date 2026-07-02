@@ -21,7 +21,7 @@ export const getProducts = unstable_cache(
   { tags: ['products'] }
 )
 
-export async function createProduct(data: { barcode?: string | null, name: string, buyPrice: number, salePrice: number, stockQuantity: number }) {
+export async function createProduct(data: { barcode?: string | null, name: string, buyPrice: number, salePrice: number, stockQuantity: number, notes?: string | null }) {
   const barcode = data.barcode || generateBarcode()
   await prisma.product.create({
     data: {
@@ -33,7 +33,7 @@ export async function createProduct(data: { barcode?: string | null, name: strin
   updateTag('products')
 }
 
-export async function updateProduct(id: string, data: { barcode?: string | null, name: string, buyPrice: number, salePrice: number, stockQuantity: number }) {
+export async function updateProduct(id: string, data: { barcode?: string | null, name: string, buyPrice: number, salePrice: number, stockQuantity: number, notes?: string | null }) {
   await prisma.product.update({
     where: { id },
     data

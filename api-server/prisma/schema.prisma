@@ -1,0 +1,53 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id            String          @id @default(uuid())
+  barcode       String?         @unique
+  name          String
+  buyPrice      Float
+  salePrice     Float
+  stockQuantity Int
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  InvoiceDetail InvoiceDetail[]
+}
+
+model Invoice {
+  id            String          @id @default(uuid())
+  totalAmount   Float
+  discount      Float           @default(0)
+  createdAt     DateTime        @default(now())
+  InvoiceDetail InvoiceDetail[]
+}
+
+model InvoiceDetail {
+  id        String  @id @default(uuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  quantity  Int
+  buyPrice  Float
+  salePrice Float
+}
+
+model Settings {
+  id           String   @id @default(uuid())
+  machineId    String   @unique
+  activatedAt  DateTime
+  lastCheckedAt DateTime
+  unlocked     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

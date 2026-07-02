@@ -47,6 +47,7 @@
     "barcode": "الباركود",
     "buyPrice": "سعر الشراء",
     "salePrice": "سعر البيع",
+    "notes":"ملاحظات",
     "stockQuantity": "كمية المخزون",
     "actions": "الإجراءات",
     "stock": "المخزون",

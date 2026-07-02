@@ -1,0 +1,50 @@
+[API] API server running on http://localhost:3001
+prisma:info Starting a sqlite pool with 9 connections.
+prisma:query CREATE TABLE IF NOT EXISTS _applied_migrations (id TEXT PRIMARY KEY, applied_at DATETIME DEFAULT CURRENT_TIMESTAMP)
+prisma:query SELECT id FROM _applied_migrations
+[API] Loaded 0 applied migrations
+[API] Found 3 migration directories
+prisma:query CREATE TABLE "Product" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "barcode" TEXT,
+    "name" TEXT NOT NULL,
+    "buyPrice" REAL NOT NULL,
+    "salePrice" REAL NOT NULL,
+    "stockQuantity" INTEGER NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+prisma:query CREATE TABLE "Invoice" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "totalAmount" REAL NOT NULL,
+    "discount" REAL NOT NULL DEFAULT 0,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+prisma:query CREATE TABLE "InvoiceDetail" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "invoiceId" TEXT NOT NULL,
+    "productId" TEXT,
+    "quantity" INTEGER NOT NULL,
+    "buyPrice" REAL NOT NULL,
+    "salePrice" REAL NOT NULL,
+    CONSTRAINT "InvoiceDetail_invoiceId_fkey" FOREIGN KEY ("invoiceId") REFERENCES "Invoice" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "InvoiceDetail_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+);
+prisma:query CREATE UNIQUE INDEX "Product_barcode_key" ON "Product"("barcode");
+prisma:query INSERT INTO _applied_migrations (id) VALUES (?)
+[API] Successfully applied migration: 20260626172512_init
+prisma:query CREATE TABLE "Settings" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "machineId" TEXT NOT NULL,
+    "activatedAt" DATETIME NOT NULL,
+    "lastCheckedAt" DATETIME NOT NULL,
+    "unlocked" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+prisma:query CREATE UNIQUE INDEX "Settings_machineId_key" ON "Settings"("machineId");
+prisma:query INSERT INTO _applied_migrations (id) VALUES (?)
+[API] Successfully applied migration: 20260627015921_add_settings
+prisma:query ALTER TABLE "Product" ADD COLUMN "notes" TEXT;
+prisma:query INSERT INTO _applied_migrations (id) VALUES (?)
+[API] Successfully applied migration: 20260630184416_add_notes_to_product

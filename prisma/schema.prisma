@@ -17,6 +17,7 @@ model Product {
   buyPrice      Float
   salePrice     Float
   stockQuantity Int
+  notes         String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   InvoiceDetail InvoiceDetail[]

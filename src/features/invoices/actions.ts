@@ -101,7 +101,7 @@ export async function createInvoice(cartItems: CartItem[], discount: number) {
   updateTag('products')
 
   try {
-    await fetch('http://localhost:3001/print', {
+    await fetch('http://localhost:3001/api/printing/print', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invoice })

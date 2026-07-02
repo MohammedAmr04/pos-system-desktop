@@ -25,6 +25,7 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
       buyPrice: parseFloat(formData.get("buyPrice") as string),
       salePrice: parseFloat(formData.get("salePrice") as string),
       stockQuantity: parseInt(formData.get("stockQuantity") as string, 10),
+      notes: formData.get("notes") as string || null,
     }
 
     try {
@@ -65,6 +66,15 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("stockQuantity")} *</label>
         <Input name="stockQuantity" type="number" defaultValue={initialData?.stockQuantity} required />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">{t("notes")}</label>
+        <textarea
+          name="notes"
+          defaultValue={initialData?.notes || ""}
+          className="h-24 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 resize-y"
+          placeholder={t("notes")}
+        />
       </div>
     </form>
   )

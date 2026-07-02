@@ -31,5 +31,6 @@ copy('node_modules/@prisma/debug', 'node_modules/@prisma/debug');
 copy('node_modules/@prisma/fetch-engine', 'node_modules/@prisma/fetch-engine');
 copy('node_modules/@prisma/get-platform', 'node_modules/@prisma/get-platform');
 copy('scripts/startup.js', 'startup.js');
+copy('printer-api');
 
 console.log('Standalone preparation complete.');
