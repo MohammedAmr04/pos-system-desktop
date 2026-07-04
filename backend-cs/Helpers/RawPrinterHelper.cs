@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -8,13 +6,15 @@ namespace PosCs.Helpers
 {
     public static class RawPrinterHelper
     {
-        [DllImport("winspool.drv", CharSet = CharSet.Unicode, SetLastError = true)]
+        // تم تغيير CharSet هنا إلى Ansi
+        [DllImport("winspool.drv", CharSet = CharSet.Ansi, SetLastError = true)]
         private static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
 
         [DllImport("winspool.drv", SetLastError = true)]
         private static extern bool ClosePrinter(IntPtr hPrinter);
 
-        [DllImport("winspool.drv", SetLastError = true)]
+        // تم تغيير CharSet هنا إلى Ansi لتتوافق مع الـ Struct المعدل
+        [DllImport("winspool.drv", CharSet = CharSet.Ansi, SetLastError = true)]
         private static extern bool StartDocPrinter(IntPtr hPrinter, int level, ref DOCINFO pDocInfo);
 
         [DllImport("winspool.drv", SetLastError = true)]
@@ -29,26 +29,32 @@ namespace PosCs.Helpers
         [DllImport("winspool.drv", SetLastError = true)]
         private static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);
 
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        // تعديل الـ Struct بالكامل ليعتمد على Ansi و LPStr
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
         private struct DOCINFO
         {
-            [MarshalAs(UnmanagedType.LPWStr)]
+            [MarshalAs(UnmanagedType.LPStr)]
             public string pDocName;
-            [MarshalAs(UnmanagedType.LPWStr)]
+            [MarshalAs(UnmanagedType.LPStr)]
             public string pOutputFile;
-            [MarshalAs(UnmanagedType.LPWStr)]
+            [MarshalAs(UnmanagedType.LPStr)]
             public string pDataType;
         }
 
         public static bool SendStringToPrinter(string printerName, string text)
         {
-            var bytes = Encoding.ASCII.GetBytes(text);
+            // لدعم اللغة العربية بشكل صحيح على الطابعات الحرارية في مصر (كود بيج 1256)
+            // يمكنك فك التعليق عن السطر بالأسفل إذا ظهرت علامات استفهام:
+            // var bytes = Encoding.GetEncoding(1256).GetBytes(text);
+            
+            var bytes = Encoding.ASCII.GetBytes(text); 
             return SendBytesToPrinter(printerName, bytes);
         }
 
         public static bool SendBytesToPrinter(string printerName, byte[] bytes)
         {
-            if (!OpenPrinter(printerName.Normalize(), out IntPtr hPrinter, IntPtr.Zero))
+            // استخدام الـ printerName مباشرة وتجنب الـ Normalize إن لم تكن هناك حاجة لها
+            if (!OpenPrinter(printerName, out IntPtr hPrinter, IntPtr.Zero))
             {
                 Console.Error.WriteLine($"[PRINT] Failed to open printer '{printerName}'");
                 return false;
@@ -59,7 +65,7 @@ namespace PosCs.Helpers
                 var docInfo = new DOCINFO
                 {
                     pDocName = "POS Receipt",
-                    pDataType = Raw
+                    pDataType = "RAW" // نمررها بحروف كبيرة وبترميز Ansi صريح الآن
                 };
 
                 if (!StartDocPrinter(hPrinter, 1, ref docInfo))
