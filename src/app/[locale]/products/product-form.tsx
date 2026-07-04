@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input"
 import { createProduct, updateProduct } from "@/features/products/actions"
-import { Product } from "@prisma/client"
+import { Product } from "@/lib/api"
 import { toast } from "sonner"
 import { useRef } from "react"
 import { useTranslations } from "next-intl"

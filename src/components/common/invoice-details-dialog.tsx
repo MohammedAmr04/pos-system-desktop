@@ -46,19 +46,19 @@ export function InvoiceDetailsDialog({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-right">{t("item")}</TableHead>
+                <TableHead className="text-center">{t("item")}</TableHead>
                 <TableHead className="text-center">{t("qty")}</TableHead>
-                <TableHead className="text-left">{t("price")}</TableHead>
-                <TableHead className="text-left">{t("itemTotal")}</TableHead>
+                <TableHead className="text-center">{t("price")}</TableHead>
+                <TableHead className="text-center">{t("itemTotal")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.InvoiceDetail?.map((detail: any) => (
+              {invoice.invoiceDetail?.map((detail: any) => (
                 <TableRow key={detail.id}>
-                  <TableCell className="text-right">{detail.product?.name || t("unknownProduct")}</TableCell>
+                  <TableCell className="text-center">{detail.product?.name || t("unknownProduct")}</TableCell>
                   <TableCell className="text-center">{detail.quantity}</TableCell>
-                  <TableCell className="text-left">{detail.salePrice.toFixed(2)}</TableCell>
-                  <TableCell className="text-left">{(detail.salePrice * detail.quantity).toFixed(2)}</TableCell>
+                  <TableCell className="text-center">{detail.salePrice.toFixed(2)}</TableCell>
+                  <TableCell className="text-center">{(detail.salePrice * detail.quantity).toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

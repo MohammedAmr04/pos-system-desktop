@@ -1,21 +1,28 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Package, ShoppingCart, DollarSign } from "lucide-react"
-import Link from "next/link"
+import { Link } from "@/i18n/navigation"
 import { Button } from "@/components/ui/button"
-import { prisma } from "@/lib/db"
-import { getTranslations } from "next-intl/server"
+import { api } from "@/lib/api"
 
-export default async function DashboardPage() {
-  const t = await getTranslations("Dashboard")
-  const productsCount = await prisma.product.count()
-  
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const invoices = await prisma.invoice.findMany({
-    where: { createdAt: { gte: today } }
-  })
-  const revenue = invoices.reduce((acc, inv) => acc + inv.totalAmount, 0)
-  const discountGiven = invoices.reduce((acc, inv) => acc + inv.discount, 0)
+export default function DashboardPage() {
+  const t = useTranslations("Dashboard")
+  const [productsCount, setProductsCount] = useState(0)
+  const [revenue, setRevenue] = useState(0)
+  const [salesCount, setSalesCount] = useState(0)
+  const [discountGiven, setDiscountGiven] = useState(0)
+
+  useEffect(() => {
+    api.products.list().then(products => setProductsCount(products.length)).catch(() => {})
+    api.invoices.list().then(invoices => {
+      setRevenue(invoices.reduce((acc, inv) => acc + inv.totalAmount, 0))
+      setSalesCount(invoices.length)
+      setDiscountGiven(invoices.reduce((acc, inv) => acc + inv.discount, 0))
+    }).catch(() => {})
+  }, [])
 
   return (
     <div className="flex-1 space-y-4 pt-6">
@@ -38,7 +45,7 @@ export default async function DashboardPage() {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{invoices.length}</div>
+            <div className="text-2xl font-bold">+{salesCount}</div>
           </CardContent>
         </Card>
         <Card>

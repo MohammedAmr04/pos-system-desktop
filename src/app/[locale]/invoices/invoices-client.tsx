@@ -2,7 +2,7 @@
 
 import { DataTable } from "@/components/common/data-table"
 import { InvoiceDetailsDialog } from "@/components/common/invoice-details-dialog"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Eye, CalendarIcon } from "lucide-react"
 import { ColumnDef } from "@tanstack/react-table"
@@ -16,15 +16,20 @@ type InvoiceWithDetails = any
 
 interface InvoicesClientProps {
   data: InvoiceWithDetails[]
+  onRefresh?: () => void
 }
 
-export function InvoicesClient({ data: initialData }: InvoicesClientProps) {
+export function InvoicesClient({ data: initialData, onRefresh }: InvoicesClientProps) {
   const t = useTranslations("Invoices")
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithDetails | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [invoices, setInvoices] = useState<InvoiceWithDetails[]>(initialData)
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined)
   const [toDate, setToDate] = useState<Date | undefined>(undefined)
+
+  useEffect(() => {
+    setInvoices(initialData)
+  }, [initialData])
 
   const fetchFiltered = useCallback(async (from?: Date, to?: Date) => {
     const result = await getFilteredInvoices(

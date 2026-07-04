@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>PosCs</RootNamespace>
+    <AssemblyName>pos-server</AssemblyName>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <RestorePackages>true</RestorePackages>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Management" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Database\Migrations\001_init.sql">
+      <Link>Migrations\001_init.sql</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Database\Migrations\002_settings.sql">
+      <Link>Migrations\002_settings.sql</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Database\Migrations\003_add_notes.sql">
+      <Link>Migrations\003_add_notes.sql</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNet.WebApi.OwinSelfHost" Version="5.3.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.3" />
+    <PackageReference Include="Microsoft.Owin.Cors" Version="4.2.2" />
+    <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="Microsoft.Owin.StaticFiles" Version="4.2.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <Target Name="CopyNativeSqlite" AfterTargets="Build">
+    <Copy SourceFiles="$(UserProfile)\.nuget\packages\SQLitePCLRaw.lib.e_sqlite3\2.1.10\runtimes\win-x64\native\e_sqlite3.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <MakeDir Directories="$(OutDir)runtimes\win-x64\native\" />
+    <Copy SourceFiles="$(UserProfile)\.nuget\packages\SQLitePCLRaw.lib.e_sqlite3\2.1.10\runtimes\win-x64\native\e_sqlite3.dll" DestinationFolder="$(OutDir)runtimes\win-x64\native\" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

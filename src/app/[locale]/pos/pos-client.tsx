@@ -1,6 +1,6 @@
 "use client"
 
-import { Product } from "@prisma/client"
+import { Product } from "@/lib/api"
 import { usePOSStore } from "@/features/pos/store/usePOSStore"
 import { Input } from "@/components/ui/input"
 import { createInvoice } from "@/features/invoices/actions"
@@ -10,7 +10,7 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trash2, Plus, Minus, ArrowLeft } from "lucide-react"
-import Link from "next/link"
+import { Link } from "@/i18n/navigation"
 import { useTranslations } from "next-intl"
 import {
   Command,

@@ -1,6 +1,6 @@
 "use client"
 
-import { Product } from "@prisma/client"
+import { Product } from "@/lib/api"
 import { DataTable } from "@/components/common/data-table"
 import { ResponsiveSheet } from "@/components/common/responsive-sheet"
 import { ProductForm, PRODUCT_FORM_ID } from "./product-form"
@@ -23,9 +23,10 @@ import { Input } from "@/components/ui/input"
 
 interface ProductsClientProps {
   data: Product[]
+  onRefresh?: () => void
 }
 
-export function ProductsClient({ data }: ProductsClientProps) {
+export function ProductsClient({ data, onRefresh }: ProductsClientProps) {
   const t = useTranslations("Products")
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -43,6 +44,7 @@ export function ProductsClient({ data }: ProductsClientProps) {
       try {
         await deleteProduct(id)
         toast.success(t("productDeleted"))
+        if (onRefresh) onRefresh()
       } catch {
         toast.error(t("deleteError"))
       }
@@ -143,7 +145,10 @@ export function ProductsClient({ data }: ProductsClientProps) {
       >
         <ProductForm 
           initialData={editingProduct} 
-          onSuccess={() => setIsSheetOpen(false)} 
+          onSuccess={() => {
+            setIsSheetOpen(false)
+            if (onRefresh) onRefresh()
+          }} 
         />
       </ResponsiveSheet>
 

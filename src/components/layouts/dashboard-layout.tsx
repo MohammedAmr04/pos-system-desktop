@@ -1,6 +1,6 @@
 "use client"
 
-import { usePathname } from "next/navigation"
+import { usePathname } from "@/i18n/navigation"
 import { cn } from "@/lib/utils"
 import { Package, ShoppingCart, FileText, LayoutDashboard } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -14,17 +14,17 @@ const sidebarNavItems = [
   },
   {
     key: "posCheckout" as const,
-    href: "/pos",
+    href: "/pos/",
     icon: ShoppingCart,
   },
   {
     key: "products" as const,
-    href: "/products",
+    href: "/products/",
     icon: Package,
   },
   {
     key: "invoices" as const,
-    href: "/invoices",
+    href: "/invoices/",
     icon: FileText,
   },
 ]
@@ -34,7 +34,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations("Sidebar")
   const appT = useTranslations("App")
 
-  if (pathname === '/pos') {
+  if (pathname === '/pos/') {
     return <>{children}</>
   }
 

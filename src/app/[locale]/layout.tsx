@@ -1,6 +1,10 @@
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { LicenseGate } from "@/components/common/license-lock";
 
+export function generateStaticParams() {
+  return [{ locale: "ar" }]
+}
+
 export default function LocaleLayout({
   children,
 }: {
