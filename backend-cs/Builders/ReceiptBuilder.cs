@@ -18,6 +18,7 @@ namespace PosCs.Builders
     {
         public string Id { get; set; }
         public DateTime? CreatedAt { get; set; }
+        public int InvoiceNumber { get; set; }
         public double Discount { get; set; }
         public double TotalAmount { get; set; }
     }
@@ -32,11 +33,13 @@ namespace PosCs.Builders
         private readonly Font _regularFont;
         private readonly Font _boldFont;
         private readonly Font _headerFont;
+        private readonly Font _storeNameFont;
+        private readonly Font _totalFont;
         private readonly StringFormat _rtlFormat;
         private readonly StringFormat _centerFormat;
         private readonly StringFormat _ltrFormat;
 
-        public ReceiptBuilder(int width = 384)
+        public ReceiptBuilder(int width = 576) // Default 576 dots for 80mm printer
         {
             ReceiptWidth = width;
             _bitmap = new Bitmap(ReceiptWidth, 4000);
@@ -45,9 +48,11 @@ namespace PosCs.Builders
             _graphics.Clear(Color.White);
             _graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
 
-            _regularFont = new Font("Tahoma", 10, FontStyle.Regular);
-            _boldFont = new Font("Tahoma", 10, FontStyle.Bold);
-            _headerFont = new Font("Tahoma", 12, FontStyle.Bold);
+            _regularFont = new Font("Tahoma", 16, FontStyle.Regular);
+            _boldFont = new Font("Tahoma", 16, FontStyle.Bold);
+            _headerFont = new Font("Tahoma", 18, FontStyle.Bold);
+            _storeNameFont = new Font("Tahoma", 28, FontStyle.Bold);
+            _totalFont = new Font("Tahoma", 20, FontStyle.Bold);
 
             _rtlFormat = new StringFormat(StringFormatFlags.DirectionRightToLeft)
             {
@@ -77,13 +82,13 @@ namespace PosCs.Builders
                     using (Image logo = Image.FromFile(logoPath))
                     {
                         float ratio = (float)logo.Height / logo.Width;
-                        int newWidth = ReceiptWidth / 2;
+                        int newWidth = (int)(ReceiptWidth * 0.6f); // 60% of paper width
                         int newHeight = (int)(newWidth * ratio);
                         
                         int x = (ReceiptWidth - newWidth) / 2;
                         
                         _graphics.DrawImage(logo, x, _currentY, newWidth, newHeight);
-                        _currentY += newHeight + 10;
+                        _currentY += newHeight + 15;
                     }
                 }
                 catch (Exception)
@@ -95,7 +100,10 @@ namespace PosCs.Builders
 
         public void AddHeader(ReceiptInvoiceModel invoice)
         {
-            DrawStringCenter($"رقم الفاتورة: #{invoice.Id}", _headerFont);
+          
+            DrawLine();
+            
+            DrawStringCenter($"رقم الفاتورة: #{invoice.InvoiceNumber}", _headerFont);
             
             DateTime printDate = invoice.CreatedAt.HasValue ? invoice.CreatedAt.Value : DateTime.Now;
             DrawStringCenter($"التاريخ: {printDate:yyyy-MM-dd HH:mm}", _regularFont);
@@ -109,46 +117,59 @@ namespace PosCs.Builders
             {
                 double itemTotal = item.Quantity * item.SalePrice;
                 string leftText = $"{itemTotal:F2}";
-                string rightText = $"{item.Name} x{item.Quantity}";
+                string rightText = $"{item.Name} : {item.Quantity}";
 
                 DrawItemLine(rightText, leftText, _regularFont);
             }
             DrawLine();
         }
 
-        public void AddTotals(ReceiptInvoiceModel invoice)
-        {
-            if (invoice.Discount > 0)
-            {
-                DrawItemLine("الخصم:", TextFormatter.FormatCurrency(invoice.Discount), _regularFont);
-                DrawLine();
-            }
+ public void AddTotals(ReceiptInvoiceModel invoice)
+{
+    if (invoice.Discount > 0)
+    {
+        double totalBeforeDiscount = invoice.TotalAmount + invoice.Discount;
 
-            DrawItemLine("الإجمالي النهائي:", TextFormatter.FormatCurrency(invoice.TotalAmount), _boldFont);
-            DrawLine();
-        }
+        DrawLine();
+        DrawItemLine("الإجمالي قبل الخصم:", TextFormatter.FormatCurrency(totalBeforeDiscount), _regularFont);
+        
+        DrawItemLine("الخصم:", TextFormatter.FormatCurrency(invoice.Discount), _regularFont);
+        DrawLine();
+    }
+    else
+    {
+        DrawLine();
+    }
+
+    // الإجمالي النهائي (بخط عريض/كبير)
+    DrawItemLine("الإجمالي النهائي:", TextFormatter.FormatCurrency(invoice.TotalAmount), _totalFont);
+    DrawLine();
+}
 
         public void AddFooter()
         {
             DrawStringCenter("شكراً لزيارتكم!", _boldFont);
-            DrawStringCenter("Software by Antigravity", _regularFont);
+            DrawStringCenter("Software by brazilyy", _regularFont);
             _currentY += 40; // Add extra padding at the bottom for tearing
         }
 
         private void DrawItemLine(string rightRtlText, string leftLtrText, Font font)
         {
+            int margin = 15;
+            int printableWidth = ReceiptWidth - (margin * 2);
+
             // Measure right side text (Arabic)
-            SizeF rightSize = _graphics.MeasureString(rightRtlText, font, ReceiptWidth, _rtlFormat);
+            SizeF rightSize = _graphics.MeasureString(rightRtlText, font, printableWidth, _rtlFormat);
             
             // Measure left side text (Numbers/Currency)
-            SizeF leftSize = _graphics.MeasureString(leftLtrText, font, ReceiptWidth, _ltrFormat);
+            SizeF leftSize = _graphics.MeasureString(leftLtrText, font, printableWidth, _ltrFormat);
 
             // Draw right side (RTL handles Arabic shaping perfectly natively via GDI+)
-            RectangleF rightRect = new RectangleF(0, _currentY, ReceiptWidth, rightSize.Height);
+            RectangleF rightRect = new RectangleF(margin, _currentY, printableWidth, rightSize.Height);
             _graphics.DrawString(rightRtlText, font, Brushes.Black, rightRect, _rtlFormat);
 
             // Draw left side (LTR)
-            RectangleF leftRect = new RectangleF(0, _currentY, ReceiptWidth, leftSize.Height);
+            RectangleF leftRect = new RectangleF(margin, _currentY, printableWidth, leftSize.Height);
             _graphics.DrawString(leftLtrText, font, Brushes.Black, leftRect, _ltrFormat);
 
             _currentY += (int)Math.Max(rightSize.Height, leftSize.Height) + 5;
@@ -164,9 +185,9 @@ namespace PosCs.Builders
 
         private void DrawLine()
         {
-            _currentY += 5;
-            _graphics.DrawLine(Pens.Black, 10, _currentY, ReceiptWidth - 10, _currentY);
             _currentY += 10;
+            _graphics.DrawLine(Pens.Black, 15, _currentY, ReceiptWidth - 15, _currentY);
+            _currentY += 15;
         }
 
         public Bitmap GetFinishedReceipt()

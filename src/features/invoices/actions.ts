@@ -9,7 +9,7 @@ export async function getFilteredInvoices(from?: string, to?: string): Promise<I
   return api.invoices.filter(from, to)
 }
 
-export async function createInvoice(cartItems: CartItem[], discount: number): Promise<Invoice> {
+export async function createInvoice(cartItems: CartItem[], discount: number, printInvoice: boolean = true): Promise<Invoice> {
   const invoice = await api.invoices.create({
     items: cartItems.map(item => ({
       productId: item.productId,
@@ -22,10 +22,12 @@ export async function createInvoice(cartItems: CartItem[], discount: number): Pr
     discount,
   })
 
-  try {
-    await api.printing.print(invoice)
-  } catch (e) {
-    console.error("Silent printing failed, printer API might be offline")
+  if (printInvoice) {
+    try {
+      await api.printing.print(invoice)
+    } catch (e) {
+      console.error("Silent printing failed, printer API might be offline")
+    }
   }
 
   return invoice

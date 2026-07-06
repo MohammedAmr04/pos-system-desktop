@@ -56,51 +56,58 @@ namespace PosCs.Repositories
             return invoice;
         }
 
-        public Invoice Create(SqliteConnection conn, Invoice invoice, List<(string productId, int quantity, double buyPrice, double salePrice)> items)
+public Invoice Create(SqliteConnection conn, Invoice invoice, List<(string productId, int quantity, double buyPrice, double salePrice)> items)
+{
+    using (var tx = conn.BeginTransaction())
+    {
+        try
         {
-            using (var tx = conn.BeginTransaction())
+            invoice.Id = Guid.NewGuid().ToString("N");
+            invoice.CreatedAt = DateTime.Now;
+
+            // التعديل هنا: بنحسب الـ MAX(invoiceNumber) ونزود 1 تلقائياً، ولو الجدول فاضي بيبدأ من 1 بفضل COALESCE
+            conn.Execute(@"
+                INSERT INTO Invoice (id, invoiceNumber, totalAmount, discount, createdAt)
+                VALUES (
+                    @id, 
+                    (SELECT COALESCE(MAX(invoiceNumber), 0) + 1 FROM Invoice), 
+                    @totalAmount, 
+                    @discount, 
+                    @createdAt
+                )",
+                new
+                {
+                    id = invoice.Id,
+                    totalAmount = invoice.TotalAmount,
+                    discount = invoice.Discount,
+                    createdAt = invoice.CreatedAt
+                }, transaction: tx);
+
+            foreach (var item in items)
             {
-                try
-                {
-                    invoice.Id = Guid.NewGuid().ToString("N");
-                    invoice.CreatedAt = DateTime.Now;
+                var detailId = Guid.NewGuid().ToString("N");
+                conn.Execute(@"
+                    INSERT INTO InvoiceDetail (id, invoiceId, productId, quantity, buyPrice, salePrice)
+                    VALUES (@id, @invoiceId, @productId, @quantity, @buyPrice, @salePrice)",
+                    new { id = detailId, invoiceId = invoice.Id, item.productId, item.quantity, item.buyPrice, item.salePrice },
+                    transaction: tx);
 
-                    conn.Execute(@"
-                        INSERT INTO Invoice (id, totalAmount, discount, createdAt)
-                        VALUES (@id, @totalAmount, @discount, @createdAt)",
-                        new
-                        {
-                            id = invoice.Id,
-                            totalAmount = invoice.TotalAmount,
-                            discount = invoice.Discount,
-                            createdAt = invoice.CreatedAt
-                        }, transaction: tx);
-
-                    foreach (var item in items)
-                    {
-                        var detailId = Guid.NewGuid().ToString("N");
-                        conn.Execute(@"
-                            INSERT INTO InvoiceDetail (id, invoiceId, productId, quantity, buyPrice, salePrice)
-                            VALUES (@id, @invoiceId, @productId, @quantity, @buyPrice, @salePrice)",
-                            new { id = detailId, invoiceId = invoice.Id, item.productId, item.quantity, item.buyPrice, item.salePrice },
-                            transaction: tx);
-
-                        conn.Execute(@"
-                            UPDATE Product SET stockQuantity = stockQuantity - @qty
-                            WHERE id = @productId AND stockQuantity >= @qty",
-                            new { qty = item.quantity, productId = item.productId },
-                            transaction: tx);
-                    }
-
-                    tx.Commit();
-                    return GetById(conn, invoice.Id);
-                }
-                catch
-                {
-                    tx.Rollback();
-                    throw;
-                }
+                conn.Execute(@"
+                    UPDATE Product SET stockQuantity = stockQuantity - @qty
+                    WHERE id = @productId AND stockQuantity >= @qty",
+                    new { qty = item.quantity, productId = item.productId },
+                    transaction: tx);
             }
+
+            tx.Commit();
+            return GetById(conn, invoice.Id);
         }
+        catch
+        {
+            tx.Rollback();
+            throw;
+        }
+    }
+}
     }
 }

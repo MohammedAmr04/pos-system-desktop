@@ -49,7 +49,11 @@ namespace PosCs.Controllers
                     builder.AddLogo(logoFile);
 
                     // 2. Header
-                    builder.AddHeader(new Builders.ReceiptInvoiceModel { Id = invoice.Id ?? invoice.InvoiceNumber, CreatedAt = invoice.CreatedAt });
+                    builder.AddHeader(new Builders.ReceiptInvoiceModel { 
+                        Id = invoice.Id, 
+                        CreatedAt = invoice.CreatedAt,
+                        InvoiceNumber = invoice.InvoiceNumber
+                    });
 
                     // 3. Items
                     var productItems = items.Select(i => new Builders.ReceiptItemModel { Name = i.Name, Quantity = i.Quantity, SalePrice = i.SalePrice }).ToList();
@@ -193,7 +197,7 @@ namespace PosCs.Controllers
     public class InvoiceData
     {
         public string Id { get; set; }
-        public string InvoiceNumber { get; set; }
+        public int InvoiceNumber { get; set; }
         public double TotalAmount { get; set; }
         public double Discount { get; set; }
         public DateTime? CreatedAt { get; set; }

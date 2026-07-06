@@ -6,7 +6,7 @@ namespace PosCs.Printers
 {
     public class ImagePrinter
     {
-        public static byte[] GetImageBytes(Bitmap bitmap, int idealWidth = 384)
+        public static byte[] GetImageBytes(Bitmap bitmap, int idealWidth = 576)
         {
             if (bitmap == null) return new byte[0];
 

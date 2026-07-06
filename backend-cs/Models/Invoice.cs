@@ -9,6 +9,7 @@ namespace PosCs.Models
         public double TotalAmount { get; set; }
         public double Discount { get; set; }
         public DateTime CreatedAt { get; set; }
+        public int InvoiceNumber { get; set; }
 
         [Newtonsoft.Json.JsonProperty("InvoiceDetail")]
         public List<InvoiceDetail> InvoiceDetail { get; set; } = new List<InvoiceDetail>();

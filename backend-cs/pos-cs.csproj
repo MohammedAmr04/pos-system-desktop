@@ -11,16 +11,8 @@
     <Reference Include="System.Management" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Database\Migrations\001_init.sql">
-      <Link>Migrations\001_init.sql</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Database\Migrations\002_settings.sql">
-      <Link>Migrations\002_settings.sql</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="Database\Migrations\003_add_notes.sql">
-      <Link>Migrations\003_add_notes.sql</Link>
+    <None Include="Database\Migrations\*.sql">
+      <Link>Migrations\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

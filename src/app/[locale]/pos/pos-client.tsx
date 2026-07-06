@@ -109,6 +109,24 @@ export function POSClient({ products }: { products: Product[] }) {
       setIsCheckingOut(false)
     }
   }, [cartItems, discount, discountType, t, clearCart])
+  const handleCheckoutWithoutSave = useCallback(async () => {
+    if (cartItems.length === 0) return
+    setIsCheckingOut(true)
+    try {
+      const s = cartItems.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
+      const effectiveDiscount = discountType === 'percentage'
+        ? s * (discount / 100)
+        : discount
+      await createInvoice(cartItems, effectiveDiscount, false)
+      toast.success(t("checkoutSuccess"))
+      paidTouched.current = false
+      clearCart()
+    } catch (e) {
+      toast.error(t("checkoutFailed"))
+    } finally {
+      setIsCheckingOut(false)
+    }
+  }, [cartItems, discount, discountType, t, clearCart])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -128,6 +146,11 @@ export function POSClient({ products }: { products: Product[] }) {
         discountInputRef.current?.select()
         return
       }
+if (e.key === 'F11' && canCheckout) {
+  e.preventDefault()
+  handleCheckoutWithoutSave()
+  return
+}
 
       if ((e.key === 'F12' || (e.ctrlKey && e.key === 'Enter')) && canCheckout) {
         e.preventDefault()
@@ -370,18 +393,28 @@ export function POSClient({ products }: { products: Product[] }) {
             </div>
 
             <div className="grid grid-cols-2 gap-4 mt-8">
-              <Button variant="outline" className="h-16 text-lg" onClick={() => {
-                paidTouched.current = false
-                clearCart()
-              }}>
-                {t("clear")}
-              </Button>
+             
+              <Button className="h-16 text-lg" size="lg" onClick={handleCheckoutWithoutSave} disabled={isCheckingOut || !canCheckout}>
+                {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t("save")}
+      <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
+  F11
+</kbd>
+                              </Button>
+
               <Button className="h-16 text-lg" size="lg" onClick={handleCheckout} disabled={isCheckingOut || !canCheckout}>
                 {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t("saveAndPrint")}
                 <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
                   F12
                 </kbd>
+                              </Button>
+
+                 <Button variant="outline" className="h-16 col-span-2 text-lg" onClick={() => {
+                paidTouched.current = false
+                clearCart()
+              }}>
+                {t("clear")}
               </Button>
             </div>
           </CardContent>
