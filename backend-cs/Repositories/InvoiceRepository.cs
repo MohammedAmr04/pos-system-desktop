@@ -56,7 +56,7 @@ namespace PosCs.Repositories
             return invoice;
         }
 
-public Invoice Create(SqliteConnection conn, Invoice invoice, List<(string productId, int quantity, double buyPrice, double salePrice)> items)
+public Invoice Create(SqliteConnection conn, Invoice invoice, List<(string productId, int quantity, double buyPrice, double salePrice, double discountAmount)> items)
 {
     using (var tx = conn.BeginTransaction())
     {
@@ -65,14 +65,16 @@ public Invoice Create(SqliteConnection conn, Invoice invoice, List<(string produ
             invoice.Id = Guid.NewGuid().ToString("N");
             invoice.CreatedAt = DateTime.Now;
 
-            // التعديل هنا: بنحسب الـ MAX(invoiceNumber) ونزود 1 تلقائياً، ولو الجدول فاضي بيبدأ من 1 بفضل COALESCE
             conn.Execute(@"
-                INSERT INTO Invoice (id, invoiceNumber, totalAmount, discount, createdAt)
+                INSERT INTO Invoice (id, invoiceNumber, totalAmount, discount, discountType, discountValue, discountAmount, createdAt)
                 VALUES (
                     @id, 
                     (SELECT COALESCE(MAX(invoiceNumber), 0) + 1 FROM Invoice), 
                     @totalAmount, 
                     @discount, 
+                    @discountType,
+                    @discountValue,
+                    @discountAmount,
                     @createdAt
                 )",
                 new
@@ -80,6 +82,9 @@ public Invoice Create(SqliteConnection conn, Invoice invoice, List<(string produ
                     id = invoice.Id,
                     totalAmount = invoice.TotalAmount,
                     discount = invoice.Discount,
+                    discountType = invoice.DiscountType,
+                    discountValue = invoice.DiscountValue,
+                    discountAmount = invoice.DiscountAmount,
                     createdAt = invoice.CreatedAt
                 }, transaction: tx);
 
@@ -87,9 +92,9 @@ public Invoice Create(SqliteConnection conn, Invoice invoice, List<(string produ
             {
                 var detailId = Guid.NewGuid().ToString("N");
                 conn.Execute(@"
-                    INSERT INTO InvoiceDetail (id, invoiceId, productId, quantity, buyPrice, salePrice)
-                    VALUES (@id, @invoiceId, @productId, @quantity, @buyPrice, @salePrice)",
-                    new { id = detailId, invoiceId = invoice.Id, item.productId, item.quantity, item.buyPrice, item.salePrice },
+                    INSERT INTO InvoiceDetail (id, invoiceId, productId, quantity, buyPrice, salePrice, discountAmount)
+                    VALUES (@id, @invoiceId, @productId, @quantity, @buyPrice, @salePrice, @discountAmount)",
+                    new { id = detailId, invoiceId = invoice.Id, item.productId, item.quantity, item.buyPrice, item.salePrice, discountAmount = item.discountAmount },
                     transaction: tx);
 
                 conn.Execute(@"

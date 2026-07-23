@@ -9,7 +9,13 @@ export async function getFilteredInvoices(from?: string, to?: string): Promise<I
   return api.invoices.filter(from, to)
 }
 
-export async function createInvoice(cartItems: CartItem[], discount: number, printInvoice: boolean = true): Promise<Invoice> {
+export async function createInvoice(
+  cartItems: CartItem[],
+  discount: number,
+  printInvoice: boolean = true,
+  discountType?: string,
+  discountValue?: number
+): Promise<Invoice> {
   const invoice = await api.invoices.create({
     items: cartItems.map(item => ({
       productId: item.productId,
@@ -18,8 +24,11 @@ export async function createInvoice(cartItems: CartItem[], discount: number, pri
       salePrice: item.salePrice,
       quantity: item.quantity,
       maxStock: item.maxStock,
+      allowDiscount: item.allowDiscount,
     })),
     discount,
+    discountType,
+    discountValue,
   })
 
   if (printInvoice) {

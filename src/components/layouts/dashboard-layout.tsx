@@ -2,7 +2,7 @@
 
 import { usePathname } from "@/i18n/navigation"
 import { cn } from "@/lib/utils"
-import { Package, ShoppingCart, FileText, LayoutDashboard } from "lucide-react"
+import { Package, ShoppingCart, FileText, LayoutDashboard, AlertTriangle } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
 
@@ -26,6 +26,11 @@ const sidebarNavItems = [
     key: "invoices" as const,
     href: "/invoices/",
     icon: FileText,
+  },
+  {
+    key: "lowStock" as const,
+    href: "/low-stock/",
+    icon: AlertTriangle,
   },
 ]
 

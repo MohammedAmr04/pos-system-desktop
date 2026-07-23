@@ -11,6 +11,8 @@ namespace PosCs.Models
         public double SalePrice { get; set; }
         public int StockQuantity { get; set; }
         public string Notes { get; set; }
+        public bool AllowDiscount { get; set; } = true;
+        public int LowStockThreshold { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

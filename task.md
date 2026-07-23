@@ -1,268 +1,313 @@
-You are a senior full-stack engineer specializing in:
+# Smart Discount & Low Stock Feature Implementation
 
-- Next.js App Router
-- next-intl
-- React Query / SWR
-- C#
-- Dapper
-- SQLite
-- REST API design
+## Goal
 
-The Node.js backend has been migrated to a native C# backend.
+Implement a new feature for the POS system that introduces:
 
-Your task is to perform a complete API compatibility audit.
+- Product discount eligibility.
+- Product low stock threshold.
+- Safe discount calculation.
+- Profit protection.
+- Frontend validation.
+- Backend validation.
+- Database migration.
 
-The frontend must require ZERO modifications after the migration.
+This feature affects Database, Backend, Business Logic, API, and Frontend.
 
-Treat the original frontend as the source of truth.
+---
 
-Do not implement temporary fixes.
+# Business Requirements
 
---------------------------------------------------
-Phase 1 — Explore
---------------------------------------------------
+## Product Discount Eligibility
 
-Explore the entire frontend.
+Each product must contain a flag:
 
-Identify every API request.
+```
+allowDiscount
+```
 
-For every endpoint record:
+Meaning:
 
-- URL
-- HTTP Method
-- Request Body
-- Query Parameters
-- Response Shape
-- Expected JSON Contract
+- true → Product participates in invoice discounts.
+- false → Product is excluded from all invoice discounts.
 
-Then inspect the C# implementation for the same endpoint.
+Example:
 
---------------------------------------------------
-Phase 2 — Contract Comparison
---------------------------------------------------
+Invoice
 
-Compare every endpoint between:
+- Coke → 100 (allow discount)
+- Water → 200 (allow discount)
+- Cigarettes → 100 (NOT allow discount)
 
-Frontend expectations
+Invoice Total = 400
 
-vs
+If cashier enters
 
-C# backend responses.
+10%
 
-Verify:
+Discount must be calculated only on
 
-- property names
-- nesting
-- arrays
-- object structure
-- nullable values
-- date format
-- number format
-- boolean values
-- enum values
-- camelCase
-- response wrappers
-- pagination
-- metadata
+300
 
-The frontend should never need to transform backend data.
+NOT on
 
-Restore the original API contract whenever differences are found.
+400
 
---------------------------------------------------
-Phase 3 — DTO Validation
---------------------------------------------------
+---
 
-Inspect:
+# Profit Protection
 
-Controllers
+The system must never allow selling below cost price.
 
-Repositories
+For every discounted product:
 
-Models
+Final Unit Price >= Buy Price
 
-DTOs
+If any product violates this rule:
 
-Mapping logic
+Reject the invoice.
 
-Manual mapping
+Example:
 
-Ensure every response DTO exactly matches what the frontend expects.
+Buy Price = 95
+Sale Price = 100
 
---------------------------------------------------
-Phase 4 — CRUD Validation
---------------------------------------------------
+Cashier enters
 
-Test every CRUD flow.
+10%
 
-Products
+Reject because selling price becomes lower than buy price.
 
-Categories
+This validation MUST exist in:
 
-Invoices
+- Backend (Required)
+- Frontend (UX)
 
-Invoice Details
+Frontend validation is only for user experience.
+Backend validation is mandatory.
 
-Settings
+---
 
-POS
+# Low Stock Threshold
 
-License
+Each product must contain:
 
-Any remaining modules.
+```
+lowStockThreshold
+```
 
-For every operation verify:
+Instead of using a hardcoded value.
 
-Create
+Example
 
-Update
+Current Stock = 7
 
-Delete
+Threshold = 10
 
-List
+Product should appear in Low Stock Report.
 
-Details
+---
 
-Search
+# Discount Calculation
 
-Pagination
+Discount Types
 
-Filters
+- Percentage
+- Fixed Amount
 
---------------------------------------------------
-Phase 5 — Automatic Refresh
---------------------------------------------------
+Both must support the new business rules.
 
-After every successful mutation verify that the UI refreshes correctly.
+---
 
-Examples:
+## Percentage Discount
 
-Create Product
+Only discountable products participate.
 
-↓
+Formula:
 
-Product list refreshes automatically
+Eligible Total =
+Sum(products where allowDiscount == true)
 
-Update Product
+Discount =
+Eligible Total × Percentage
 
-↓
+---
 
-Table refreshes automatically
+## Fixed Amount Discount
 
-Delete Product
+Only discountable products participate.
 
-↓
+If the entered discount exceeds the eligible amount:
 
-Table refreshes automatically
+Reject.
 
-Create Invoice
+---
 
-↓
+# Internal Discount Distribution
 
-Invoices list refreshes automatically
+Although the cashier applies discount to the whole invoice,
+the backend must distribute the discount internally across eligible invoice lines proportionally.
 
-Any mutation should update the UI without requiring a manual browser refresh.
+Example
 
-Inspect:
+Product A = 300
+Product B = 200
 
-React Query
+Eligible Total = 500
 
-SWR
+Discount = 50
 
-Server Actions
+Distribution
 
-fetch()
+A receives 30
 
-custom hooks
+B receives 20
 
-cache invalidation
+Store the distributed discount in InvoiceDetail.
 
-router.refresh()
+---
 
-query invalidation
+# Database Changes
 
-revalidation
+## Product
 
-state updates
+Add
 
-Find why the UI remains stale after requests.
+allowDiscount BOOLEAN NOT NULL DEFAULT TRUE
 
-Fix the root cause.
+lowStockThreshold INTEGER NOT NULL DEFAULT 0
 
-Do not use window.location.reload().
+---
 
---------------------------------------------------
-Phase 6 — Invoice Details
---------------------------------------------------
+## Invoice
 
-Investigate why invoice details are not rendered.
+Add
 
-The backend returns the data.
+discountType
+discountValue
+discountAmount
 
-The modal opens.
+discountType
 
-Totals appear.
+Percentage
+Fixed
 
-Products are missing.
+discountValue
 
-Compare the returned JSON with the frontend expectations.
+User entered value.
 
-Restore compatibility.
+discountAmount
 
---------------------------------------------------
-Phase 7 — Validation
---------------------------------------------------
+Actual applied discount after calculations.
 
-Run the application.
+---
 
-Test every page manually.
+## InvoiceDetail
 
-Verify:
+Add
 
-Products
+discountAmount REAL NOT NULL DEFAULT 0
 
-Invoices
+This is required for:
 
-Invoice Details
+- Profit Reports
+- Returns
+- Invoice Details
+- Future Analytics
 
-POS
+---
 
-Dashboard
+# Backend
 
-Settings
+Update:
 
-Search
+- Invoice Calculation Service
+- Discount Engine
+- Validation Layer
+- Product DTO
+- Product Create API
+- Product Update API
+- Invoice APIs
+- Reports
 
-Create
+Backend validations
 
-Edit
+✓ Ignore non-discountable products.
 
-Delete
+✓ Never sell below buy price.
 
-Everything should behave exactly like the original Node.js backend.
+✓ Reject invalid discount.
 
---------------------------------------------------
-Final Report
---------------------------------------------------
+✓ Reject discount larger than eligible total.
 
-Provide:
+---
 
-• API contract mismatches found
+# Frontend
 
-• DTO mismatches
+Update Product Form
 
-• Mapping issues
+New fields
 
-• CRUD issues
+- Allow Discount (Switch)
+- Low Stock Threshold (Number)
 
-• Cache invalidation issues
+---
 
-• Refresh issues
+Update Invoice Screen
 
-• Invoice Details fixes
+Before submitting invoice
 
-• Files modified
+Validate:
 
-• Validation performed
+- Discount does not exceed allowed profit.
+- Discount does not exceed eligible amount.
 
-Do not stop until the frontend behaves identically to the original Express + Prisma implementation while using the native C# backend.
+Show friendly Arabic error messages.
+
+---
+
+Invoice UI
+
+Discount should still appear as Invoice Discount.
+
+Cashier should not notice the internal discount distribution.
+
+---
+
+Reports
+
+Low Stock Report
+
+Must use
+
+lowStockThreshold
+
+instead of any hardcoded value.
+
+---
+
+Testing
+
+Cover:
+
+- Products allowing discount
+- Products not allowing discount
+- Mixed invoices
+- Percentage discounts
+- Fixed discounts
+- Profit protection
+- Low stock
+- Returns after discount
+- Invoice details correctness
+
+---
+
+Rules
+
+- Do not break existing APIs.
+- Keep backward compatibility.
+- Keep code reusable.
+- Use SOLID principles.
+- Update all documentation.
+- Add database migration.
+- Update seed data if needed.

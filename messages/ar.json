@@ -38,7 +38,10 @@
     "amountPaid": "المدفوع",
     "changeDue": "الباقي",
     "totalDue": "المطلوب",
-    "insufficientPayment": "المبلغ المدفوع أقل من المطلوب"
+    "insufficientPayment": "المبلغ المدفوع أقل من المطلوب",
+    "noDiscount": "بدون خصم",
+    "discountExceedsEligible": "الخصم يتجاوز المبلغ المسموح به للخصم",
+    "profitProtectionError": "لا يمكن البيع بأقل من سعر الشراء"
   },
   "Products": {
     "title": "المنتجات",
@@ -51,6 +54,8 @@
     "salePrice": "سعر البيع",
     "notes":"ملاحظات",
     "stockQuantity": "كمية المخزون",
+    "allowDiscount": "السماح بالخصم",
+    "lowStockThreshold": "حد المخزون المنخفض",
     "actions": "الإجراءات",
     "stock": "المخزون",
     "printBarcode": "طباعة باركود",
@@ -101,7 +106,8 @@
     "dashboard": "لوحة التحكم",
     "posCheckout": "نقطة البيع",
     "products": "المنتجات",
-    "invoices": "الفواتير"
+    "invoices": "الفواتير",
+    "lowStock": "المخزون المنخفض"
   },
   "License": {
     "tamperDetected": "تم اكتشاف تلاعب في وقت النظام",
@@ -119,5 +125,14 @@
     "next": "التالي",
     "noResults": "لا توجد نتائج",
     "close": "إغلاق"
+  },
+  "LowStock": {
+    "title": "المخزون المنخفض",
+    "productName": "اسم المنتج",
+    "barcode": "الباركود",
+    "currentStock": "المخزون الحالي",
+    "threshold": "الحد الأدنى",
+    "salePrice": "سعر البيع",
+    "empty": "لا توجد منتجات بمخزون منخفض"
   }
 }

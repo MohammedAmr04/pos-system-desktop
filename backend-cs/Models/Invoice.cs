@@ -8,6 +8,9 @@ namespace PosCs.Models
         public string Id { get; set; }
         public double TotalAmount { get; set; }
         public double Discount { get; set; }
+        public string DiscountType { get; set; }
+        public double DiscountValue { get; set; }
+        public double DiscountAmount { get; set; }
         public DateTime CreatedAt { get; set; }
         public int InvoiceNumber { get; set; }
 
@@ -23,6 +26,7 @@ namespace PosCs.Models
         public int Quantity { get; set; }
         public double BuyPrice { get; set; }
         public double SalePrice { get; set; }
+        public double DiscountAmount { get; set; }
         public Product Product { get; set; }
     }
 }

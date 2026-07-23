@@ -53,8 +53,8 @@ namespace PosCs.Repositories
                 $"Notes='{product.Notes}', CreatedAt={product.CreatedAt:O}, UpdatedAt={product.UpdatedAt:O}");
 
             conn.Execute(@"
-                INSERT INTO Product (id, barcode, name, buyPrice, salePrice, stockQuantity, notes, createdAt, updatedAt)
-                VALUES (@id, @barcode, @name, @buyPrice, @salePrice, @stockQuantity, @notes, @createdAt, @updatedAt)",
+                INSERT INTO Product (id, barcode, name, buyPrice, salePrice, stockQuantity, notes, allowDiscount, lowStockThreshold, createdAt, updatedAt)
+                VALUES (@id, @barcode, @name, @buyPrice, @salePrice, @stockQuantity, @notes, @allowDiscount, @lowStockThreshold, @createdAt, @updatedAt)",
                 new
                 {
                     id = product.Id,
@@ -64,6 +64,8 @@ namespace PosCs.Repositories
                     salePrice = product.SalePrice,
                     stockQuantity = product.StockQuantity,
                     notes = product.Notes,
+                    allowDiscount = product.AllowDiscount ? 1 : 0,
+                    lowStockThreshold = product.LowStockThreshold,
                     createdAt = product.CreatedAt,
                     updatedAt = product.UpdatedAt
                 });
@@ -83,6 +85,7 @@ namespace PosCs.Repositories
             conn.Execute(@"
                 UPDATE Product SET barcode=@barcode, name=@name, buyPrice=@buyPrice,
                     salePrice=@salePrice, stockQuantity=@stockQuantity, notes=@notes,
+                    allowDiscount=@allowDiscount, lowStockThreshold=@lowStockThreshold,
                     updatedAt=@updatedAt
                 WHERE id=@id",
                 new
@@ -94,6 +97,8 @@ namespace PosCs.Repositories
                     salePrice = product.SalePrice,
                     stockQuantity = product.StockQuantity,
                     notes = product.Notes,
+                    allowDiscount = product.AllowDiscount ? 1 : 0,
+                    lowStockThreshold = product.LowStockThreshold,
                     updatedAt = product.UpdatedAt
                 });
         }

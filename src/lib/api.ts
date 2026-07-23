@@ -20,6 +20,8 @@ export interface Product {
   salePrice: number
   stockQuantity: number
   notes: string | null
+  allowDiscount: boolean
+  lowStockThreshold: number
   createdAt: string
   updatedAt: string
 }
@@ -28,6 +30,9 @@ export interface Invoice {
   id: string
   totalAmount: number
   discount: number
+  discountType: string | null
+  discountValue: number
+  discountAmount: number
   createdAt: string
   invoiceDetail?: InvoiceDetail[]
   InvoiceDetail?: InvoiceDetail[]
@@ -40,6 +45,7 @@ export interface InvoiceDetail {
   quantity: number
   buyPrice: number
   salePrice: number
+  discountAmount: number
   product: Product | null
 }
 
@@ -72,8 +78,13 @@ export const api = {
       const qs = params.toString()
       return request<Invoice[]>(`/api/invoices/filter${qs ? '?' + qs : ''}`)
     },
-    create: (data: { items: { productId: string; name: string; buyPrice: number; salePrice: number; quantity: number; maxStock: number }[]; discount: number }) =>
+    create: (data: { items: { productId: string; name: string; buyPrice: number; salePrice: number; quantity: number; maxStock: number; allowDiscount: boolean }[]; discount: number; discountType?: string; discountValue?: number }) =>
       request<Invoice>('/api/invoices', { method: 'POST', body: JSON.stringify(data) }),
+  },
+
+  // Reports
+  reports: {
+    lowStock: () => request<Product[]>('/api/reports/low-stock'),
   },
 
   // License

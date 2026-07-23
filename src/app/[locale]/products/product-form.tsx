@@ -26,6 +26,8 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
       salePrice: parseFloat(formData.get("salePrice") as string),
       stockQuantity: parseInt(formData.get("stockQuantity") as string, 10),
       notes: formData.get("notes") as string || null,
+      allowDiscount: formData.get("allowDiscount") === "on",
+      lowStockThreshold: parseInt(formData.get("lowStockThreshold") as string, 10) || 0,
     }
 
     try {
@@ -66,6 +68,23 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("stockQuantity")} *</label>
         <Input name="stockQuantity" type="number" defaultValue={initialData?.stockQuantity} required />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{t("lowStockThreshold")}</label>
+          <Input name="lowStockThreshold" type="number" min="0" defaultValue={initialData?.lowStockThreshold ?? 0} />
+        </div>
+        <div className="space-y-2 flex items-end pb-1">
+          <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+            <input
+              type="checkbox"
+              name="allowDiscount"
+              defaultChecked={initialData?.allowDiscount ?? true}
+              className="h-4 w-4 rounded border-input"
+            />
+            {t("allowDiscount")}
+          </label>
+        </div>
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("notes")}</label>

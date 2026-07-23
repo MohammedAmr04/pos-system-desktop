@@ -49,6 +49,7 @@ export function InvoiceDetailsDialog({
                 <TableHead className="text-center">{t("item")}</TableHead>
                 <TableHead className="text-center">{t("qty")}</TableHead>
                 <TableHead className="text-center">{t("price")}</TableHead>
+                <TableHead className="text-center">{t("discount")}</TableHead>
                 <TableHead className="text-center">{t("itemTotal")}</TableHead>
               </TableRow>
             </TableHeader>
@@ -58,7 +59,10 @@ export function InvoiceDetailsDialog({
                   <TableCell className="text-center">{detail.product?.name || t("unknownProduct")}</TableCell>
                   <TableCell className="text-center">{detail.quantity}</TableCell>
                   <TableCell className="text-center">{detail.salePrice.toFixed(2)}</TableCell>
-                  <TableCell className="text-center">{(detail.salePrice * detail.quantity).toFixed(2)}</TableCell>
+                  <TableCell className="text-center">
+                    {detail.discountAmount > 0 ? `-${detail.discountAmount.toFixed(2)}` : "0.00"}
+                  </TableCell>
+                  <TableCell className="text-center">{((detail.salePrice * detail.quantity) - (detail.discountAmount || 0)).toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

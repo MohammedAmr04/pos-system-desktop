@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { createInvoice } from "@/features/invoices/actions"
 import { toast } from "sonner"
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, Ban } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trash2, Plus, Minus, ArrowLeft } from "lucide-react"
@@ -56,10 +56,15 @@ export function POSClient({ products }: { products: Product[] }) {
   const paidTouched = useRef(false)
 
   const subtotal = cartItems.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
+  const eligibleSubtotal = cartItems
+    .filter(item => item.allowDiscount)
+    .reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
 
-  const total = discountType === 'fixed'
-    ? Math.max(0, subtotal - discount)
-    : Math.max(0, subtotal * (1 - discount / 100))
+  const effectiveDiscount = discountType === 'percentage'
+    ? Math.round(eligibleSubtotal * (discount / 100) * 100) / 100
+    : Math.min(discount, eligibleSubtotal)
+
+  const total = Math.max(0, subtotal - effectiveDiscount)
 
   const changeDue = Math.max(0, amountPaid - total)
   const canCheckout = cartItems.length > 0 && amountPaid >= total
@@ -91,15 +96,45 @@ export function POSClient({ products }: { products: Product[] }) {
     triggerRef.current?.focus()
   }, [addItem, setSearchQuery])
 
+  const validateDiscount = useCallback((): string | null => {
+    if (discount <= 0 || (discountType === 'percentage' && discount > 100)) return null
+    if (discountType === 'fixed' && discount > eligibleSubtotal) {
+      return t("discountExceedsEligible")
+    }
+    if (discountType === 'percentage') {
+      for (const item of cartItems) {
+        if (!item.allowDiscount) continue
+        const lineTotal = item.salePrice * item.quantity
+        const lineDiscount = Math.round(lineTotal * (discount / 100) * 100) / 100
+        const effectivePrice = item.quantity > 0 ? (lineTotal - lineDiscount) / item.quantity : item.salePrice
+        if (effectivePrice < item.buyPrice) {
+          return t("profitProtectionError")
+        }
+      }
+    } else if (discountType === 'fixed' && discount > 0 && eligibleSubtotal > 0) {
+      for (const item of cartItems) {
+        if (!item.allowDiscount) continue
+        const lineTotal = item.salePrice * item.quantity
+        const lineDiscount = Math.round(discount * (lineTotal / eligibleSubtotal) * 100) / 100
+        const effectivePrice = item.quantity > 0 ? (lineTotal - lineDiscount) / item.quantity : item.salePrice
+        if (effectivePrice < item.buyPrice) {
+          return t("profitProtectionError")
+        }
+      }
+    }
+    return null
+  }, [cartItems, discount, discountType, eligibleSubtotal, t])
+
   const handleCheckout = useCallback(async () => {
     if (cartItems.length === 0) return
+    const validationError = validateDiscount()
+    if (validationError) {
+      toast.error(validationError)
+      return
+    }
     setIsCheckingOut(true)
     try {
-      const s = cartItems.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
-      const effectiveDiscount = discountType === 'percentage'
-        ? s * (discount / 100)
-        : discount
-      await createInvoice(cartItems, effectiveDiscount)
+      await createInvoice(cartItems, effectiveDiscount, true, discountType || undefined, discount || undefined)
       toast.success(t("checkoutSuccess"))
       paidTouched.current = false
       clearCart()
@@ -108,16 +143,18 @@ export function POSClient({ products }: { products: Product[] }) {
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, discount, discountType, t, clearCart])
+  }, [cartItems, effectiveDiscount, discount, discountType, validateDiscount, t, clearCart])
+
   const handleCheckoutWithoutSave = useCallback(async () => {
     if (cartItems.length === 0) return
+    const validationError = validateDiscount()
+    if (validationError) {
+      toast.error(validationError)
+      return
+    }
     setIsCheckingOut(true)
     try {
-      const s = cartItems.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
-      const effectiveDiscount = discountType === 'percentage'
-        ? s * (discount / 100)
-        : discount
-      await createInvoice(cartItems, effectiveDiscount, false)
+      await createInvoice(cartItems, effectiveDiscount, false, discountType || undefined, discount || undefined)
       toast.success(t("checkoutSuccess"))
       paidTouched.current = false
       clearCart()
@@ -126,7 +163,7 @@ export function POSClient({ products }: { products: Product[] }) {
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, discount, discountType, t, clearCart])
+  }, [cartItems, effectiveDiscount, discount, discountType, validateDiscount, t, clearCart])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -167,7 +204,7 @@ if (e.key === 'F11' && canCheckout) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, handleCheckout, toggleDiscountType, canCheckout])
+  }, [open, handleCheckout, handleCheckoutWithoutSave, toggleDiscountType, canCheckout])
 
   return (
     <div className="flex h-full flex-col lg:flex-row gap-4 p-4 lg:p-6 bg-muted/40">
@@ -264,7 +301,15 @@ if (e.key === 'F11' && canCheckout) {
                 {cartItems.map((item) => (
                   <div key={item.id} className="flex items-center justify-between border-b pb-4 gap-4">
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-lg font-semibold truncate">{item.name}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-lg font-semibold truncate">{item.name}</h4>
+                        {!item.allowDiscount && (
+                          <span className="shrink-0 inline-flex items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
+                            <Ban className="h-3 w-3" />
+                            {t("noDiscount")}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-base text-muted-foreground">{item.salePrice.toFixed(2)} {t("each")}</p>
                     </div>
                     <div className="flex items-center gap-4 shrink-0">

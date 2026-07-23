@@ -60,7 +60,9 @@ namespace PosCs.Controllers
                         BuyPrice = dto.BuyPrice,
                         SalePrice = dto.SalePrice,
                         StockQuantity = dto.StockQuantity,
-                        Notes = dto.Notes
+                        Notes = dto.Notes,
+                        AllowDiscount = dto.AllowDiscount,
+                        LowStockThreshold = dto.LowStockThreshold
                     });
 
                     Console.WriteLine($"[API] Created product: {product.Id} ({product.Name})");
@@ -95,6 +97,10 @@ namespace PosCs.Controllers
                     existing.SalePrice = dto.SalePrice;
                     existing.StockQuantity = dto.StockQuantity;
                     existing.Notes = dto.Notes ?? existing.Notes;
+                    if (dto.AllowDiscount.HasValue)
+                        existing.AllowDiscount = dto.AllowDiscount.Value;
+                    if (dto.LowStockThreshold.HasValue)
+                        existing.LowStockThreshold = dto.LowStockThreshold.Value;
 
                     _repo.Update(conn, existing);
 
@@ -140,6 +146,8 @@ namespace PosCs.Controllers
         public double SalePrice { get; set; }
         public int StockQuantity { get; set; }
         public string Notes { get; set; }
+        public bool AllowDiscount { get; set; } = true;
+        public int LowStockThreshold { get; set; }
     }
 
     public class UpdateProductDto
@@ -150,5 +158,7 @@ namespace PosCs.Controllers
         public double SalePrice { get; set; }
         public int StockQuantity { get; set; }
         public string Notes { get; set; }
+        public bool? AllowDiscount { get; set; }
+        public int? LowStockThreshold { get; set; }
     }
 }

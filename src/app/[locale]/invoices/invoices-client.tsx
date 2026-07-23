@@ -105,7 +105,11 @@ export function InvoicesClient({ data: initialData, onRefresh }: InvoicesClientP
     {
       accessorKey: "discount",
       header: t("discount"),
-      cell: ({ row }) => `${row.original.discount.toFixed(2)}`
+      cell: ({ row }) => {
+        const inv = row.original
+        const type = inv.discountType === 'percentage' ? '%' : inv.discountType === 'fixed' ? '' : ''
+        return `${inv.discount.toFixed(2)}${type}`
+      }
     },
     {
       id: "actions",

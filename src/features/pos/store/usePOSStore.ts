@@ -8,6 +8,7 @@ export interface CartItem {
   salePrice: number
   quantity: number
   maxStock: number
+  allowDiscount: boolean
 }
 
 interface POSStore {
@@ -16,7 +17,7 @@ interface POSStore {
   discountType: 'fixed' | 'percentage'
   searchQuery: string
   setSearchQuery: (query: string) => void
-  addItem: (product: { id: string, name: string, buyPrice: number, salePrice: number, stockQuantity: number }) => void
+  addItem: (product: { id: string, name: string, buyPrice: number, salePrice: number, stockQuantity: number, allowDiscount?: boolean }) => void
   removeItem: (id: string) => void
   updateQuantity: (id: string, quantity: number) => void
   setDiscount: (discount: number) => void
@@ -59,6 +60,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
               salePrice: product.salePrice,
               quantity: 1,
               maxStock: product.stockQuantity,
+              allowDiscount: product.allowDiscount ?? true,
             },
           ],
         })
