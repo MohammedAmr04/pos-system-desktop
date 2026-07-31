@@ -1,14 +1,22 @@
 "use client"
 
-import { Product, ProductBarcode } from "@/lib/api"
+import { Product, ProductBarcode, ProductUnit } from "@/lib/api"
 import { DataTable } from "@/components/common/data-table"
 import { ResponsiveSheet } from "@/components/common/responsive-sheet"
 import { ProductForm, PRODUCT_FORM_ID } from "./product-form"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Edit, Trash, Printer, KeyRound } from "lucide-react"
+import { Plus, Edit, Trash, Printer, Boxes } from "lucide-react"
 import { ColumnDef } from "@tanstack/react-table"
-import { deleteProduct, addProductBarcode, removeProductBarcode, setDefaultProductBarcode } from "@/features/products/actions"
+import {
+  deleteProduct,
+  addProductUnit,
+  updateProductUnit,
+  deleteProductUnit,
+  addProductBarcode,
+  removeProductBarcode,
+  setDefaultProductBarcode,
+} from "@/features/products/actions"
 import { toast } from "sonner"
 import { useTranslations } from "next-intl"
 import {
@@ -26,6 +34,14 @@ interface ProductsClientProps {
   onRefresh?: () => void
 }
 
+interface UnitFormState {
+  unit?: ProductUnit
+  unitName: string
+  quantityFactor: string
+  retailPrice: string
+  wholesalePrice: string
+}
+
 export function ProductsClient({ data, onRefresh }: ProductsClientProps) {
   const t = useTranslations("Products")
   const [isSheetOpen, setIsSheetOpen] = useState(false)
@@ -35,6 +51,14 @@ export function ProductsClient({ data, onRefresh }: ProductsClientProps) {
   const [isBarcodeDialogOpen, setIsBarcodeDialogOpen] = useState(false)
   const [isAddBarcodeOpen, setIsAddBarcodeOpen] = useState(false)
   const [newBarcode, setNewBarcode] = useState("")
+  const [addBarcodeForUnit, setAddBarcodeForUnit] = useState<ProductUnit | null>(null)
+  const [isUnitFormOpen, setIsUnitFormOpen] = useState(false)
+  const [unitForm, setUnitForm] = useState<UnitFormState>({
+    unitName: "",
+    quantityFactor: "1",
+    retailPrice: "",
+    wholesalePrice: "",
+  })
 
   const displayProduct = editingProduct
     ? (data.find((p) => p.id === editingProduct.id) ?? editingProduct)
@@ -45,10 +69,78 @@ export function ProductsClient({ data, onRefresh }: ProductsClientProps) {
     setIsSheetOpen(true)
   }
 
-  const handleAddBarcodeConfirm = async () => {
-    if (!displayProduct || !newBarcode.trim()) return
+  const openAddUnit = () => {
+    setUnitForm({ unitName: "", quantityFactor: "1", retailPrice: "", wholesalePrice: "" })
+    setIsUnitFormOpen(true)
+  }
+
+  const openEditUnit = (unit: ProductUnit) => {
+    setUnitForm({
+      unit,
+      unitName: unit.unitName,
+      quantityFactor: String(unit.quantityFactor),
+      retailPrice: String(unit.retailPrice),
+      wholesalePrice: unit.wholesalePrice != null ? String(unit.wholesalePrice) : "",
+    })
+    setIsUnitFormOpen(true)
+  }
+
+  const handleSaveUnit = async () => {
+    if (!displayProduct) return
+    const unitName = unitForm.unitName.trim()
+    const quantityFactor = parseFloat(unitForm.quantityFactor)
+    const retailPrice = parseFloat(unitForm.retailPrice)
+    const wholesalePrice = unitForm.wholesalePrice.trim()
+      ? parseFloat(unitForm.wholesalePrice)
+      : null
+    if (!unitName || isNaN(quantityFactor) || quantityFactor <= 0 || isNaN(retailPrice) || retailPrice <= 0) return
     try {
-      await addProductBarcode(displayProduct.id, newBarcode.trim())
+      if (unitForm.unit) {
+        await updateProductUnit(displayProduct.id, unitForm.unit.id, {
+          unitName,
+          quantityFactor,
+          retailPrice,
+          wholesalePrice,
+        })
+        toast.success(t("unitUpdated"))
+      } else {
+        await addProductUnit(displayProduct.id, {
+          unitName,
+          quantityFactor,
+          retailPrice,
+          wholesalePrice,
+        })
+        toast.success(t("unitAdded"))
+      }
+      setIsUnitFormOpen(false)
+      if (onRefresh) onRefresh()
+    } catch (e) {
+      toast.error((e as Error).message || t("unitSaveFailed"))
+    }
+  }
+
+  const handleDeleteUnit = async (unit: ProductUnit) => {
+    if (!displayProduct || unit.isBaseUnit) return
+    if (!confirm(t("unitDeleteConfirm"))) return
+    try {
+      await deleteProductUnit(displayProduct.id, unit.id)
+      toast.success(t("unitDeleted"))
+      if (onRefresh) onRefresh()
+    } catch (e) {
+      toast.error((e as Error).message || t("unitDeleteFailed"))
+    }
+  }
+
+  const openAddBarcode = (unit: ProductUnit) => {
+    setAddBarcodeForUnit(unit)
+    setNewBarcode("")
+    setIsAddBarcodeOpen(true)
+  }
+
+  const handleAddBarcodeConfirm = async () => {
+    if (!displayProduct || !addBarcodeForUnit || !newBarcode.trim()) return
+    try {
+      await addProductBarcode(displayProduct.id, addBarcodeForUnit.id, newBarcode.trim())
       toast.success(t("barcodeAdded"))
       setNewBarcode("")
       setIsAddBarcodeOpen(false)
@@ -58,10 +150,11 @@ export function ProductsClient({ data, onRefresh }: ProductsClientProps) {
     }
   }
 
-  const handleDeleteBarcode = async (product: Product, barcode: ProductBarcode) => {
+  const handleDeleteBarcode = async (unit: ProductUnit, barcode: ProductBarcode) => {
+    if (!displayProduct) return
     if (!confirm(t("deleteBarcodeConfirm"))) return
     try {
-      await removeProductBarcode(product.id, barcode.id)
+      await removeProductBarcode(displayProduct.id, unit.id, barcode.id)
       toast.success(t("barcodeDeleted"))
       if (onRefresh) onRefresh()
     } catch (e) {
@@ -69,13 +162,14 @@ export function ProductsClient({ data, onRefresh }: ProductsClientProps) {
     }
   }
 
-  const handleSetDefault = async (product: Product, barcodeId: string) => {
+  const handleSetDefault = async (unit: ProductUnit, barcodeId: string) => {
+    if (!displayProduct) return
     try {
-      await setDefaultProductBarcode(product.id, barcodeId)
+      await setDefaultProductBarcode(displayProduct.id, unit.id, barcodeId)
       toast.success(t("defaultBarcodeUpdated"))
       if (onRefresh) onRefresh()
-    } catch {
-      toast.error(t("defaultBarcodeUpdateFailed"))
+    } catch (e) {
+      toast.error((e as Error).message || t("defaultBarcodeUpdateFailed"))
     }
   }
 
@@ -191,42 +285,90 @@ export function ProductsClient({ data, onRefresh }: ProductsClientProps) {
           }} 
         />
         {displayProduct && (
-          <div className="border-t pt-4">
-            <div className="flex items-center gap-2 mb-2">
-              <KeyRound className="h-4 w-4 text-muted-foreground" />
-              <h4 className="text-sm font-semibold">{t("barcodes")}</h4>
+          <div className="border-t pt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Boxes className="h-4 w-4 text-muted-foreground" />
+                <h4 className="text-sm font-semibold">{t("units")}</h4>
+              </div>
+              <Button variant="outline" size="sm" onClick={openAddUnit}>
+                <Plus className="mr-2 h-4 w-4" /> {t("addUnit")}
+              </Button>
             </div>
-            {displayProduct.barcodes && displayProduct.barcodes.length > 0 ? (
-              <div className="space-y-2">
-                {displayProduct.barcodes.map((b) => (
-                  <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono text-sm truncate">{b.barcode}</span>
-                      {b.isDefault && (
-                        <span className="shrink-0 inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                          {t("primary")}
-                        </span>
+            {displayProduct.units && displayProduct.units.length > 0 ? (
+              <div className="space-y-3">
+                {displayProduct.units.map((unit) => (
+                  <div key={unit.id} className="rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{unit.unitName}</span>
+                          {unit.isBaseUnit && (
+                            <span className="shrink-0 inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                              {t("baseUnit")}
+                            </span>
+                          )}
+                          {unit.quantityFactor !== 1 && (
+                            <span className="text-xs text-muted-foreground">
+                              {t("factorLabel")}: {unit.quantityFactor}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {t("retailPrice")}: {unit.retailPrice.toFixed(2)}
+                          {unit.wholesalePrice != null && (
+                            <> | {t("wholesalePrice")}: {unit.wholesalePrice.toFixed(2)}</>
+                          )}
+                        </div>
+                      </div>
+                      {!unit.isBaseUnit && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button variant="ghost" size="sm" onClick={() => openEditUnit(unit)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteUnit(unit)}>
+                            <Trash className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       )}
                     </div>
-                    {!b.isDefault && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button variant="ghost" size="sm" onClick={() => handleSetDefault(displayProduct, b.id)}>
-                          {t("setAsDefault")}
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteBarcode(displayProduct, b)}>
-                          <Trash className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    )}
+                    <div className="mt-2 space-y-1">
+                      {unit.barcodes && unit.barcodes.length > 0 ? (
+                        unit.barcodes.map((b) => (
+                          <div key={b.id} className="flex items-center justify-between gap-2 rounded border bg-muted/40 px-2 py-1">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="font-mono text-xs truncate">{b.barcode}</span>
+                              {b.isDefault && (
+                                <span className="shrink-0 inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                                  {t("primary")}
+                                </span>
+                              )}
+                            </div>
+                            {!b.isDefault && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button variant="ghost" size="sm" onClick={() => handleSetDefault(unit, b.id)}>
+                                  {t("setAsDefault")}
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteBarcode(unit, b)}>
+                                  <Trash className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground">{t("noBarcodes")}</p>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => openAddBarcode(unit)}>
+                        <Plus className="mr-2 h-4 w-4" /> {t("addBarcode")}
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">{t("noBarcodes")}</p>
+              <p className="text-sm text-muted-foreground">{t("noUnits")}</p>
             )}
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => setIsAddBarcodeOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" /> {t("addBarcode")}
-            </Button>
           </div>
         )}
       </ResponsiveSheet>
@@ -281,6 +423,7 @@ export function ProductsClient({ data, onRefresh }: ProductsClientProps) {
             {displayProduct && (
               <p className="mb-3 text-sm text-muted-foreground">
                 <strong>{t("name")}:</strong> {displayProduct.name}
+                {addBarcodeForUnit && <> ({addBarcodeForUnit.unitName})</>}
               </p>
             )}
             <label className="text-sm font-medium">{t("barcode")} *</label>
@@ -300,6 +443,73 @@ export function ProductsClient({ data, onRefresh }: ProductsClientProps) {
               {t("cancel")}
             </Button>
             <Button onClick={handleAddBarcodeConfirm} disabled={!newBarcode.trim()}>
+              {t("save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isUnitFormOpen} onOpenChange={setIsUnitFormOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>{unitForm.unit ? t("editUnit") : t("addUnit")}</DialogTitle>
+            <DialogDescription>
+              {unitForm.unit?.isBaseUnit ? t("baseUnitLocked") : t("unitDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t("unitName")} *</label>
+              <Input
+                value={unitForm.unitName}
+                onChange={(e) => setUnitForm({ ...unitForm, unitName: e.target.value })}
+                placeholder={t("unitNamePlaceholder")}
+                autoFocus
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("quantityFactor")} *</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={unitForm.quantityFactor}
+                  disabled={!!unitForm.unit?.isBaseUnit}
+                  onChange={(e) => setUnitForm({ ...unitForm, quantityFactor: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t("retailPrice")} *</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={unitForm.retailPrice}
+                  onChange={(e) => setUnitForm({ ...unitForm, retailPrice: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t("wholesalePrice")}</label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={unitForm.wholesalePrice}
+                onChange={(e) => setUnitForm({ ...unitForm, wholesalePrice: e.target.value })}
+                placeholder={t("optional")}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUnitFormOpen(false)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              onClick={handleSaveUnit}
+              disabled={!unitForm.unitName.trim() || isNaN(parseFloat(unitForm.quantityFactor)) || parseFloat(unitForm.quantityFactor) <= 0 || isNaN(parseFloat(unitForm.retailPrice)) || parseFloat(unitForm.retailPrice) <= 0}
+            >
               {t("save")}
             </Button>
           </DialogFooter>

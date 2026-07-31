@@ -1,14 +1,15 @@
 "use client"
 
-import { Product } from "@/lib/api"
-import { usePOSStore } from "@/features/pos/store/usePOSStore"
+import { Product, ProductUnit } from "@/lib/api"
+import { usePOSStore, CartItem } from "@/features/pos/store/usePOSStore"
+import { findUnitByBarcode } from "@/features/products/actions"
 import { Input } from "@/components/ui/input"
 import { createInvoice } from "@/features/invoices/actions"
 import { addProductBarcode } from "@/features/products/actions"
 import { ProductForm, PRODUCT_FORM_ID } from "@/app/[locale]/products/product-form"
 import { toast } from "sonner"
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Loader2, Ban, PackagePlus, Link2, X } from "lucide-react"
+import { Loader2, Ban, PackagePlus, Link2, X, Boxes, Pencil, StickyNote } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trash2, Plus, Minus, ArrowLeft } from "lucide-react"
@@ -43,25 +44,68 @@ interface POSClientProps {
   onRefresh?: () => Promise<Product[]>
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+const lineSubtotal = (item: CartItem) => round2(item.unitPrice * item.quantity)
+const lineDiscountAmount = (item: CartItem) =>
+  item.discountType === 'percentage'
+    ? round2(lineSubtotal(item) * (item.discountValue ?? 0) / 100)
+    : item.discountType === 'fixed'
+      ? Math.min(item.discountValue ?? 0, lineSubtotal(item))
+      : 0
+const lineFinalTotal = (item: CartItem) => round2(lineSubtotal(item) - lineDiscountAmount(item))
+
 const allBarcodes = (p: Product): string[] => [
   ...(p.barcodes ?? []).map((b) => b.barcode),
   ...(p.barcode ? [p.barcode] : []),
 ]
 
+const baseUnitOf = (p: Product): ProductUnit | null =>
+  p.units?.find((u) => u.isBaseUnit) ?? p.units?.[0] ?? null
+
+const resolveBarcode = (list: Product[], barcode: string): { product: Product; unit: ProductUnit } | null => {
+  const b = barcode.trim()
+  for (const p of list) {
+    const unit = findUnitByBarcode(p, b)
+    if (unit) return { product: p, unit }
+    if (p.barcode === b) {
+      const bu = baseUnitOf(p)
+      if (bu) return { product: p, unit: bu }
+    }
+  }
+  return null
+}
+
+interface UnitPickerState {
+  product: Product
+  onPick: (unit: ProductUnit) => void
+}
+
+interface LineEditState {
+  item: CartItem
+  unitPrice: string
+  note: string
+  discountType: 'percentage' | 'fixed'
+  discountValue: string
+}
+
 export function POSClient({ products, onRefresh }: POSClientProps) {
   const t = useTranslations("POS")
   const {
     cartItems,
-    searchQuery,
     setSearchQuery,
     addItem,
     removeItem,
     updateQuantity,
+    updateUnitPrice,
+    setLineDiscount,
+    clearLineDiscount,
     discount,
     discountType,
     setDiscount,
-    setDiscountType,
     toggleDiscountType,
+    priceMode,
+    setPriceMode,
     clearCart
   } = usePOSStore()
 
@@ -80,16 +124,21 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
   const [linkQuery, setLinkQuery] = useState("")
   const [selectedLinkProduct, setSelectedLinkProduct] = useState<Product | null>(null)
 
-  const subtotal = cartItems.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
+  const [unitPicker, setUnitPicker] = useState<UnitPickerState | null>(null)
+  const [lineEditFor, setLineEditFor] = useState<LineEditState | null>(null)
+  const [triggerWidth, setTriggerWidth] = useState(0)
+
+  const subtotal = cartItems.reduce((acc, item) => acc + lineSubtotal(item), 0)
+  const itemsDiscount = cartItems.reduce((acc, item) => acc + lineDiscountAmount(item), 0)
   const eligibleSubtotal = cartItems
     .filter(item => item.allowDiscount)
-    .reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
+    .reduce((acc, item) => acc + lineFinalTotal(item), 0)
 
   const effectiveDiscount = discountType === 'percentage'
-    ? Math.round(eligibleSubtotal * (discount / 100) * 100) / 100
+    ? round2(eligibleSubtotal * (discount / 100))
     : Math.min(discount, eligibleSubtotal)
 
-  const total = Math.max(0, subtotal - effectiveDiscount)
+  const total = Math.max(0, subtotal - itemsDiscount - effectiveDiscount)
 
   const changeDue = Math.max(0, amountPaid - total)
   const canCheckout = cartItems.length > 0 && amountPaid >= total
@@ -97,6 +146,9 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
 
   useEffect(() => {
+    if (open && triggerRef.current) {
+      setTriggerWidth(triggerRef.current.offsetWidth)
+    }
     if (open && inputRef.current) {
       inputRef.current.focus()
     }
@@ -113,20 +165,24 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
     allBarcodes(p).some((b) => b.includes(inputValue))
   )
 
-  const findExact = useCallback((barcode: string) => {
-    const b = barcode.trim()
-    return products.find(
-      (p) => p.barcode === b || (p.barcodes ?? []).some((x) => x.barcode === b)
-    ) ?? null
-  }, [products])
-
-  const handleSelect = useCallback((product: Product) => {
-    addItem(product)
+  const addAndClose = useCallback((product: Product, unit: ProductUnit) => {
+    addItem(product, unit)
     setInputValue("")
     setSearchQuery("")
     setOpen(false)
+    setUnitPicker(null)
     triggerRef.current?.focus()
   }, [addItem, setSearchQuery])
+
+  const handleSelect = useCallback((product: Product) => {
+    const units = product.units?.length ? product.units : []
+    if (units.length === 1) {
+      addAndClose(product, units[0])
+    } else if (units.length > 1) {
+      setOpen(false)
+      setUnitPicker({ product, onPick: (unit) => addAndClose(product, unit) })
+    }
+  }, [addAndClose])
 
   const openUnknownDialog = useCallback((barcode: string) => {
     setUnknownBarcode(barcode)
@@ -143,33 +199,43 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
     triggerRef.current?.focus()
   }, [])
 
-  const handleLinkConfirm = async () => {
-    if (!selectedLinkProduct || !unknownBarcode) return
+  const doLink = useCallback(async (product: Product, unit: ProductUnit) => {
+    if (!unknownBarcode) return
     try {
-      await addProductBarcode(selectedLinkProduct.id, unknownBarcode)
+      await addProductBarcode(product.id, unit.id, unknownBarcode)
       toast.success(t("barcodeLinked"))
-      addItem(selectedLinkProduct)
+      addItem(product, unit)
       if (onRefresh) await onRefresh()
     } catch (e) {
       toast.error((e as Error).message || t("linkFailed"))
     } finally {
       closeUnknownDialog()
+      setUnitPicker(null)
+    }
+  }, [unknownBarcode, onRefresh, addItem, closeUnknownDialog, t])
+
+  const handleLinkConfirm = () => {
+    if (!selectedLinkProduct || !unknownBarcode) return
+    const units = selectedLinkProduct.units?.length ? selectedLinkProduct.units : []
+    if (units.length === 1) {
+      doLink(selectedLinkProduct, units[0])
+    } else if (units.length > 1) {
+      setUnitPicker({ product: selectedLinkProduct, onPick: (unit) => doLink(selectedLinkProduct, unit) })
+      closeUnknownDialog()
     }
   }
 
-  const handleCreatedProduct = async () => {
+  const handleCreatedProduct = useCallback(async () => {
     if (!unknownBarcode) return
     try {
       const fresh = onRefresh ? await onRefresh() : products
-      const created = fresh.find(
-        (p) => p.barcode === unknownBarcode || (p.barcodes ?? []).some((x) => x.barcode === unknownBarcode)
-      )
-      if (created) addItem(created)
+      const resolved = resolveBarcode(fresh, unknownBarcode)
+      if (resolved) addItem(resolved.product, resolved.unit)
     } finally {
       toast.success(t("productCreated"))
       closeUnknownDialog()
     }
-  }
+  }, [unknownBarcode, onRefresh, products, addItem, closeUnknownDialog, t])
 
   const linkedProducts = products.filter((p) => {
     const q = linkQuery.trim().toLowerCase()
@@ -177,36 +243,55 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
     return p.name.toLowerCase().includes(q) || allBarcodes(p).some((b) => b.toLowerCase().includes(q))
   })
 
+  const openLineEdit = (item: CartItem) => {
+    setLineEditFor({
+      item,
+      unitPrice: String(item.unitPrice),
+      note: item.priceEditNote ?? '',
+      discountType: item.discountType ?? 'percentage',
+      discountValue: item.discountValue && item.discountValue > 0 ? String(item.discountValue) : '',
+    })
+  }
+
+  const saveLineEdit = () => {
+    if (!lineEditFor) return
+    const { item, unitPrice, note, discountType, discountValue } = lineEditFor
+    const price = parseFloat(unitPrice)
+    if (isNaN(price) || price < 0) return
+    updateUnitPrice(item.id, price, note.trim() || undefined)
+    const dValue = parseFloat(discountValue)
+    if (dValue > 0) {
+      setLineDiscount(item.id, discountType, dValue)
+    } else {
+      clearLineDiscount(item.id)
+    }
+    setLineEditFor(null)
+  }
+
   const validateDiscount = useCallback((): string | null => {
     if (discount <= 0 || (discountType === 'percentage' && discount > 100)) return null
     if (discountType === 'fixed' && discount > eligibleSubtotal) {
       return t("discountExceedsEligible")
     }
-    if (discountType === 'percentage') {
-      for (const item of cartItems) {
-        if (!item.allowDiscount) continue
-        const lineTotal = item.salePrice * item.quantity
-        const lineDiscount = Math.round(lineTotal * (discount / 100) * 100) / 100
-        const effectivePrice = item.quantity > 0 ? (lineTotal - lineDiscount) / item.quantity : item.salePrice
-        if (effectivePrice < item.buyPrice) {
-          return t("profitProtectionError")
-        }
+    for (const item of cartItems) {
+      const ls = lineSubtotal(item)
+      const ld = lineDiscountAmount(item)
+      const effBefore = item.quantity > 0 ? (ls - ld) / item.quantity : 0
+      if (effBefore < item.buyPrice) {
+        return t("profitProtectionError")
       }
-    } else if (discountType === 'fixed' && discount > 0 && eligibleSubtotal > 0) {
-      for (const item of cartItems) {
-        if (!item.allowDiscount) continue
-        const lineTotal = item.salePrice * item.quantity
-        const lineDiscount = Math.round(discount * (lineTotal / eligibleSubtotal) * 100) / 100
-        const effectivePrice = item.quantity > 0 ? (lineTotal - lineDiscount) / item.quantity : item.salePrice
-        if (effectivePrice < item.buyPrice) {
+      if (item.allowDiscount && effectiveDiscount > 0 && eligibleSubtotal > 0) {
+        const share = round2(effectiveDiscount * ((ls - ld) / eligibleSubtotal))
+        const effAfter = item.quantity > 0 ? (ls - ld - share) / item.quantity : 0
+        if (effAfter < item.buyPrice) {
           return t("profitProtectionError")
         }
       }
     }
     return null
-  }, [cartItems, discount, discountType, eligibleSubtotal, t])
+  }, [cartItems, discount, discountType, eligibleSubtotal, effectiveDiscount, t])
 
-  const handleCheckout = useCallback(async () => {
+  const handleCheckout = useCallback(async (print: boolean) => {
     if (cartItems.length === 0) return
     const validationError = validateDiscount()
     if (validationError) {
@@ -215,42 +300,19 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
     }
     setIsCheckingOut(true)
     try {
-      await createInvoice(cartItems, effectiveDiscount, true, discountType || undefined, discount || undefined)
+      await createInvoice(cartItems, effectiveDiscount, print, discountType || undefined, discount || undefined, priceMode)
       toast.success(t("checkoutSuccess"))
       paidTouched.current = false
       clearCart()
     } catch (e) {
-      toast.error(t("checkoutFailed"))
+      toast.error((e as Error).message || t("checkoutFailed"))
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, validateDiscount, t, clearCart])
-
-  const handleCheckoutWithoutSave = useCallback(async () => {
-    if (cartItems.length === 0) return
-    const validationError = validateDiscount()
-    if (validationError) {
-      toast.error(validationError)
-      return
-    }
-    setIsCheckingOut(true)
-    try {
-      await createInvoice(cartItems, effectiveDiscount, false, discountType || undefined, discount || undefined)
-      toast.success(t("checkoutSuccess"))
-      paidTouched.current = false
-      clearCart()
-    } catch (e) {
-      toast.error(t("checkoutFailed"))
-    } finally {
-      setIsCheckingOut(false)
-    }
-  }, [cartItems, effectiveDiscount, discount, discountType, validateDiscount, t, clearCart])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, validateDiscount, t, clearCart])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
-      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA'
-
       if (e.key === 'F1') {
         e.preventDefault()
         if (!open) setOpen(true)
@@ -266,13 +328,13 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
       }
 if (e.key === 'F11' && canCheckout) {
   e.preventDefault()
-  handleCheckoutWithoutSave()
+  handleCheckout(false)
   return
 }
 
       if ((e.key === 'F12' || (e.ctrlKey && e.key === 'Enter')) && canCheckout) {
         e.preventDefault()
-        handleCheckout()
+        handleCheckout(true)
         return
       }
 
@@ -285,18 +347,36 @@ if (e.key === 'F11' && canCheckout) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, handleCheckout, handleCheckoutWithoutSave, toggleDiscountType, canCheckout])
+  }, [open, handleCheckout, toggleDiscountType, canCheckout])
 
   return (
     <>
     <div className="flex h-full flex-col lg:flex-row gap-4 p-4 lg:p-6 bg-muted/40">
       <div className="flex flex-1 flex-col gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Link href="/">
             <Button variant="outline" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
+          <div className="flex shrink-0 rounded-lg border bg-background p-1">
+            <Button
+              variant={priceMode === 'retail' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-8 px-3"
+              onClick={() => setPriceMode('retail')}
+            >
+              {t("retail")}
+            </Button>
+            <Button
+              variant={priceMode === 'wholesale' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-8 px-3"
+              onClick={() => setPriceMode('wholesale')}
+            >
+              {t("wholesale")}
+            </Button>
+          </div>
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger
               ref={triggerRef}
@@ -314,7 +394,7 @@ if (e.key === 'F11' && canCheckout) {
             </PopoverTrigger>
             <PopoverPortal>
               <PopoverPositioner>
-                <PopoverPopup className="p-0 w-full" style={{ width: triggerRef.current?.offsetWidth }}>
+                <PopoverPopup className="p-0 w-full" style={{ width: triggerWidth || undefined }}>
                   <Command>
                     <CommandInput
                       placeholder={t("searchPlaceholder")}
@@ -325,9 +405,9 @@ if (e.key === 'F11' && canCheckout) {
                         if (e.key === "Enter") {
                           const trimmed = inputValue.trim()
                           if (trimmed) {
-                            const exact = findExact(trimmed)
+                            const exact = resolveBarcode(products, trimmed)
                             if (exact) {
-                              handleSelect(exact)
+                              addAndClose(exact.product, exact.unit)
                               return
                             }
                             if (/^\d{4,}$/.test(trimmed)) {
@@ -394,49 +474,82 @@ if (e.key === 'F11' && canCheckout) {
               </div>
             ) : (
               <div className="space-y-4 py-4">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between border-b pb-4 gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-lg font-semibold truncate">{item.name}</h4>
-                        {!item.allowDiscount && (
-                          <span className="shrink-0 inline-flex items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
-                            <Ban className="h-3 w-3" />
-                            {t("noDiscount")}
+                {cartItems.map((item) => {
+                  const ld = lineDiscountAmount(item)
+                  return (
+                    <div key={item.id} className="flex items-center justify-between border-b pb-4 gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-lg font-semibold truncate">{item.name}</h4>
+                          <span className="shrink-0 inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {item.unitName}
                           </span>
+                          {!item.allowDiscount && (
+                            <span className="shrink-0 inline-flex items-center gap-1 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
+                              <Ban className="h-3 w-3" />
+                              {t("noDiscount")}
+                            </span>
+                          )}
+                          {item.overridden && (
+                            <span className="shrink-0 inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                              {t("overridePrice")}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          {item.overridden && (
+                            <span className="text-sm text-muted-foreground line-through">
+                              {item.originalUnitPrice.toFixed(2)}
+                            </span>
+                          )}
+                          <span className="text-base font-medium">{item.unitPrice.toFixed(2)} {t("currency")} / {item.unitName}</span>
+                        </div>
+                        {ld > 0 && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
+                              {t("discount")} {item.discountValue}{item.discountType === 'percentage' ? '%' : ''} ({t("minus")} {ld.toFixed(2)})
+                            </span>
+                          </div>
+                        )}
+                        {item.priceEditNote && (
+                          <div className="mt-1 flex items-start gap-1 text-xs text-muted-foreground">
+                            <StickyNote className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                            <span className="truncate">{item.priceEditNote}</span>
+                          </div>
                         )}
                       </div>
-                      <p className="text-base text-muted-foreground">{item.salePrice.toFixed(2)} {t("each")}</p>
-                    </div>
-                    <div className="flex items-center gap-4 shrink-0">
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
-                          <Minus className="h-5 w-5" />
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
+                            <Minus className="h-5 w-5" />
+                          </Button>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value)
+                              if (!isNaN(val)) updateQuantity(item.id, val)
+                            }}
+                            className="w-20 h-12 text-lg text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          />
+                          <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
+                            <Plus className="h-5 w-5" />
+                          </Button>
+                        </div>
+                        <div className="w-24 text-right text-lg font-semibold">
+                          {lineFinalTotal(item).toFixed(2)}
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => openLineEdit(item)} title={t("editLine")}>
+                          <Pencil className="h-5 w-5" />
                         </Button>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={item.maxStock}
-                          value={item.quantity}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10)
-                            if (!isNaN(val)) updateQuantity(item.id, val)
-                          }}
-                          className="w-20 h-12 text-lg text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        />
-                        <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                          <Plus className="h-5 w-5" />
+                        <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-destructive h-10 w-10">
+                          <Trash2 className="h-5 w-5" />
                         </Button>
                       </div>
-                      <div className="w-24 text-right text-lg font-semibold">
-                        {(item.salePrice * item.quantity).toFixed(2)}
-                      </div>
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-destructive h-10 w-10">
-                        <Trash2 className="h-5 w-5" />
-                      </Button>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </CardContent>
@@ -454,6 +567,13 @@ if (e.key === 'F11' && canCheckout) {
                 <span className="text-muted-foreground">{t("subtotal")}</span>
                 <span className="font-semibold">{subtotal.toFixed(2)}</span>
               </div>
+              {itemsDiscount > 0 && (
+                <div className="flex justify-between text-lg">
+                  <span className="text-muted-foreground">{t("lineDiscountTotal")}</span>
+                  <span className="text-destructive">-{itemsDiscount.toFixed(2)}</span>
+                </div>
+              )}
+              {eligibleSubtotal > 0 && (
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground text-xl">{t("discount")}</span>
                 <div className="flex items-center gap-2">
@@ -489,6 +609,7 @@ if (e.key === 'F11' && canCheckout) {
                   </kbd>
                 </div>
               </div>
+              )}
               <div className="border-t pt-4 flex justify-between text-3xl font-bold">
                 <span>{t("total")}</span>
                 <span>{total.toFixed(2)}</span>
@@ -534,24 +655,23 @@ if (e.key === 'F11' && canCheckout) {
             </div>
 
             <div className="grid grid-cols-2 gap-4 mt-8">
-             
-              <Button className="h-16 text-lg" size="lg" onClick={handleCheckoutWithoutSave} disabled={isCheckingOut || !canCheckout}>
+              <Button className="h-16 text-lg" size="lg" onClick={() => handleCheckout(false)} disabled={isCheckingOut || !canCheckout}>
                 {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t("save")}
-      <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
-  F11
-</kbd>
-                              </Button>
+                <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
+                  F11
+                </kbd>
+              </Button>
 
-              <Button className="h-16 text-lg" size="lg" onClick={handleCheckout} disabled={isCheckingOut || !canCheckout}>
+              <Button className="h-16 text-lg" size="lg" onClick={() => handleCheckout(true)} disabled={isCheckingOut || !canCheckout}>
                 {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {t("saveAndPrint")}
                 <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
                   F12
                 </kbd>
-                              </Button>
+              </Button>
 
-                 <Button variant="outline" className="h-16 col-span-2 text-lg" onClick={() => {
+              <Button variant="outline" className="h-16 col-span-2 text-lg" onClick={() => {
                 paidTouched.current = false
                 clearCart()
               }}>
@@ -674,6 +794,127 @@ if (e.key === 'F11' && canCheckout) {
             </DialogFooter>
           </>
         )}
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={unitPicker !== null} onOpenChange={(o) => { if (!o) setUnitPicker(null) }}>
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>{t("chooseUnit")}</DialogTitle>
+          <DialogDescription>{t("chooseUnitDescription")}</DialogDescription>
+        </DialogHeader>
+        <div className="py-2 space-y-2">
+          {unitPicker?.product.units?.map((unit) => (
+            <Button
+              key={unit.id}
+              variant="outline"
+              className="w-full h-auto py-3 justify-between"
+              onClick={() => unitPicker.onPick(unit)}
+            >
+              <div className="flex items-center gap-3">
+                <Boxes className="h-5 w-5 text-muted-foreground" />
+                <div className="text-left">
+                  <div className="font-semibold">
+                    {unit.unitName}
+                    {unit.isBaseUnit && <span className="mr-2 text-[10px] text-muted-foreground">({t("baseUnit")})</span>}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {unit.quantityFactor === 1
+                      ? `1 ${unit.unitName}`
+                      : `1 ${unit.unitName} = ${unit.quantityFactor}`}
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-semibold">{unit.retailPrice.toFixed(2)}</div>
+                {unit.wholesalePrice != null && (
+                  <div className="text-xs text-muted-foreground">{t("wholesale")}: {unit.wholesalePrice.toFixed(2)}</div>
+                )}
+              </div>
+            </Button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={lineEditFor !== null} onOpenChange={(o) => { if (!o) setLineEditFor(null) }}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader>
+          <DialogTitle>{t("editLine")}</DialogTitle>
+          <DialogDescription>
+            {lineEditFor?.item.name} ({lineEditFor?.item.unitName})
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-2 space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">{t("unitPrice")}</label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              className="text-right text-lg h-12"
+              value={lineEditFor?.unitPrice ?? ''}
+              onChange={(e) => setLineEditFor((s) => s ? { ...s, unitPrice: e.target.value } : s)}
+              autoFocus
+            />
+            {lineEditFor && parseFloat(lineEditFor.unitPrice) !== lineEditFor.item.originalUnitPrice && (
+              <div className="text-xs text-muted-foreground">
+                {t("originalPrice")}: {lineEditFor.item.originalUnitPrice.toFixed(2)}
+              </div>
+            )}
+          </div>
+          {lineEditFor && lineEditFor.item.allowDiscount && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t("lineDiscount")}</label>
+              <div className="flex gap-2">
+                <Button
+                  variant={lineEditFor.discountType === 'percentage' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => setLineEditFor((s) => s ? { ...s, discountType: 'percentage' } : s)}
+                >
+                  {t("discountTypePercentage")}
+                </Button>
+                <Button
+                  variant={lineEditFor.discountType === 'fixed' ? 'default' : 'outline'}
+                  className="flex-1"
+                  onClick={() => setLineEditFor((s) => s ? { ...s, discountType: 'fixed' } : s)}
+                >
+                  {t("discountTypeFixed")}
+                </Button>
+              </div>
+              <Input
+                type="number"
+                min="0"
+                max={lineEditFor?.discountType === 'percentage' ? 100 : undefined}
+                step="0.01"
+                className="text-right text-lg h-12"
+                value={lineEditFor?.discountValue ?? ''}
+                onChange={(e) => setLineEditFor((s) => s ? { ...s, discountValue: e.target.value } : s)}
+              />
+            </div>
+          )}
+          {lineEditFor && parseFloat(lineEditFor.unitPrice) !== lineEditFor.item.originalUnitPrice && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t("priceEditNote")}</label>
+              <textarea
+                placeholder={t("priceEditNotePlaceholder")}
+                className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 md:text-sm dark:bg-input/30 resize-none"
+                rows={3}
+                value={lineEditFor?.note ?? ''}
+                onChange={(e) => setLineEditFor((s) => s ? { ...s, note: e.target.value } : s)}
+              />
+              <p className="text-xs text-muted-foreground">{t("priceEditNoteHint")}</p>
+            </div>
+          )}
+        </div>
+        <DialogFooter className="flex-col gap-2 sm:flex-row">
+          <Button variant="outline" onClick={() => setLineEditFor(null)}>
+            {t("cancel")}
+          </Button>
+          <Button onClick={saveLineEdit} disabled={!lineEditFor || isNaN(parseFloat(lineEditFor.unitPrice)) || parseFloat(lineEditFor.unitPrice) < 0}>
+            {t("save")}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
     </>
