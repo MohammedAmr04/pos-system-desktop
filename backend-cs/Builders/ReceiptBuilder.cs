@@ -10,8 +10,10 @@ namespace PosCs.Builders
     public class ReceiptItemModel
     {
         public string Name { get; set; }
-        public int Quantity { get; set; }
+        public string UnitName { get; set; }
+        public double Quantity { get; set; }
         public double SalePrice { get; set; }
+        public double? FinalTotal { get; set; }
     }
 
     public class ReceiptInvoiceModel
@@ -115,9 +117,10 @@ namespace PosCs.Builders
         {
             foreach (var item in items)
             {
-                double itemTotal = item.Quantity * item.SalePrice;
+                double itemTotal = item.FinalTotal ?? (item.Quantity * item.SalePrice);
                 string leftText = $"{itemTotal:F2}";
-                string rightText = $"{item.Name} : {item.Quantity}";
+                string name = string.IsNullOrEmpty(item.UnitName) ? item.Name : $"{item.Name} ({item.UnitName})";
+                string rightText = $"{name} : {item.Quantity}";
 
                 DrawItemLine(rightText, leftText, _regularFont);
             }

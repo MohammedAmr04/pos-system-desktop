@@ -1,4 +1,4 @@
-import { api, Invoice } from "@/lib/api"
+import { api, Invoice, PriceMode } from "@/lib/api"
 import { CartItem } from "@/features/pos/store/usePOSStore"
 
 export const getInvoices = async (): Promise<Invoice[]> => {
@@ -14,21 +14,31 @@ export async function createInvoice(
   discount: number,
   printInvoice: boolean = true,
   discountType?: string,
-  discountValue?: number
+  discountValue?: number,
+  priceMode: PriceMode = 'retail'
 ): Promise<Invoice> {
   const invoice = await api.invoices.create({
     items: cartItems.map(item => ({
       productId: item.productId,
+      productUnitId: item.productUnitId,
+      unitName: item.unitName,
       name: item.name,
       buyPrice: item.buyPrice,
-      salePrice: item.salePrice,
+      salePrice: item.unitPrice,
+      originalUnitPrice: item.originalUnitPrice,
+      unitPrice: item.unitPrice,
       quantity: item.quantity,
       maxStock: item.maxStock,
       allowDiscount: item.allowDiscount,
+      discountType: item.discountType ?? null,
+      discountValue: item.discountValue ?? 0,
+      quantityFactor: item.quantityFactor,
+      priceEditNote: item.priceEditNote ?? null,
     })),
     discount,
     discountType,
     discountValue,
+    priceMode,
   })
 
   if (printInvoice) {

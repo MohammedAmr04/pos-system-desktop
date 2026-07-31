@@ -14,16 +14,29 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export interface ProductBarcode {
   id: string
-  productId: string
+  productUnitId: string
   barcode: string
   isDefault: boolean
   createdAt: string
+}
+
+export interface ProductUnit {
+  id: string
+  productId: string
+  unitName: string
+  quantityFactor: number
+  retailPrice: number
+  wholesalePrice: number | null
+  isBaseUnit: boolean
+  createdAt: string
+  barcodes?: ProductBarcode[]
 }
 
 export interface Product {
   id: string
   barcode: string | null
   barcodes?: ProductBarcode[]
+  units?: ProductUnit[]
   name: string
   buyPrice: number
   salePrice: number
@@ -35,6 +48,8 @@ export interface Product {
   updatedAt: string
 }
 
+export type PriceMode = 'retail' | 'wholesale'
+
 export interface Invoice {
   id: string
   totalAmount: number
@@ -42,6 +57,8 @@ export interface Invoice {
   discountType: string | null
   discountValue: number
   discountAmount: number
+  priceMode?: PriceMode | null
+  invoiceNumber?: number
   createdAt: string
   invoiceDetail?: InvoiceDetail[]
   InvoiceDetail?: InvoiceDetail[]
@@ -51,10 +68,19 @@ export interface InvoiceDetail {
   id: string
   invoiceId: string
   productId: string | null
+  productUnitId?: string | null
+  unitName?: string | null
   quantity: number
   buyPrice: number
   salePrice: number
+  originalUnitPrice?: number
+  unitPrice?: number
+  discountType?: string | null
+  discountValue?: number
   discountAmount: number
+  lineSubtotal?: number
+  finalTotal?: number
+  priceEditNote?: string | null
   product: Product | null
 }
 
@@ -75,20 +101,36 @@ export const api = {
       request<Product>(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/api/products/${id}`, { method: 'DELETE' }),
-    barcodes: {
-      add: (productId: string, barcode: string) =>
-        request<ProductBarcode>(`/api/products/${productId}/barcodes`, {
+    units: {
+      add: (productId: string, data: { unitName: string; quantityFactor: number; retailPrice: number; wholesalePrice?: number | null }) =>
+        request<ProductUnit>(`/api/products/${productId}/units`, {
           method: 'POST',
-          body: JSON.stringify({ barcode }),
+          body: JSON.stringify(data),
         }),
-      remove: (productId: string, barcodeId: string) =>
-        request<{ success: boolean }>(`/api/products/${productId}/barcodes/${barcodeId}`, {
+      update: (productId: string, unitId: string, data: { unitName?: string; quantityFactor?: number; retailPrice?: number; wholesalePrice?: number | null }) =>
+        request<ProductUnit>(`/api/products/${productId}/units/${unitId}`, {
+          method: 'PUT',
+          body: JSON.stringify(data),
+        }),
+      remove: (productId: string, unitId: string) =>
+        request<{ success: boolean }>(`/api/products/${productId}/units/${unitId}`, {
           method: 'DELETE',
         }),
-      setDefault: (productId: string, barcodeId: string) =>
-        request<{ success: boolean }>(`/api/products/${productId}/barcodes/${barcodeId}/default`, {
-          method: 'PUT',
-        }),
+      barcodes: {
+        add: (productId: string, unitId: string, barcode: string) =>
+          request<ProductBarcode>(`/api/products/${productId}/units/${unitId}/barcodes`, {
+            method: 'POST',
+            body: JSON.stringify({ barcode }),
+          }),
+        remove: (productId: string, unitId: string, barcodeId: string) =>
+          request<{ success: boolean }>(`/api/products/${productId}/units/${unitId}/barcodes/${barcodeId}`, {
+            method: 'DELETE',
+          }),
+        setDefault: (productId: string, unitId: string, barcodeId: string) =>
+          request<{ success: boolean }>(`/api/products/${productId}/units/${unitId}/barcodes/${barcodeId}/default`, {
+            method: 'PUT',
+          }),
+      },
     },
   },
 
@@ -102,7 +144,7 @@ export const api = {
       const qs = params.toString()
       return request<Invoice[]>(`/api/invoices/filter${qs ? '?' + qs : ''}`)
     },
-    create: (data: { items: { productId: string; name: string; buyPrice: number; salePrice: number; quantity: number; maxStock: number; allowDiscount: boolean }[]; discount: number; discountType?: string; discountValue?: number }) =>
+    create: (data: InvoiceCreatePayload) =>
       request<Invoice>('/api/invoices', { method: 'POST', body: JSON.stringify(data) }),
   },
 
@@ -134,4 +176,30 @@ export const api = {
         body: JSON.stringify(data),
       }),
   },
+}
+
+export interface InvoiceItemPayload {
+  productId: string
+  productUnitId: string
+  unitName: string
+  name: string
+  buyPrice: number
+  salePrice: number
+  originalUnitPrice: number
+  unitPrice: number
+  quantity: number
+  maxStock: number
+  allowDiscount: boolean
+  discountType?: string | null
+  discountValue?: number
+  quantityFactor: number
+  priceEditNote?: string | null
+}
+
+export interface InvoiceCreatePayload {
+  items: InvoiceItemPayload[]
+  discount: number
+  discountType?: string | null
+  discountValue?: number
+  priceMode: PriceMode
 }

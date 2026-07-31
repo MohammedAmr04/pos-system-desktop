@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input"
 import { createProduct, updateProduct } from "@/features/products/actions"
-import { Product } from "@/lib/api"
+import { Product, ProductUnit } from "@/lib/api"
 import { toast } from "sonner"
 import { useRef } from "react"
 import { useTranslations } from "next-intl"
@@ -15,17 +15,26 @@ interface ProductFormProps {
 
 export const PRODUCT_FORM_ID = "product-form"
 
+const baseUnitOf = (p: Product): ProductUnit | null =>
+  p.units?.find((u) => u.isBaseUnit) ?? p.units?.[0] ?? null
+
 export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductFormProps) {
   const t = useTranslations("Products")
   const formRef = useRef<HTMLFormElement>(null)
 
+  const baseUnit = initialData ? baseUnitOf(initialData) : null
+  const defaultUnitName = baseUnit?.unitName || t("defaultUnitName")
+
   async function handleSubmit(formData: FormData) {
+    const wholesaleRaw = (formData.get("wholesalePrice") as string)?.trim()
     const data = {
       name: formData.get("name") as string,
       barcode: formData.get("barcode") as string || undefined,
       buyPrice: parseFloat(formData.get("buyPrice") as string),
-      salePrice: parseFloat(formData.get("salePrice") as string),
-      stockQuantity: parseInt(formData.get("stockQuantity") as string, 10),
+      retailPrice: parseFloat(formData.get("retailPrice") as string),
+      wholesalePrice: wholesaleRaw ? parseFloat(wholesaleRaw) : null,
+      unitName: (formData.get("unitName") as string)?.trim() || undefined,
+      stockQuantity: parseFloat(formData.get("stockQuantity") as string),
       notes: formData.get("notes") as string || null,
       allowDiscount: formData.get("allowDiscount") === "on",
       lowStockThreshold: parseInt(formData.get("lowStockThreshold") as string, 10) || 0,
@@ -42,7 +51,7 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
       }
       onSuccess()
     } catch (e) {
-      toast.error(t("createError"))
+      toast.error((e as Error).message || t("createError"))
     }
   }
 
@@ -56,19 +65,41 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
         <label className="text-sm font-medium">{t("barcode")}</label>
         <Input name="barcode" defaultValue={initialData?.barcode || defaultBarcode || ""} placeholder={t("barcode")} />
       </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">{t("unitName")}</label>
+        <Input name="unitName" defaultValue={defaultUnitName} placeholder={t("defaultUnitName")} />
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("buyPrice")} *</label>
           <Input name="buyPrice" type="number" step="0.01" defaultValue={initialData?.buyPrice} required />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">{t("salePrice")} *</label>
-          <Input name="salePrice" type="number" step="0.01" defaultValue={initialData?.salePrice} required />
+          <label className="text-sm font-medium">{t("retailPrice")} *</label>
+          <Input
+            name="retailPrice"
+            type="number"
+            step="0.01"
+            defaultValue={baseUnit?.retailPrice ?? initialData?.salePrice}
+            required
+          />
         </div>
       </div>
-      <div className="space-y-2">
-        <label className="text-sm font-medium">{t("stockQuantity")} *</label>
-        <Input name="stockQuantity" type="number" defaultValue={initialData?.stockQuantity} required />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{t("wholesalePrice")}</label>
+          <Input
+            name="wholesalePrice"
+            type="number"
+            step="0.01"
+            defaultValue={baseUnit?.wholesalePrice ?? ""}
+            placeholder={t("optional")}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{t("stockQuantity")} *</label>
+          <Input name="stockQuantity" type="number" step="0.01" defaultValue={initialData?.stockQuantity} required />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">

@@ -14,6 +14,8 @@ namespace PosCs.Controllers
     public class InvoicesController : ApiController
     {
         private readonly InvoiceRepository _repo = new InvoiceRepository();
+        private readonly ProductRepository _productRepo = new ProductRepository();
+        private readonly ProductUnitRepository _unitRepo = new ProductUnitRepository();
 
         [Route("")]
         [HttpGet]
@@ -80,107 +82,207 @@ namespace PosCs.Controllers
                 if (dto?.Items == null || dto.Items.Count == 0)
                     return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "No items provided");
 
-                var subtotal = dto.Items.Sum(i => i.SalePrice * i.Quantity);
-
-                var discountType = dto.DiscountType;
-                var discountValue = dto.DiscountValue;
-
-                var eligibleItems = dto.Items.Where(i => i.AllowDiscount).ToList();
-                var eligibleTotal = eligibleItems.Sum(i => i.SalePrice * i.Quantity);
-
-                double discountAmount = 0;
-
-                if (!string.IsNullOrEmpty(discountType) && discountValue > 0)
-                {
-                    if (discountType == "percentage")
-                    {
-                        if (discountValue < 0 || discountValue > 100)
-                            return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Percentage must be between 0 and 100");
-                        discountAmount = Math.Round(eligibleTotal * (discountValue / 100.0), 2);
-                    }
-                    else if (discountType == "fixed")
-                    {
-                        if (discountValue < 0)
-                            return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Discount cannot be negative");
-                        if (discountValue > eligibleTotal)
-                            return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Discount exceeds eligible amount");
-                        discountAmount = Math.Round(discountValue, 2);
-                    }
-                    else
-                    {
-                        return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Invalid discount type");
-                    }
-                }
-                else
-                {
-                    discountAmount = Math.Round(Math.Max(0, dto.Discount), 2);
-                    discountType = null;
-                    discountValue = 0;
-                }
-
-                var lineDiscounts = new Dictionary<int, double>();
-                if (discountAmount > 0 && eligibleTotal > 0)
-                {
-                    double distributed = 0;
-                    for (int i = 0; i < dto.Items.Count; i++)
-                    {
-                        if (!dto.Items[i].AllowDiscount)
-                        {
-                            lineDiscounts[i] = 0;
-                            continue;
-                        }
-                        var lineTotal = dto.Items[i].SalePrice * dto.Items[i].Quantity;
-                        var share = Math.Round(discountAmount * (lineTotal / eligibleTotal), 2);
-                        distributed += share;
-                        lineDiscounts[i] = share;
-                    }
-                    if (distributed != discountAmount && eligibleItems.Count > 0)
-                    {
-                        var lastEligibleIdx = -1;
-                        for (int i = dto.Items.Count - 1; i >= 0; i--)
-                        {
-                            if (dto.Items[i].AllowDiscount) { lastEligibleIdx = i; break; }
-                        }
-                        if (lastEligibleIdx >= 0)
-                            lineDiscounts[lastEligibleIdx] += discountAmount - distributed;
-                    }
-                }
-                else
-                {
-                    for (int i = 0; i < dto.Items.Count; i++)
-                        lineDiscounts[i] = 0;
-                }
-
-                for (int i = 0; i < dto.Items.Count; i++)
-                {
-                    var item = dto.Items[i];
-                    var lineDiscount = lineDiscounts[i];
-                    var effectiveSalePrice = item.Quantity > 0
-                        ? Math.Round((item.SalePrice * item.Quantity - lineDiscount) / item.Quantity, 2)
-                        : item.SalePrice;
-                    if (effectiveSalePrice < item.BuyPrice)
-                    {
-                        return Request.CreateErrorResponse(HttpStatusCode.BadRequest,
-                            $"Profit protection: '{item.Name}' would sell below cost price");
-                    }
-                }
-
-                var totalAmount = Math.Max(0, subtotal - discountAmount);
+                var priceMode = string.Equals(dto.PriceMode, "wholesale", StringComparison.OrdinalIgnoreCase)
+                    ? "wholesale"
+                    : "retail";
 
                 using (var conn = DbConnectionFactory.CreateConnection())
                 {
+                    var lineDetails = new List<InvoiceDetail>();
+                    var lineFinals = new List<double>();
+
+                    for (int i = 0; i < dto.Items.Count; i++)
+                    {
+                        var item = dto.Items[i];
+                        if (item.Quantity <= 0)
+                            return Request.CreateErrorResponse(HttpStatusCode.BadRequest,
+                                $"Quantity must be greater than zero for '{item.Name}'");
+
+                        var product = _productRepo.GetById(conn, item.ProductId);
+                        if (product == null)
+                            return Request.CreateErrorResponse(HttpStatusCode.BadRequest,
+                                $"Product not found: '{item.Name}'");
+
+                        var unit = _unitRepo.GetById(conn, item.ProductUnitId);
+                        if (unit == null || unit.ProductId != product.Id)
+                            unit = _unitRepo.GetBaseUnit(conn, product.Id);
+                        if (unit == null)
+                            return Request.CreateErrorResponse(HttpStatusCode.BadRequest,
+                                $"No selling unit found for product '{product.Name}'");
+
+                        var originalPrice = unit.RetailPrice;
+                        if (priceMode == "wholesale" && unit.WholesalePrice.HasValue && unit.WholesalePrice.Value > 0)
+                            originalPrice = unit.WholesalePrice.Value;
+
+                        var unitPrice = item.UnitPrice > 0 ? item.UnitPrice : originalPrice;
+                        if (unitPrice < 0)
+                            return Request.CreateErrorResponse(HttpStatusCode.BadRequest,
+                                $"Unit price cannot be negative for '{product.Name}'");
+
+                        string lineDiscountType = null;
+                        double lineDiscountValue = 0;
+                        double lineDiscountAmount = 0;
+
+                        if (!string.IsNullOrEmpty(item.DiscountType) && item.DiscountValue > 0)
+                        {
+                            var lineSubtotalBefore = unitPrice * item.Quantity;
+                            if (item.DiscountType == "percentage")
+                            {
+                                if (item.DiscountValue < 0 || item.DiscountValue > 100)
+                                    return Request.CreateErrorResponse(HttpStatusCode.BadRequest,
+                                        "Line discount percentage must be between 0 and 100");
+                                lineDiscountType = "percentage";
+                                lineDiscountValue = item.DiscountValue;
+                                lineDiscountAmount = Math.Round(lineSubtotalBefore * (item.DiscountValue / 100.0), 2);
+                            }
+                            else if (item.DiscountType == "fixed")
+                            {
+                                if (item.DiscountValue < 0)
+                                    return Request.CreateErrorResponse(HttpStatusCode.BadRequest,
+                                        "Line discount cannot be negative");
+                                if (item.DiscountValue > lineSubtotalBefore)
+                                    return Request.CreateErrorResponse(HttpStatusCode.BadRequest,
+                                        $"Line discount cannot exceed line total for '{product.Name}'");
+                                lineDiscountType = "fixed";
+                                lineDiscountValue = item.DiscountValue;
+                                lineDiscountAmount = Math.Round(item.DiscountValue, 2);
+                            }
+                            else
+                            {
+                                return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Invalid line discount type");
+                            }
+                        }
+
+                        var lineSubtotal = Math.Round(unitPrice * item.Quantity, 2);
+                        var lineFinal = Math.Round(lineSubtotal - lineDiscountAmount, 2);
+
+                        string priceEditNote = null;
+                        if (unitPrice != originalPrice && !string.IsNullOrWhiteSpace(item.PriceEditNote))
+                            priceEditNote = item.PriceEditNote.Trim();
+
+                        lineDetails.Add(new InvoiceDetail
+                        {
+                            ProductId = product.Id,
+                            ProductUnitId = unit.Id,
+                            UnitName = unit.UnitName,
+                            Quantity = item.Quantity,
+                            BuyPrice = product.BuyPrice,
+                            OriginalUnitPrice = Math.Round(originalPrice, 2),
+                            UnitPrice = Math.Round(unitPrice, 2),
+                            DiscountType = lineDiscountType,
+                            DiscountValue = lineDiscountValue,
+                            DiscountAmount = lineDiscountAmount,
+                            LineSubtotal = lineSubtotal,
+                            FinalTotal = lineFinal,
+                            QuantityFactor = unit.QuantityFactor,
+                            PriceEditNote = priceEditNote,
+                            Product = product
+                        });
+                        lineFinals.Add(item.AllowDiscount ? lineFinal : 0);
+                    }
+
+                    var eligibleTotal = lineFinals.Sum();
+
+                    double invoiceDiscountAmount = 0;
+                    var discountType = dto.DiscountType;
+                    var discountValue = dto.DiscountValue;
+
+                    if (!string.IsNullOrEmpty(discountType) && discountValue > 0)
+                    {
+                        if (discountType == "percentage")
+                        {
+                            if (discountValue < 0 || discountValue > 100)
+                                return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Percentage must be between 0 and 100");
+                            invoiceDiscountAmount = Math.Round(eligibleTotal * (discountValue / 100.0), 2);
+                        }
+                        else if (discountType == "fixed")
+                        {
+                            if (discountValue < 0)
+                                return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Discount cannot be negative");
+                            if (discountValue > eligibleTotal)
+                                return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Discount exceeds eligible amount");
+                            invoiceDiscountAmount = Math.Round(discountValue, 2);
+                        }
+                        else
+                        {
+                            return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Invalid discount type");
+                        }
+                    }
+                    else
+                    {
+                        invoiceDiscountAmount = Math.Round(Math.Max(0, dto.Discount), 2);
+                        discountType = null;
+                        discountValue = 0;
+                    }
+
+                    var invoiceShares = new double[lineDetails.Count];
+                    if (invoiceDiscountAmount > 0 && eligibleTotal > 0)
+                    {
+                        double distributed = 0;
+                        for (int i = 0; i < lineDetails.Count; i++)
+                        {
+                            if (!dto.Items[i].AllowDiscount)
+                            {
+                                invoiceShares[i] = 0;
+                                continue;
+                            }
+                            var share = Math.Round(invoiceDiscountAmount * (lineDetails[i].FinalTotal / eligibleTotal), 2);
+                            distributed += share;
+                            invoiceShares[i] = share;
+                        }
+                        if (distributed != invoiceDiscountAmount)
+                        {
+                            var lastEligibleIdx = -1;
+                            for (int i = lineDetails.Count - 1; i >= 0; i--)
+                            {
+                                if (dto.Items[i].AllowDiscount) { lastEligibleIdx = i; break; }
+                            }
+                            if (lastEligibleIdx >= 0)
+                                invoiceShares[lastEligibleIdx] += invoiceDiscountAmount - distributed;
+                        }
+                    }
+
+                    for (int i = 0; i < lineDetails.Count; i++)
+                    {
+                        var detail = lineDetails[i];
+                        var totalLineDiscount = detail.DiscountAmount + invoiceShares[i];
+                        var effectivePrice = detail.Quantity > 0
+                            ? Math.Round((detail.LineSubtotal - totalLineDiscount) / detail.Quantity, 2)
+                            : detail.UnitPrice;
+                        if (effectivePrice < detail.BuyPrice)
+                        {
+                            return Request.CreateErrorResponse(HttpStatusCode.BadRequest,
+                                $"Profit protection: '{detail.Product.Name}' would sell below cost price");
+                        }
+                    }
+
+                    double totalAmount = 0;
+                    for (int i = 0; i < lineDetails.Count; i++)
+                    {
+                        lineDetails[i].DiscountAmount = Math.Round(lineDetails[i].DiscountAmount + invoiceShares[i], 2);
+                        lineDetails[i].FinalTotal = Math.Round(lineDetails[i].LineSubtotal - lineDetails[i].DiscountAmount, 2);
+                        totalAmount += lineDetails[i].FinalTotal;
+                    }
+                    totalAmount = Math.Round(totalAmount, 2);
+
                     var invoice = _repo.Create(conn, new Invoice
                     {
                         TotalAmount = totalAmount,
-                        Discount = discountAmount,
+                        Discount = invoiceDiscountAmount,
                         DiscountType = discountType,
                         DiscountValue = discountValue,
-                        DiscountAmount = discountAmount
-                    }, dto.Items.Select((item, idx) => (item.ProductId, item.Quantity, item.BuyPrice, item.SalePrice, lineDiscounts[idx])).ToList());
+                        DiscountAmount = invoiceDiscountAmount,
+                        PriceMode = priceMode
+                    }, lineDetails);
 
-                    Console.WriteLine($"[API] Created invoice: {invoice.Id} (total: {invoice.TotalAmount}, discount: {invoice.DiscountAmount} {invoice.DiscountType})");
+                    Console.WriteLine($"[API] Created invoice: {invoice.Id} (total: {invoice.TotalAmount}, discount: {invoice.DiscountAmount} {invoice.DiscountType}, mode: {priceMode})");
                     return Request.CreateResponse(HttpStatusCode.OK, invoice);
                 }
+            }
+            catch (InsufficientStockException ex)
+            {
+                Console.Error.WriteLine($"[API ERR] Invoice creation failed: {ex.Message}");
+                return Request.CreateErrorResponse(HttpStatusCode.BadRequest, ex.Message);
             }
             catch (Exception ex)
             {
@@ -196,16 +298,25 @@ namespace PosCs.Controllers
         public double Discount { get; set; }
         public string DiscountType { get; set; }
         public double DiscountValue { get; set; }
+        public string PriceMode { get; set; }
     }
 
     public class InvoiceItemDto
     {
         public string ProductId { get; set; }
+        public string ProductUnitId { get; set; }
+        public string UnitName { get; set; }
         public string Name { get; set; }
         public double BuyPrice { get; set; }
         public double SalePrice { get; set; }
-        public int Quantity { get; set; }
-        public int MaxStock { get; set; }
+        public double OriginalUnitPrice { get; set; }
+        public double UnitPrice { get; set; }
+        public double Quantity { get; set; }
+        public double MaxStock { get; set; }
         public bool AllowDiscount { get; set; } = true;
+        public string DiscountType { get; set; }
+        public double DiscountValue { get; set; }
+        public double QuantityFactor { get; set; }
+        public string PriceEditNote { get; set; }
     }
 }

@@ -16,8 +16,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useTranslations } from "next-intl"
+import { Invoice, InvoiceDetail } from "@/lib/api"
 
-type InvoiceWithDetails = any
+type InvoiceWithDetails = Invoice
 
 interface InvoiceDetailsDialogProps {
   open: boolean
@@ -54,17 +55,43 @@ export function InvoiceDetailsDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.invoiceDetail?.map((detail: any) => (
-                <TableRow key={detail.id}>
-                  <TableCell className="text-center">{detail.product?.name || t("unknownProduct")}</TableCell>
-                  <TableCell className="text-center">{detail.quantity}</TableCell>
-                  <TableCell className="text-center">{detail.salePrice.toFixed(2)}</TableCell>
-                  <TableCell className="text-center">
-                    {detail.discountAmount > 0 ? `-${detail.discountAmount.toFixed(2)}` : "0.00"}
-                  </TableCell>
-                  <TableCell className="text-center">{((detail.salePrice * detail.quantity) - (detail.discountAmount || 0)).toFixed(2)}</TableCell>
-                </TableRow>
-              ))}
+              {invoice.invoiceDetail?.map((detail: InvoiceDetail) => {
+                const unitPrice = detail.unitPrice ?? detail.salePrice
+                const isOverridden = detail.originalUnitPrice != null && detail.originalUnitPrice !== unitPrice
+                const itemTotal = detail.finalTotal != null
+                  ? detail.finalTotal
+                  : ((unitPrice * detail.quantity) - (detail.discountAmount || 0))
+                return (
+                  <TableRow key={detail.id}>
+                    <TableCell className="text-center">
+                      <div>{detail.product?.name || t("unknownProduct")}</div>
+                      {detail.unitName && (
+                        <div className="text-xs text-muted-foreground">({detail.unitName})</div>
+                      )}
+                      {detail.priceEditNote && (
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          {t("note")}: {detail.priceEditNote}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {detail.quantity}{detail.unitName ? ` ${detail.unitName}` : ""}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {isOverridden && (
+                        <span className="line-through text-muted-foreground mr-1">
+                          {detail.originalUnitPrice?.toFixed(2)}
+                        </span>
+                      )}
+                      {unitPrice.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {detail.discountAmount > 0 ? `-${detail.discountAmount.toFixed(2)}` : "0.00"}
+                    </TableCell>
+                    <TableCell className="text-center">{itemTotal.toFixed(2)}</TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
           

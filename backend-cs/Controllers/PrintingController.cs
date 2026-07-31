@@ -56,7 +56,7 @@ namespace PosCs.Controllers
                     });
 
                     // 3. Items
-                    var productItems = items.Select(i => new Builders.ReceiptItemModel { Name = i.Name, Quantity = i.Quantity, SalePrice = i.SalePrice }).ToList();
+                    var productItems = items.Select(i => new Builders.ReceiptItemModel { Name = i.Name, UnitName = i.UnitName, Quantity = i.Quantity, SalePrice = i.SalePrice, FinalTotal = i.FinalTotal }).ToList();
                     builder.AddItems(productItems);
 
                     // 4. Totals
@@ -148,14 +148,18 @@ namespace PosCs.Controllers
                 {
                     Name = d.Product?.Name ?? d.Name ?? "Item",
                     Quantity = d.Quantity,
-                    SalePrice = d.SalePrice
+                    SalePrice = d.SalePrice,
+                    UnitName = d.UnitName,
+                    FinalTotal = d.FinalTotal
                 }).ToList();
             }
             return items.Select(i => new ReceiptItem
             {
                 Name = i.Name ?? "Item",
+                UnitName = i.UnitName,
                 Quantity = i.Quantity,
-                SalePrice = i.SalePrice
+                SalePrice = i.SalePrice,
+                FinalTotal = i.FinalTotal
             }).ToList();
         }
     }
@@ -208,14 +212,18 @@ namespace PosCs.Controllers
     public class ReceiptItemData
     {
         public string Name { get; set; }
-        public int Quantity { get; set; }
+        public string UnitName { get; set; }
+        public double Quantity { get; set; }
         public double SalePrice { get; set; }
+        public double? FinalTotal { get; set; }
     }
 
     public class InvoiceDetailData
     {
-        public int Quantity { get; set; }
+        public double Quantity { get; set; }
         public double SalePrice { get; set; }
+        public double? FinalTotal { get; set; }
+        public string UnitName { get; set; }
         public ProductData Product { get; set; }
         public string Name { get; set; }
     }
