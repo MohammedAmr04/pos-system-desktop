@@ -7,6 +7,11 @@ using PosCs.Models;
 
 namespace PosCs.Repositories
 {
+    public class InsufficientStockException : Exception
+    {
+        public InsufficientStockException(string message) : base(message) { }
+    }
+
     public class InvoiceRepository
     {
         public IEnumerable<Invoice> GetAll(SqliteConnection conn, DateTime? from = null, DateTime? to = null)
@@ -56,63 +61,88 @@ namespace PosCs.Repositories
             return invoice;
         }
 
-public Invoice Create(SqliteConnection conn, Invoice invoice, List<(string productId, int quantity, double buyPrice, double salePrice, double discountAmount)> items)
-{
-    using (var tx = conn.BeginTransaction())
-    {
-        try
+        public Invoice Create(SqliteConnection conn, Invoice invoice, List<InvoiceDetail> items)
         {
-            invoice.Id = Guid.NewGuid().ToString("N");
-            invoice.CreatedAt = DateTime.Now;
-
-            conn.Execute(@"
-                INSERT INTO Invoice (id, invoiceNumber, totalAmount, discount, discountType, discountValue, discountAmount, createdAt)
-                VALUES (
-                    @id, 
-                    (SELECT COALESCE(MAX(invoiceNumber), 0) + 1 FROM Invoice), 
-                    @totalAmount, 
-                    @discount, 
-                    @discountType,
-                    @discountValue,
-                    @discountAmount,
-                    @createdAt
-                )",
-                new
-                {
-                    id = invoice.Id,
-                    totalAmount = invoice.TotalAmount,
-                    discount = invoice.Discount,
-                    discountType = invoice.DiscountType,
-                    discountValue = invoice.DiscountValue,
-                    discountAmount = invoice.DiscountAmount,
-                    createdAt = invoice.CreatedAt
-                }, transaction: tx);
-
-            foreach (var item in items)
+            using (var tx = conn.BeginTransaction())
             {
-                var detailId = Guid.NewGuid().ToString("N");
-                conn.Execute(@"
-                    INSERT INTO InvoiceDetail (id, invoiceId, productId, quantity, buyPrice, salePrice, discountAmount)
-                    VALUES (@id, @invoiceId, @productId, @quantity, @buyPrice, @salePrice, @discountAmount)",
-                    new { id = detailId, invoiceId = invoice.Id, item.productId, item.quantity, item.buyPrice, item.salePrice, discountAmount = item.discountAmount },
-                    transaction: tx);
+                try
+                {
+                    invoice.Id = Guid.NewGuid().ToString("N");
+                    invoice.CreatedAt = DateTime.Now;
 
-                conn.Execute(@"
-                    UPDATE Product SET stockQuantity = stockQuantity - @qty
-                    WHERE id = @productId AND stockQuantity >= @qty",
-                    new { qty = item.quantity, productId = item.productId },
-                    transaction: tx);
+                    conn.Execute(@"
+                        INSERT INTO Invoice (id, invoiceNumber, totalAmount, discount, discountType, discountValue, discountAmount, priceMode, createdAt)
+                        VALUES (
+                            @id, 
+                            (SELECT COALESCE(MAX(invoiceNumber), 0) + 1 FROM Invoice), 
+                            @totalAmount, 
+                            @discount, 
+                            @discountType,
+                            @discountValue,
+                            @discountAmount,
+                            @priceMode,
+                            @createdAt
+                        )",
+                        new
+                        {
+                            id = invoice.Id,
+                            totalAmount = invoice.TotalAmount,
+                            discount = invoice.Discount,
+                            discountType = invoice.DiscountType,
+                            discountValue = invoice.DiscountValue,
+                            discountAmount = invoice.DiscountAmount,
+                            priceMode = invoice.PriceMode,
+                            createdAt = invoice.CreatedAt
+                        }, transaction: tx);
+
+                    foreach (var item in items)
+                    {
+                        var detailId = Guid.NewGuid().ToString("N");
+                        conn.Execute(@"
+                            INSERT INTO InvoiceDetail (id, invoiceId, productId, productUnitId, unitName, quantity, buyPrice, salePrice,
+                                originalUnitPrice, unitPrice, discountType, discountValue, discountAmount, lineSubtotal, finalTotal, priceEditNote)
+                            VALUES (@id, @invoiceId, @productId, @productUnitId, @unitName, @quantity, @buyPrice, @salePrice,
+                                @originalUnitPrice, @unitPrice, @discountType, @discountValue, @discountAmount, @lineSubtotal, @finalTotal, @priceEditNote)",
+                            new
+                            {
+                                id = detailId,
+                                invoiceId = invoice.Id,
+                                productId = item.ProductId,
+                                productUnitId = item.ProductUnitId,
+                                unitName = item.UnitName,
+                                quantity = item.Quantity,
+                                buyPrice = item.BuyPrice,
+                                salePrice = item.UnitPrice,
+                                originalUnitPrice = item.OriginalUnitPrice,
+                                unitPrice = item.UnitPrice,
+                                discountType = item.DiscountType,
+                                discountValue = item.DiscountValue,
+                                discountAmount = item.DiscountAmount,
+                                lineSubtotal = item.LineSubtotal,
+                                finalTotal = item.FinalTotal,
+                                priceEditNote = item.PriceEditNote
+                            }, transaction: tx);
+
+                        var baseQuantity = item.Quantity * item.QuantityFactor;
+                        var affected = conn.Execute(@"
+                            UPDATE Product SET stockQuantity = stockQuantity - @baseQuantity
+                            WHERE id = @productId AND stockQuantity >= @baseQuantity",
+                            new { baseQuantity, productId = item.ProductId },
+                            transaction: tx);
+
+                        if (affected == 0)
+                            throw new InsufficientStockException($"Insufficient stock for '{item.Product?.Name ?? item.ProductId}'");
+                    }
+
+                    tx.Commit();
+                    return GetById(conn, invoice.Id);
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
             }
-
-            tx.Commit();
-            return GetById(conn, invoice.Id);
         }
-        catch
-        {
-            tx.Rollback();
-            throw;
-        }
-    }
-}
     }
 }

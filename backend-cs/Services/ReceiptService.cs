@@ -247,7 +247,9 @@ namespace PosCs.Services
     public class ReceiptItem
     {
         public string Name { get; set; }
-        public int Quantity { get; set; }
+        public string UnitName { get; set; }
+        public double Quantity { get; set; }
         public double SalePrice { get; set; }
+        public double? FinalTotal { get; set; }
     }
 }

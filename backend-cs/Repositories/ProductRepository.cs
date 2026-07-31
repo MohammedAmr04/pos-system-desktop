@@ -27,18 +27,17 @@ namespace PosCs.Repositories
             product.UpdatedAt = now;
 
             Console.WriteLine($"[DB] Creating product: Id={product.Id}, Name='{product.Name}', " +
-                $"BuyPrice={product.BuyPrice}, SalePrice={product.SalePrice}, Stock={product.StockQuantity}, " +
+                $"BuyPrice={product.BuyPrice}, Stock={product.StockQuantity}, " +
                 $"Notes='{product.Notes}', CreatedAt={product.CreatedAt:O}, UpdatedAt={product.UpdatedAt:O}");
 
             conn.Execute(@"
-                INSERT INTO Product (id, name, buyPrice, salePrice, stockQuantity, notes, allowDiscount, lowStockThreshold, createdAt, updatedAt)
-                VALUES (@id, @name, @buyPrice, @salePrice, @stockQuantity, @notes, @allowDiscount, @lowStockThreshold, @createdAt, @updatedAt)",
+                INSERT INTO Product (id, name, buyPrice, stockQuantity, notes, allowDiscount, lowStockThreshold, createdAt, updatedAt)
+                VALUES (@id, @name, @buyPrice, @stockQuantity, @notes, @allowDiscount, @lowStockThreshold, @createdAt, @updatedAt)",
                 new
                 {
                     id = product.Id,
                     name = product.Name,
                     buyPrice = product.BuyPrice,
-                    salePrice = product.SalePrice,
                     stockQuantity = product.StockQuantity,
                     notes = product.Notes,
                     allowDiscount = product.AllowDiscount ? 1 : 0,
@@ -61,7 +60,7 @@ namespace PosCs.Repositories
             product.UpdatedAt = DateTime.UtcNow;
             conn.Execute(@"
                 UPDATE Product SET name=@name, buyPrice=@buyPrice,
-                    salePrice=@salePrice, stockQuantity=@stockQuantity, notes=@notes,
+                    stockQuantity=@stockQuantity, notes=@notes,
                     allowDiscount=@allowDiscount, lowStockThreshold=@lowStockThreshold,
                     updatedAt=@updatedAt
                 WHERE id=@id",
@@ -70,7 +69,6 @@ namespace PosCs.Repositories
                     id = product.Id,
                     name = product.Name,
                     buyPrice = product.BuyPrice,
-                    salePrice = product.SalePrice,
                     stockQuantity = product.StockQuantity,
                     notes = product.Notes,
                     allowDiscount = product.AllowDiscount ? 1 : 0,
