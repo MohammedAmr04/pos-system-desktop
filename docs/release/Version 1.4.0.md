@@ -55,12 +55,25 @@ The POS screen now has a price-mode selector (Retail / Wholesale):
 
 ## Per-Line Override and Discount
 
-Each cart line can be adjusted independently:
+Each cart line can be adjusted independently from a single "Edit line" dialog
+(opened with the pencil button):
 
 - Unit price override (the original price is shown struck through).
+- Optional reason note for the price edit, recorded on the invoice line so
+  cashiers can document why the price was changed. The note is shown in the
+  invoice details only - it is never printed on the receipt.
 - Line discount as percentage or fixed amount.
-- Invoice-level discount (fixed or percentage) is distributed over the lines
-  that allow discounts, proportionally to their totals.
+
+## Discount Control
+
+Products with the "No Discount" flag hide the discount inputs entirely:
+
+- The discount section in the edit-line dialog is hidden for such lines.
+- The invoice-level discount field is hidden when no cart line allows
+  discounts, so a non-discountable sale can never have a discount applied.
+
+Invoice-level discount (fixed or percentage) is distributed over the lines
+that allow discounts, proportionally to their totals.
 
 ## Profit Protection
 
@@ -117,6 +130,9 @@ Added columns
 - LineSubtotal
 - FinalTotal
 - QuantityFactor
+- PriceEditNote (added by migration 008) - optional cashier note explaining a
+  price override, stored only when the line price actually differs from the
+  original
 
 ### Invoice
 
@@ -134,6 +150,9 @@ During migration 007:
 - Existing invoices are backfilled: retail mode, original/unit price equal to
   the recorded price, line totals computed from existing amounts.
 
+Migration 008 adds the PriceEditNote column to InvoiceDetail; existing rows are
+left null (no note), which the frontend renders as an empty value.
+
 ---
 
 # Backend Improvements
@@ -144,6 +163,9 @@ During migration 007:
   - PUT /api/products/{id}/units/{unitId}/barcodes/{barcodeId}/default
 - Invoice creation now accepts priceMode, unit-scoped items, per-line override
   and per-line discounts.
+- Price overrides persist the cashier's optional PriceEditNote on the invoice
+  line; it is returned in the API and shown in invoice details but excluded
+  from receipts.
 - Stock is deducted in base units using the quantity factor with an affected-
   rows guard, so an out-of-stock sale is rejected instead of silently no-oping.
 - Receipts show the unit name next to the product and the final line total.
@@ -153,13 +175,14 @@ During migration 007:
 # Frontend Improvements
 
 - POS: retail/wholesale selector, unit-aware search and barcode scanning,
-  unit picker when a product has multiple units, editable unit price per line,
-  per-line discount dialog, unit-based quantity.
+  unit picker when a product has multiple units, edit-line dialog with price
+  override, reason note, and discount (hidden for non-discountable products),
+  unit-based quantity, discount field hidden when no line allows discounts.
 - Products screen: Product Units section with add/edit/delete unit, per-unit
   retail/wholesale prices and barcode management.
 - Product form: retail price, wholesale price, base unit name, decimal stock.
 - Invoices screen: shows unit name, struck-through original price on override,
-  and final line totals.
+  the price-edit reason note, and final line totals.
 
 ---
 
@@ -167,7 +190,7 @@ During migration 007:
 
 Database Migration Required
 
-Yes (007)
+Yes (007, 008)
 
 Frontend Update Required
 
@@ -197,7 +220,8 @@ Upgrade flow on existing installations:
 3. Keep the data folder (dev.db) - it must not be replaced.
 4. Start the new server. Migration 007 runs automatically: products get a
    base unit "Piece", barcodes are re-parented to the base unit, and existing
-   invoices are backfilled with retail-mode pricing.
+   invoices are backfilled with retail-mode pricing. Migration 008 then adds
+   the PriceEditNote column to InvoiceDetail.
 
 Existing retail price data is preserved as the base unit retail price, so
 day-to-day behavior is unchanged until the user adds new units or wholesale
