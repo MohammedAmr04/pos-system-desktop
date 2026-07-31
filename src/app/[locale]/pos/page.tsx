@@ -8,8 +8,16 @@ export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
 
+  const fetchProducts = () => {
+    setLoading(true)
+    return api.products.list().then((list) => {
+      setProducts(list)
+      return list
+    })
+  }
+
   useEffect(() => {
-    api.products.list().then(setProducts).finally(() => setLoading(false))
+    fetchProducts().finally(() => setLoading(false))
   }, [])
 
   if (loading) {
@@ -22,7 +30,7 @@ export default function POSPage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background">
-      <POSClient products={products} />
+      <POSClient products={products} onRefresh={fetchProducts} />
     </div>
   )
 }
