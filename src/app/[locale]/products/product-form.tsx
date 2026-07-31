@@ -9,12 +9,13 @@ import { useTranslations } from "next-intl"
 
 interface ProductFormProps {
   initialData?: Product | null
+  defaultBarcode?: string
   onSuccess: () => void
 }
 
 export const PRODUCT_FORM_ID = "product-form"
 
-export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
+export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductFormProps) {
   const t = useTranslations("Products")
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -53,7 +54,7 @@ export function ProductForm({ initialData, onSuccess }: ProductFormProps) {
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("barcode")}</label>
-        <Input name="barcode" defaultValue={initialData?.barcode || ""} placeholder={t("barcode")} />
+        <Input name="barcode" defaultValue={initialData?.barcode || defaultBarcode || ""} placeholder={t("barcode")} />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">

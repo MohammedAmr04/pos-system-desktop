@@ -4,9 +4,11 @@ import { Product } from "@/lib/api"
 import { usePOSStore } from "@/features/pos/store/usePOSStore"
 import { Input } from "@/components/ui/input"
 import { createInvoice } from "@/features/invoices/actions"
+import { addProductBarcode } from "@/features/products/actions"
+import { ProductForm, PRODUCT_FORM_ID } from "@/app/[locale]/products/product-form"
 import { toast } from "sonner"
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Loader2, Ban } from "lucide-react"
+import { Loader2, Ban, PackagePlus, Link2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trash2, Plus, Minus, ArrowLeft } from "lucide-react"
@@ -27,8 +29,26 @@ import {
   PopoverPositioner,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
-export function POSClient({ products }: { products: Product[] }) {
+interface POSClientProps {
+  products: Product[]
+  onRefresh?: () => Promise<Product[]>
+}
+
+const allBarcodes = (p: Product): string[] => [
+  ...(p.barcodes ?? []).map((b) => b.barcode),
+  ...(p.barcode ? [p.barcode] : []),
+]
+
+export function POSClient({ products, onRefresh }: POSClientProps) {
   const t = useTranslations("POS")
   const {
     cartItems,
@@ -54,6 +74,11 @@ export function POSClient({ products }: { products: Product[] }) {
   const [isCheckingOut, setIsCheckingOut] = useState(false)
   const [amountPaid, setAmountPaid] = useState(0)
   const paidTouched = useRef(false)
+
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null)
+  const [unknownFlow, setUnknownFlow] = useState<"options" | "create" | "link">("options")
+  const [linkQuery, setLinkQuery] = useState("")
+  const [selectedLinkProduct, setSelectedLinkProduct] = useState<Product | null>(null)
 
   const subtotal = cartItems.reduce((acc, item) => acc + (item.salePrice * item.quantity), 0)
   const eligibleSubtotal = cartItems
@@ -85,8 +110,15 @@ export function POSClient({ products }: { products: Product[] }) {
 
   const filteredProducts = products.filter((p) =>
     p.name.toLowerCase().includes(inputValue.toLowerCase()) ||
-    (p.barcode && p.barcode.includes(inputValue))
+    allBarcodes(p).some((b) => b.includes(inputValue))
   )
+
+  const findExact = useCallback((barcode: string) => {
+    const b = barcode.trim()
+    return products.find(
+      (p) => p.barcode === b || (p.barcodes ?? []).some((x) => x.barcode === b)
+    ) ?? null
+  }, [products])
 
   const handleSelect = useCallback((product: Product) => {
     addItem(product)
@@ -95,6 +127,55 @@ export function POSClient({ products }: { products: Product[] }) {
     setOpen(false)
     triggerRef.current?.focus()
   }, [addItem, setSearchQuery])
+
+  const openUnknownDialog = useCallback((barcode: string) => {
+    setUnknownBarcode(barcode)
+    setUnknownFlow("options")
+    setLinkQuery("")
+    setSelectedLinkProduct(null)
+  }, [])
+
+  const closeUnknownDialog = useCallback(() => {
+    setUnknownBarcode(null)
+    setSelectedLinkProduct(null)
+    setLinkQuery("")
+    setInputValue("")
+    triggerRef.current?.focus()
+  }, [])
+
+  const handleLinkConfirm = async () => {
+    if (!selectedLinkProduct || !unknownBarcode) return
+    try {
+      await addProductBarcode(selectedLinkProduct.id, unknownBarcode)
+      toast.success(t("barcodeLinked"))
+      addItem(selectedLinkProduct)
+      if (onRefresh) await onRefresh()
+    } catch (e) {
+      toast.error((e as Error).message || t("linkFailed"))
+    } finally {
+      closeUnknownDialog()
+    }
+  }
+
+  const handleCreatedProduct = async () => {
+    if (!unknownBarcode) return
+    try {
+      const fresh = onRefresh ? await onRefresh() : products
+      const created = fresh.find(
+        (p) => p.barcode === unknownBarcode || (p.barcodes ?? []).some((x) => x.barcode === unknownBarcode)
+      )
+      if (created) addItem(created)
+    } finally {
+      toast.success(t("productCreated"))
+      closeUnknownDialog()
+    }
+  }
+
+  const linkedProducts = products.filter((p) => {
+    const q = linkQuery.trim().toLowerCase()
+    if (!q) return true
+    return p.name.toLowerCase().includes(q) || allBarcodes(p).some((b) => b.toLowerCase().includes(q))
+  })
 
   const validateDiscount = useCallback((): string | null => {
     if (discount <= 0 || (discountType === 'percentage' && discount > 100)) return null
@@ -207,6 +288,7 @@ if (e.key === 'F11' && canCheckout) {
   }, [open, handleCheckout, handleCheckoutWithoutSave, toggleDiscountType, canCheckout])
 
   return (
+    <>
     <div className="flex h-full flex-col lg:flex-row gap-4 p-4 lg:p-6 bg-muted/40">
       <div className="flex flex-1 flex-col gap-4">
         <div className="flex items-center gap-4">
@@ -240,8 +322,22 @@ if (e.key === 'F11' && canCheckout) {
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && filteredProducts.length > 0) {
-                          handleSelect(filteredProducts[0])
+                        if (e.key === "Enter") {
+                          const trimmed = inputValue.trim()
+                          if (trimmed) {
+                            const exact = findExact(trimmed)
+                            if (exact) {
+                              handleSelect(exact)
+                              return
+                            }
+                            if (/^\d{4,}$/.test(trimmed)) {
+                              openUnknownDialog(trimmed)
+                              return
+                            }
+                          }
+                          if (filteredProducts.length > 0) {
+                            handleSelect(filteredProducts[0])
+                          }
                         }
                         if (e.key === "Escape") {
                           setOpen(false)
@@ -466,5 +562,120 @@ if (e.key === 'F11' && canCheckout) {
         </Card>
       </div>
     </div>
+
+    <Dialog open={unknownBarcode !== null} onOpenChange={(o) => { if (!o) closeUnknownDialog() }}>
+      <DialogContent className="sm:max-w-[440px]">
+        {unknownBarcode !== null && unknownFlow === "options" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t("barcodeNotFoundTitle")}</DialogTitle>
+              <DialogDescription>{t("barcodeNotFoundMessage")}</DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>{t("scannedBarcode")}:</span>
+                <span className="rounded-lg bg-muted px-3 py-1 font-mono text-base text-foreground">{unknownBarcode}</span>
+              </div>
+            </div>
+            <DialogFooter className="flex-col gap-2 sm:flex-col">
+              <Button onClick={() => setUnknownFlow("create")}>
+                <PackagePlus className="mr-2 h-4 w-4" /> {t("createNewProduct")}
+              </Button>
+              <Button variant="outline" onClick={() => setUnknownFlow("link")}>
+                <Link2 className="mr-2 h-4 w-4" /> {t("linkToExistingProduct")}
+              </Button>
+              <Button variant="ghost" onClick={closeUnknownDialog}>
+                {t("cancel")}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {unknownBarcode !== null && unknownFlow === "create" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t("createNewProduct")}</DialogTitle>
+              <DialogDescription>{t("createNewProductDescription")}</DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <ProductForm
+                key={unknownBarcode}
+                defaultBarcode={unknownBarcode}
+                onSuccess={handleCreatedProduct}
+              />
+            </div>
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button variant="outline" onClick={() => setUnknownFlow("options")}>
+                {t("back")}
+              </Button>
+              <Button type="submit" form={PRODUCT_FORM_ID}>
+                {t("save")}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {unknownBarcode !== null && unknownFlow === "link" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t("linkToExistingProduct")}</DialogTitle>
+              <DialogDescription>{t("linkToExistingProductDescription")}</DialogDescription>
+            </DialogHeader>
+            <div className="py-2 space-y-3">
+              <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-1.5 font-mono text-base">
+                {unknownBarcode}
+              </div>
+              <Command className="rounded-lg border">
+                <CommandInput
+                  placeholder={t("searchProduct")}
+                  value={linkQuery}
+                  onChange={(e) => setLinkQuery(e.target.value)}
+                  autoFocus
+                />
+                <CommandList>
+                  <CommandEmpty>{t("noResults")}</CommandEmpty>
+                  <CommandGroup>
+                    {linkedProducts.slice(0, 10).map((p) => (
+                      <CommandItem
+                        key={p.id}
+                        onSelect={() => setSelectedLinkProduct(p)}
+                        className={selectedLinkProduct?.id === p.id ? "bg-primary/10" : undefined}
+                      >
+                        <div className="flex flex-1 items-center justify-between">
+                          <span>{p.name}</span>
+                          <span className="text-muted-foreground text-sm">{p.salePrice.toFixed(2)}</span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+              {selectedLinkProduct && (
+                <div className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                  <span className="font-medium">{selectedLinkProduct.name}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedLinkProduct(null)}
+                    aria-label={t("clear")}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button variant="outline" onClick={() => setUnknownFlow("options")}>
+                {t("back")}
+              </Button>
+              <Button onClick={handleLinkConfirm} disabled={!selectedLinkProduct}>
+                {t("confirmLink")}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

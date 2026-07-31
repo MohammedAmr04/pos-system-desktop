@@ -19,28 +19,6 @@ namespace PosCs.Repositories
             return conn.QueryFirstOrDefault<Product>("SELECT * FROM Product WHERE id = @id", new { id });
         }
 
-        public Product GetByBarcode(SqliteConnection conn, string barcode)
-        {
-            return conn.QueryFirstOrDefault<Product>("SELECT * FROM Product WHERE barcode = @barcode", new { barcode });
-        }
-
-        public bool BarcodeExists(SqliteConnection conn, string barcode)
-        {
-            return conn.ExecuteScalar<int>("SELECT COUNT(1) FROM Product WHERE barcode = @barcode", new { barcode }) > 0;
-        }
-
-        public string GenerateUniqueBarcode(SqliteConnection conn)
-        {
-            var rng = new Random();
-            for (int attempt = 0; attempt < 10; attempt++)
-            {
-                var barcode = rng.Next(0, int.MaxValue).ToString("D12");
-                if (!BarcodeExists(conn, barcode))
-                    return barcode;
-            }
-            throw new Exception("Failed to generate unique barcode after multiple attempts");
-        }
-
         public Product Create(SqliteConnection conn, Product product)
         {
             var now = DateTime.Now;
@@ -48,17 +26,16 @@ namespace PosCs.Repositories
             product.CreatedAt = now;
             product.UpdatedAt = now;
 
-            Console.WriteLine($"[DB] Creating product: Id={product.Id}, Name='{product.Name}', Barcode={product.Barcode}, " +
+            Console.WriteLine($"[DB] Creating product: Id={product.Id}, Name='{product.Name}', " +
                 $"BuyPrice={product.BuyPrice}, SalePrice={product.SalePrice}, Stock={product.StockQuantity}, " +
                 $"Notes='{product.Notes}', CreatedAt={product.CreatedAt:O}, UpdatedAt={product.UpdatedAt:O}");
 
             conn.Execute(@"
-                INSERT INTO Product (id, barcode, name, buyPrice, salePrice, stockQuantity, notes, allowDiscount, lowStockThreshold, createdAt, updatedAt)
-                VALUES (@id, @barcode, @name, @buyPrice, @salePrice, @stockQuantity, @notes, @allowDiscount, @lowStockThreshold, @createdAt, @updatedAt)",
+                INSERT INTO Product (id, name, buyPrice, salePrice, stockQuantity, notes, allowDiscount, lowStockThreshold, createdAt, updatedAt)
+                VALUES (@id, @name, @buyPrice, @salePrice, @stockQuantity, @notes, @allowDiscount, @lowStockThreshold, @createdAt, @updatedAt)",
                 new
                 {
                     id = product.Id,
-                    barcode = product.Barcode,
                     name = product.Name,
                     buyPrice = product.BuyPrice,
                     salePrice = product.SalePrice,
@@ -83,7 +60,7 @@ namespace PosCs.Repositories
         {
             product.UpdatedAt = DateTime.UtcNow;
             conn.Execute(@"
-                UPDATE Product SET barcode=@barcode, name=@name, buyPrice=@buyPrice,
+                UPDATE Product SET name=@name, buyPrice=@buyPrice,
                     salePrice=@salePrice, stockQuantity=@stockQuantity, notes=@notes,
                     allowDiscount=@allowDiscount, lowStockThreshold=@lowStockThreshold,
                     updatedAt=@updatedAt
@@ -91,7 +68,6 @@ namespace PosCs.Repositories
                 new
                 {
                     id = product.Id,
-                    barcode = product.Barcode,
                     name = product.Name,
                     buyPrice = product.BuyPrice,
                     salePrice = product.SalePrice,

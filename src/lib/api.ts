@@ -12,9 +12,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json()
 }
 
+export interface ProductBarcode {
+  id: string
+  productId: string
+  barcode: string
+  isDefault: boolean
+  createdAt: string
+}
+
 export interface Product {
   id: string
   barcode: string | null
+  barcodes?: ProductBarcode[]
   name: string
   buyPrice: number
   salePrice: number
@@ -66,6 +75,21 @@ export const api = {
       request<Product>(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/api/products/${id}`, { method: 'DELETE' }),
+    barcodes: {
+      add: (productId: string, barcode: string) =>
+        request<ProductBarcode>(`/api/products/${productId}/barcodes`, {
+          method: 'POST',
+          body: JSON.stringify({ barcode }),
+        }),
+      remove: (productId: string, barcodeId: string) =>
+        request<{ success: boolean }>(`/api/products/${productId}/barcodes/${barcodeId}`, {
+          method: 'DELETE',
+        }),
+      setDefault: (productId: string, barcodeId: string) =>
+        request<{ success: boolean }>(`/api/products/${productId}/barcodes/${barcodeId}/default`, {
+          method: 'PUT',
+        }),
+    },
   },
 
   // Invoices
