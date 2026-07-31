@@ -28,7 +28,8 @@ namespace PosCs
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[API ERR] Migration failed: {ex.Message}");
+                Console.Error.WriteLine($"[API ERR] Migration failed: {ex}");
+                Environment.Exit(1);
             }
 
             var config = new HttpConfiguration();

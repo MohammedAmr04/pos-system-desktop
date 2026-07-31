@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace PosCs.Models
 {
@@ -6,6 +7,7 @@ namespace PosCs.Models
     {
         public string Id { get; set; }
         public string Barcode { get; set; }
+        public List<ProductBarcode> Barcodes { get; set; }
         public string Name { get; set; }
         public double BuyPrice { get; set; }
         public double SalePrice { get; set; }
