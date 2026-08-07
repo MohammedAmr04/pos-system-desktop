@@ -71,6 +71,71 @@ namespace PosCs.Controllers
             }
         }
 
+        [Route("paged")]
+        [HttpGet]
+        public HttpResponseMessage GetPaged(int page = 1, int pageSize = 20, string from = null, string to = null, string q = null)
+        {
+            try
+            {
+                page = Math.Max(1, page);
+                pageSize = Math.Max(1, Math.Min(pageSize, 100));
+
+                DateTime? fromDate = null;
+                DateTime? toDate = null;
+
+                if (!string.IsNullOrEmpty(from))
+                    fromDate = DateTime.Parse(from);
+
+                if (!string.IsNullOrEmpty(to))
+                    toDate = DateTime.Parse(to).Date.AddDays(1).AddSeconds(-1);
+
+                if (!fromDate.HasValue && !toDate.HasValue)
+                {
+                    fromDate = DateTime.Today;
+                    toDate = DateTime.Today.AddDays(1).AddSeconds(-1);
+                }
+
+                using (var conn = DbConnectionFactory.CreateConnection())
+                {
+                    var result = _repo.GetPaged(conn, fromDate, toDate, q, page, pageSize);
+                    return Request.CreateResponse(HttpStatusCode.OK, new
+                    {
+                        items = result.Items,
+                        total = result.Total,
+                        page,
+                        pageSize,
+                        totals = new { revenue = result.Revenue, discounts = result.Discounts }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[API ERR] Failed to fetch paged invoices: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to fetch paged invoices");
+            }
+        }
+
+        [Route("{id}")]
+        [HttpGet]
+        public HttpResponseMessage GetById(string id)
+        {
+            try
+            {
+                using (var conn = DbConnectionFactory.CreateConnection())
+                {
+                    var invoice = _repo.GetById(conn, id);
+                    if (invoice == null)
+                        return Request.CreateErrorResponse(HttpStatusCode.NotFound, "Invoice not found");
+                    return Request.CreateResponse(HttpStatusCode.OK, invoice);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[API ERR] Failed to fetch invoice {id}: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to fetch invoice");
+            }
+        }
+
         [Route("")]
         [HttpPost]
         public HttpResponseMessage Create([FromBody] CreateInvoiceDto dto)

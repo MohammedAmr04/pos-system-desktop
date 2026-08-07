@@ -40,8 +40,42 @@ namespace PosCs.Repositories
             return invoices;
         }
 
-        public Invoice GetById(SqliteConnection conn, string id)
+        public (IEnumerable<Invoice> Items, int Total, double Revenue, double Discounts) GetPaged(SqliteConnection conn, DateTime? from, DateTime? to, string q, int page, int pageSize)
         {
+            var clauses = new List<string>();
+            var parameters = new DynamicParameters();
+
+            if (from.HasValue)
+            {
+                clauses.Add("createdAt >= @from");
+                parameters.Add("from", from.Value.ToString("yyyy-MM-dd HH:mm:ss"));
+            }
+            if (to.HasValue)
+            {
+                clauses.Add("createdAt <= @to");
+                parameters.Add("to", to.Value.ToString("yyyy-MM-dd HH:mm:ss"));
+            }
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                clauses.Add("CAST(invoiceNumber AS TEXT) LIKE @like");
+                parameters.Add("like", $"%{EscapeLike(q.Trim())}%");
+            }
+
+            var where = clauses.Count > 0 ? " WHERE " + string.Join(" AND ", clauses) : "";
+            parameters.Add("pageSize", pageSize);
+            parameters.Add("offset", (page - 1) * pageSize);
+
+            var total = conn.ExecuteScalar<int>($"SELECT COUNT(1) FROM Invoice{where}", parameters);
+            var revenue = conn.ExecuteScalar<double>($"SELECT COALESCE(SUM(totalAmount), 0) FROM Invoice{where}", parameters);
+            var discounts = conn.ExecuteScalar<double>($"SELECT COALESCE(SUM(discount), 0) FROM Invoice{where}", parameters);
+
+            var items = conn.Query<Invoice>(
+                $"SELECT * FROM Invoice{where} ORDER BY createdAt DESC LIMIT @pageSize OFFSET @offset", parameters);
+
+            return (items, total, revenue, discounts);
+        }
+
+        public Invoice GetById(SqliteConnection conn, string id)        {
             var invoice = conn.QueryFirstOrDefault<Invoice>("SELECT * FROM Invoice WHERE id = @id", new { id });
             if (invoice != null)
             {
@@ -109,5 +143,10 @@ public Invoice Create(SqliteConnection conn, Invoice invoice, List<(string produ
         }
     }
 }
+
+        private static string EscapeLike(string input)
+        {
+            return input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+        }
     }
 }

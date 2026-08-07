@@ -38,7 +38,9 @@
     "amountPaid": "المدفوع",
     "changeDue": "الباقي",
     "totalDue": "المطلوب",
-    "insufficientPayment": "المبلغ المدفوع أقل من المطلوب"
+    "insufficientPayment": "المبلغ المدفوع أقل من المطلوب",
+    "outOfStock": "المنتج غير متوفر (المخزون صفر)",
+    "maxStockReached": "الكمية المطلوبة تتجاوز المخزون المتاح"
   },
   "Products": {
     "title": "المنتجات",
@@ -69,7 +71,9 @@
     "saving": "جاري الحفظ...",
     "currency": "جنيه",
     "barcodePrinting": "جاري طباعة الباركود...",
-    "barcodePrintFailed": "فشلت الطباعة"
+    "barcodePrintFailed": "فشلت الطباعة",
+    "pageInfo": "صفحة {page} من {pageCount}",
+    "productsCount": "{count} منتج"
   },
   "Invoices": {
     "title": "فواتير اليوم",
@@ -95,7 +99,10 @@
     "today": "اليوم",
     "thisWeek": "هذا الأسبوع",
     "thisMonth": "هذا الشهر",
-    "all": "الكل"
+    "all": "الكل",
+    "searchByNumber": "ابحث برقم الفاتورة...",
+    "pageInfo": "صفحة {page} من {pageCount}",
+    "invoicesCount": "{count} فاتورة"
   },
   "Sidebar": {
     "dashboard": "لوحة التحكم",

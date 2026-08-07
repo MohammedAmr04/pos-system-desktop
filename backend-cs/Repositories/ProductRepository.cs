@@ -108,5 +108,68 @@ namespace PosCs.Repositories
         {
             return conn.ExecuteScalar<int>("SELECT COUNT(1) FROM Product");
         }
+
+        public IEnumerable<Product> Search(SqliteConnection conn, string q, int limit)
+        {
+            var exact = q;
+            var like = $"%{EscapeLike(q)}%";
+            var prefix = $"{EscapeLike(q)}%";
+
+            return conn.Query<Product>(@"
+                SELECT * FROM Product
+                WHERE name LIKE @like ESCAPE '\'
+                   OR barcode = @exact
+                   OR barcode LIKE @prefix ESCAPE '\'
+                ORDER BY CASE
+                    WHEN barcode = @exact THEN 0
+                    WHEN barcode LIKE @prefix ESCAPE '\' THEN 1
+                    ELSE 2
+                END, createdAt DESC
+                LIMIT @limit",
+                new { like, prefix, exact, limit });
+        }
+
+        public (IEnumerable<Product> Items, int Total) GetPaged(SqliteConnection conn, int page, int pageSize, string q)
+        {
+            if (string.IsNullOrWhiteSpace(q))
+            {
+                var total = conn.ExecuteScalar<int>("SELECT COUNT(1) FROM Product");
+                var items = conn.Query<Product>(
+                    "SELECT * FROM Product ORDER BY createdAt DESC LIMIT @pageSize OFFSET @offset",
+                    new { pageSize, offset = (page - 1) * pageSize });
+                return (items, total);
+            }
+
+            var exact = q;
+            var like = $"%{EscapeLike(q)}%";
+            var prefix = $"{EscapeLike(q)}%";
+
+            var totalFiltered = conn.ExecuteScalar<int>(@"
+                SELECT COUNT(1) FROM Product
+                WHERE name LIKE @like ESCAPE '\'
+                   OR barcode = @exact
+                   OR barcode LIKE @prefix ESCAPE '\'",
+                new { like, prefix, exact });
+
+            var filteredItems = conn.Query<Product>(@"
+                SELECT * FROM Product
+                WHERE name LIKE @like ESCAPE '\'
+                   OR barcode = @exact
+                   OR barcode LIKE @prefix ESCAPE '\'
+                ORDER BY CASE
+                    WHEN barcode = @exact THEN 0
+                    WHEN barcode LIKE @prefix ESCAPE '\' THEN 1
+                    ELSE 2
+                END, createdAt DESC
+                LIMIT @pageSize OFFSET @offset",
+                new { like, prefix, exact, pageSize, offset = (page - 1) * pageSize });
+
+            return (filteredItems, totalFiltered);
+        }
+
+        private static string EscapeLike(string input)
+        {
+            return input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+        }
     }
 }

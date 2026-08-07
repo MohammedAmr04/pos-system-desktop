@@ -1,6 +1,6 @@
 "use client"
 
-import { Product } from "@/lib/api"
+import { api, Product } from "@/lib/api"
 import { usePOSStore } from "@/features/pos/store/usePOSStore"
 import { Input } from "@/components/ui/input"
 import { createInvoice } from "@/features/invoices/actions"
@@ -28,7 +28,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-export function POSClient({ products }: { products: Product[] }) {
+export function POSClient() {
   const t = useTranslations("POS")
   const {
     cartItems,
@@ -47,6 +47,8 @@ export function POSClient({ products }: { products: Product[] }) {
 
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState("")
+  const [searchResults, setSearchResults] = useState<Product[]>([])
+  const [isSearching, setIsSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const discountInputRef = useRef<HTMLInputElement>(null)
@@ -66,6 +68,11 @@ export function POSClient({ products }: { products: Product[] }) {
 
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
 
+  const handleOpenChange = useCallback((next: boolean) => {
+    if (!next) setInputValue("")
+    setOpen(next)
+  }, [])
+
   useEffect(() => {
     if (open && inputRef.current) {
       inputRef.current.focus()
@@ -73,23 +80,44 @@ export function POSClient({ products }: { products: Product[] }) {
   }, [open])
 
   useEffect(() => {
+    const q = inputValue.trim()
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const results = await api.products.search(q, 20, controller.signal)
+        if (!controller.signal.aborted) setSearchResults(results)
+      } catch {
+        if (!controller.signal.aborted) setSearchResults([])
+      } finally {
+        if (!controller.signal.aborted) setIsSearching(false)
+      }
+    }, 300)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [inputValue])
+
+  useEffect(() => {
     if (!paidTouched.current) {
       setAmountPaid(total)
     }
   }, [total])
 
-  const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(inputValue.toLowerCase()) ||
-    (p.barcode && p.barcode.includes(inputValue))
-  )
-
   const handleSelect = useCallback((product: Product) => {
-    addItem(product)
+    const result = addItem(product)
+    if (result === 'out') {
+      toast.error(t("outOfStock"))
+    } else if (result === 'max') {
+      toast.error(t("maxStockReached"))
+    }
     setInputValue("")
     setSearchQuery("")
     setOpen(false)
     triggerRef.current?.focus()
-  }, [addItem, setSearchQuery])
+  }, [addItem, setSearchQuery, t])
 
   const handleCheckout = useCallback(async () => {
     if (cartItems.length === 0) return
@@ -178,7 +206,7 @@ if (e.key === 'F11' && canCheckout) {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <Popover open={open} onOpenChange={setOpen}>
+          <Popover open={open} onOpenChange={handleOpenChange}>
             <PopoverTrigger
               ref={triggerRef}
               render={
@@ -203,8 +231,8 @@ if (e.key === 'F11' && canCheckout) {
                       value={inputValue}
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && filteredProducts.length > 0) {
-                          handleSelect(filteredProducts[0])
+                        if (e.key === "Enter" && searchResults.length > 0) {
+                          handleSelect(searchResults[0])
                         }
                         if (e.key === "Escape") {
                           setOpen(false)
@@ -212,30 +240,37 @@ if (e.key === 'F11' && canCheckout) {
                         }
                       }}
                     />
-                    {inputValue.length >= 2 && (
+                    {inputValue.trim().length >= 2 && (
                       <CommandList>
-                        <CommandEmpty>{t("productNotFound")}</CommandEmpty>
-                        <CommandGroup>
-                          {filteredProducts.slice(0, 20).map((product) => (
-                            <CommandItem
-                              key={product.id}
-                              onClick={() => handleSelect(product)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault()
-                                  handleSelect(product)
-                                }
-                              }}
-                            >
-                              <div className="flex flex-1 items-center justify-between">
-                                <span>{product.name}</span>
-                                <span className="text-muted-foreground text-sm">
-                                  {product.salePrice.toFixed(2)}
-                                </span>
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
+                        {isSearching ? (
+                          <div className="flex items-center justify-center py-6">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          </div>
+                        ) : searchResults.length === 0 ? (
+                          <CommandEmpty>{t("productNotFound")}</CommandEmpty>
+                        ) : (
+                          <CommandGroup>
+                            {searchResults.map((product) => (
+                              <CommandItem
+                                key={product.id}
+                                onClick={() => handleSelect(product)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault()
+                                    handleSelect(product)
+                                  }
+                                }}
+                              >
+                                <div className="flex flex-1 items-center justify-between">
+                                  <span>{product.name}</span>
+                                  <span className="text-muted-foreground text-sm">
+                                    {product.salePrice.toFixed(2)}
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
                       </CommandList>
                     )}
                   </Command>

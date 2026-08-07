@@ -16,7 +16,7 @@ export default function DashboardPage() {
   const [discountGiven, setDiscountGiven] = useState(0)
 
   useEffect(() => {
-    api.products.list().then(products => setProductsCount(products.length)).catch(() => {})
+    api.products.count().then(setProductsCount).catch(() => {})
     api.invoices.list().then(invoices => {
       setRevenue(invoices.reduce((acc, inv) => acc + inv.totalAmount, 0))
       setSalesCount(invoices.length)

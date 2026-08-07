@@ -16,13 +16,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useTranslations } from "next-intl"
-
-type InvoiceWithDetails = any
+import { Invoice, InvoiceDetail } from "@/lib/api"
 
 interface InvoiceDetailsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  invoice: InvoiceWithDetails | null
+  invoice: Invoice | null
 }
 
 export function InvoiceDetailsDialog({
@@ -33,13 +32,15 @@ export function InvoiceDetailsDialog({
   const t = useTranslations("Invoices")
   if (!invoice) return null
 
+  const details: InvoiceDetail[] = invoice.InvoiceDetail ?? invoice.invoiceDetail ?? []
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{t("invoiceDetails")}</DialogTitle>
           <DialogDescription>
-            {t("invoiceNumber")} #{invoice.id.split('-')[0].toUpperCase()} - {new Date(invoice.createdAt).toLocaleString()}
+            {t("invoiceNumber")} #{invoice.invoiceNumber} - {new Date(invoice.createdAt).toLocaleString()}
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto mt-4 pr-2">
@@ -53,7 +54,7 @@ export function InvoiceDetailsDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.invoiceDetail?.map((detail: any) => (
+              {details.map((detail: InvoiceDetail) => (
                 <TableRow key={detail.id}>
                   <TableCell className="text-center">{detail.product?.name || t("unknownProduct")}</TableCell>
                   <TableCell className="text-center">{detail.quantity}</TableCell>

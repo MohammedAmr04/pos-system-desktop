@@ -16,7 +16,7 @@ interface POSStore {
   discountType: 'fixed' | 'percentage'
   searchQuery: string
   setSearchQuery: (query: string) => void
-  addItem: (product: { id: string, name: string, buyPrice: number, salePrice: number, stockQuantity: number }) => void
+  addItem: (product: { id: string, name: string, buyPrice: number, salePrice: number, stockQuantity: number }) => 'added' | 'out' | 'max'
   removeItem: (id: string) => void
   updateQuantity: (id: string, quantity: number) => void
   setDiscount: (discount: number) => void
@@ -34,6 +34,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
 
   addItem: (product) => {
+    if (product.stockQuantity <= 0) return 'out'
     const { cartItems } = get()
     const existing = cartItems.find((item) => item.productId === product.id)
     if (existing) {
@@ -45,25 +46,25 @@ export const usePOSStore = create<POSStore>((set, get) => ({
               : item
           ),
         })
+        return 'added'
       }
-    } else {
-      if (product.stockQuantity > 0) {
-        set({
-          cartItems: [
-            ...cartItems,
-            {
-              id: crypto.randomUUID(),
-              productId: product.id,
-              name: product.name,
-              buyPrice: product.buyPrice,
-              salePrice: product.salePrice,
-              quantity: 1,
-              maxStock: product.stockQuantity,
-            },
-          ],
-        })
-      }
+      return 'max'
     }
+    set({
+      cartItems: [
+        ...cartItems,
+        {
+          id: crypto.randomUUID(),
+          productId: product.id,
+          name: product.name,
+          buyPrice: product.buyPrice,
+          salePrice: product.salePrice,
+          quantity: 1,
+          maxStock: product.stockQuantity,
+        },
+      ],
+    })
+    return 'added'
   },
 
   removeItem: (id) => set((state) => ({
