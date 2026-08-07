@@ -87,5 +87,78 @@ namespace PosCs.Repositories
         {
             return conn.ExecuteScalar<int>("SELECT COUNT(1) FROM Product");
         }
+
+        public IEnumerable<Product> Search(SqliteConnection conn, string q, int limit)
+        {
+            var exact = q;
+            var like = $"%{EscapeLike(q)}%";
+            var prefix = $"{EscapeLike(q)}%";
+
+            return conn.Query<Product>(@"
+                SELECT p.*, MIN(CASE
+                    WHEN pb.barcode = @exact THEN 0
+                    WHEN pb.barcode LIKE @prefix ESCAPE '\' THEN 1
+                    ELSE 2
+                END) AS _rank
+                FROM Product p
+                LEFT JOIN ProductUnit pu ON pu.productId = p.id
+                LEFT JOIN ProductBarcode pb ON pb.productUnitId = pu.id
+                WHERE p.name LIKE @like ESCAPE '\'
+                   OR pb.barcode = @exact
+                   OR pb.barcode LIKE @prefix ESCAPE '\'
+                GROUP BY p.id
+                ORDER BY _rank, p.createdAt DESC
+                LIMIT @limit",
+                new { like, prefix, exact, limit });
+        }
+
+        public (IEnumerable<Product> Items, int Total) GetPaged(SqliteConnection conn, int page, int pageSize, string q)
+        {
+            if (string.IsNullOrWhiteSpace(q))
+            {
+                var total = conn.ExecuteScalar<int>("SELECT COUNT(1) FROM Product");
+                var items = conn.Query<Product>(
+                    "SELECT * FROM Product ORDER BY createdAt DESC LIMIT @pageSize OFFSET @offset",
+                    new { pageSize, offset = (page - 1) * pageSize });
+                return (items, total);
+            }
+
+            var exact = q;
+            var like = $"%{EscapeLike(q)}%";
+            var prefix = $"{EscapeLike(q)}%";
+
+            var totalFiltered = conn.ExecuteScalar<int>(@"
+                SELECT COUNT(DISTINCT p.id) FROM Product p
+                LEFT JOIN ProductUnit pu ON pu.productId = p.id
+                LEFT JOIN ProductBarcode pb ON pb.productUnitId = pu.id
+                WHERE p.name LIKE @like ESCAPE '\'
+                   OR pb.barcode = @exact
+                   OR pb.barcode LIKE @prefix ESCAPE '\'",
+                new { like, prefix, exact });
+
+            var filteredItems = conn.Query<Product>(@"
+                SELECT p.*, MIN(CASE
+                    WHEN pb.barcode = @exact THEN 0
+                    WHEN pb.barcode LIKE @prefix ESCAPE '\' THEN 1
+                    ELSE 2
+                END) AS _rank
+                FROM Product p
+                LEFT JOIN ProductUnit pu ON pu.productId = p.id
+                LEFT JOIN ProductBarcode pb ON pb.productUnitId = pu.id
+                WHERE p.name LIKE @like ESCAPE '\'
+                   OR pb.barcode = @exact
+                   OR pb.barcode LIKE @prefix ESCAPE '\'
+                GROUP BY p.id
+                ORDER BY _rank, p.createdAt DESC
+                LIMIT @pageSize OFFSET @offset",
+                new { like, prefix, exact, pageSize, offset = (page - 1) * pageSize });
+
+            return (filteredItems, totalFiltered);
+        }
+
+        private static string EscapeLike(string input)
+        {
+            return input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+        }
     }
 }

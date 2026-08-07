@@ -18,12 +18,10 @@ import {
 import { useTranslations } from "next-intl"
 import { Invoice, InvoiceDetail } from "@/lib/api"
 
-type InvoiceWithDetails = Invoice
-
 interface InvoiceDetailsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  invoice: InvoiceWithDetails | null
+  invoice: Invoice | null
 }
 
 export function InvoiceDetailsDialog({
@@ -34,13 +32,15 @@ export function InvoiceDetailsDialog({
   const t = useTranslations("Invoices")
   if (!invoice) return null
 
+  const details: InvoiceDetail[] = invoice.InvoiceDetail ?? invoice.invoiceDetail ?? []
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{t("invoiceDetails")}</DialogTitle>
           <DialogDescription>
-            {t("invoiceNumber")} #{invoice.id.split('-')[0].toUpperCase()} - {new Date(invoice.createdAt).toLocaleString()}
+            {t("invoiceNumber")} #{invoice.invoiceNumber} - {new Date(invoice.createdAt).toLocaleString()}
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto mt-4 pr-2">
@@ -55,7 +55,7 @@ export function InvoiceDetailsDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.invoiceDetail?.map((detail: InvoiceDetail) => {
+              {details.map((detail: InvoiceDetail) => {
                 const unitPrice = detail.unitPrice ?? detail.salePrice
                 const isOverridden = detail.originalUnitPrice != null && detail.originalUnitPrice !== unitPrice
                 const itemTotal = detail.finalTotal != null

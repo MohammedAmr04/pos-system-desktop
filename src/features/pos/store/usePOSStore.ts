@@ -36,7 +36,7 @@ interface POSStore {
   setSearchQuery: (query: string) => void
   setPriceMode: (mode: PriceMode) => void
   togglePriceMode: () => void
-  addItem: (product: Product, unit: ProductUnit) => void
+  addItem: (product: Product, unit: ProductUnit) => 'added' | 'out' | 'max'
   removeItem: (id: string) => void
   updateQuantity: (id: string, quantity: number) => void
   updateUnitPrice: (id: string, unitPrice: number, note?: string) => void
@@ -82,48 +82,45 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   addItem: (product, unit) => {
     const { cartItems, priceMode } = get()
     const unitMaxStock = unit.quantityFactor > 0 ? product.stockQuantity / unit.quantityFactor : 0
+    if (unitMaxStock <= 0) return 'out'
     const existing = cartItems.find(
       (item) => item.productId === product.id && item.productUnitId === unit.id
     )
     if (existing) {
-      if (existing.quantity < unitMaxStock) {
-        set({
-          cartItems: cartItems.map((item) =>
-            item.productId === product.id && item.productUnitId === unit.id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          ),
-        })
-      }
-    } else {
-      if (unitMaxStock > 0) {
-        const unitPrice = priceFor(unit, priceMode)
-        set({
-          cartItems: [
-            ...cartItems,
-            {
-              id: crypto.randomUUID(),
-              productId: product.id,
-              productUnitId: unit.id,
-              unitName: unit.unitName,
-              name: product.name,
-              buyPrice: product.buyPrice,
-              retailPrice: unit.retailPrice,
-              wholesalePrice: unit.wholesalePrice ?? null,
-              originalUnitPrice: unitPrice,
-              unitPrice,
-              quantity: 1,
-              maxStock: product.stockQuantity,
-              quantityFactor: unit.quantityFactor,
-              allowDiscount: product.allowDiscount,
-              discountType: null,
-              discountValue: 0,
-              overridden: false,
-            },
-          ],
-        })
-      }
+      if (existing.quantity >= unitMaxStock) return 'max'
+      set({
+        cartItems: cartItems.map((item) =>
+          item.id === existing.id ? { ...item, quantity: item.quantity + 1 } : item
+        ),
+      })
+      return 'added'
     }
+    const unitPrice = priceFor(unit, priceMode)
+    set({
+      cartItems: [
+        ...cartItems,
+        {
+          id: crypto.randomUUID(),
+          productId: product.id,
+          productUnitId: unit.id,
+          unitName: unit.unitName,
+          name: product.name,
+          buyPrice: product.buyPrice,
+          retailPrice: unit.retailPrice,
+          wholesalePrice: unit.wholesalePrice ?? null,
+          originalUnitPrice: unitPrice,
+          unitPrice,
+          quantity: 1,
+          maxStock: product.stockQuantity,
+          quantityFactor: unit.quantityFactor,
+          allowDiscount: product.allowDiscount,
+          discountType: null,
+          discountValue: 0,
+          overridden: false,
+        },
+      ],
+    })
+    return 'added'
   },
 
   removeItem: (id) => set((state) => ({

@@ -61,6 +61,79 @@ namespace PosCs.Controllers
             }
         }
 
+        [Route("search")]
+        [HttpGet]
+        public HttpResponseMessage Search(string q, int limit = 20)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(q))
+                    return Request.CreateResponse(HttpStatusCode.OK, new Product[0]);
+
+                using (var conn = DbConnectionFactory.CreateConnection())
+                {
+                    var results = _repo.Search(conn, q.Trim(), Math.Max(1, Math.Min(limit, 100))).ToList();
+                    AttachUnits(conn, results);
+                    return Request.CreateResponse(HttpStatusCode.OK, results);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[API ERR] Failed to search products: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to search products");
+            }
+        }
+
+        [Route("paged")]
+        [HttpGet]
+        public HttpResponseMessage GetPaged(int page = 1, int pageSize = 20, string q = null)
+        {
+            try
+            {
+                page = Math.Max(1, page);
+                pageSize = Math.Max(1, Math.Min(pageSize, 100));
+
+                using (var conn = DbConnectionFactory.CreateConnection())
+                {
+                    var result = _repo.GetPaged(conn, page, pageSize, q?.Trim());
+                    var items = result.Items.ToList();
+                    AttachUnits(conn, items);
+                    return Request.CreateResponse(HttpStatusCode.OK, new
+                    {
+                        items,
+                        total = result.Total,
+                        page,
+                        pageSize
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[API ERR] Failed to fetch paged products: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to fetch paged products");
+            }
+        }
+
+        [Route("count")]
+        [HttpGet]
+        public HttpResponseMessage GetCount()
+        {
+            try
+            {
+                using (var conn = DbConnectionFactory.CreateConnection())
+                {
+                    var count = _repo.GetCount(conn);
+                    return Request.CreateResponse(HttpStatusCode.OK, count);
+                }
+            }
+            catch (Exception ex)
+            {
+
+                Console.Error.WriteLine($"[API ERR] Failed to count products: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to count products");
+            }
+        }
+
         [Route("")]
         [HttpPost]
         public HttpResponseMessage Create([FromBody] CreateProductDto dto)

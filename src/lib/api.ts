@@ -52,13 +52,13 @@ export type PriceMode = 'retail' | 'wholesale'
 
 export interface Invoice {
   id: string
+  invoiceNumber: number
   totalAmount: number
   discount: number
   discountType: string | null
   discountValue: number
   discountAmount: number
   priceMode?: PriceMode | null
-  invoiceNumber?: number
   createdAt: string
   invoiceDetail?: InvoiceDetail[]
   InvoiceDetail?: InvoiceDetail[]
@@ -84,6 +84,21 @@ export interface InvoiceDetail {
   product: Product | null
 }
 
+export interface PagedProducts {
+  items: Product[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface PagedInvoices {
+  items: Invoice[]
+  total: number
+  page: number
+  pageSize: number
+  totals: { revenue: number; discounts: number }
+}
+
 export interface LicenseStatus {
   status: 'ok' | 'first_boot' | 'locked' | 'tampered'
   machineId?: string
@@ -94,6 +109,20 @@ export const api = {
   // Products
   products: {
     list: () => request<Product[]>('/api/products'),
+    search: (q: string, limit = 20, signal?: AbortSignal) => {
+      const params = new URLSearchParams()
+      params.set('q', q)
+      if (limit) params.set('limit', String(limit))
+      return request<Product[]>(`/api/products/search?${params}`, { signal })
+    },
+    listPaged: (page = 1, pageSize = 20, q?: string) => {
+      const params = new URLSearchParams()
+      params.set('page', String(page))
+      params.set('pageSize', String(pageSize))
+      if (q) params.set('q', q)
+      return request<PagedProducts>(`/api/products/paged?${params}`)
+    },
+    count: () => request<number>('/api/products/count'),
     get: (id: string) => request<Product>(`/api/products/${id}`),
     create: (data: Partial<Product>) =>
       request<Product>('/api/products', { method: 'POST', body: JSON.stringify(data) }),
@@ -137,6 +166,16 @@ export const api = {
   // Invoices
   invoices: {
     list: () => request<Invoice[]>('/api/invoices'),
+    listPaged: (page = 1, pageSize = 20, opts?: { from?: string; to?: string; q?: string }) => {
+      const params = new URLSearchParams()
+      params.set('page', String(page))
+      params.set('pageSize', String(pageSize))
+      if (opts?.from) params.set('from', opts.from)
+      if (opts?.to) params.set('to', opts.to)
+      if (opts?.q) params.set('q', opts.q)
+      return request<PagedInvoices>(`/api/invoices/paged?${params}`)
+    },
+    get: (id: string) => request<Invoice>(`/api/invoices/${id}`),
     filter: (from?: string, to?: string) => {
       const params = new URLSearchParams()
       if (from) params.set('from', from)

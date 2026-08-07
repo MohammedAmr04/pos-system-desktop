@@ -74,7 +74,9 @@
     "priceEditNote": "سبب تعديل السعر",
     "priceEditNotePlaceholder": "اكتب سبب تعديل السعر...",
     "priceEditNoteHint": "سيظهر السبب في تفاصيل الفاتورة فقط ولن يظهر في إيصال الطباعة.",
-    "note": "ملاحظة"
+    "note": "ملاحظة",
+    "outOfStock": "المنتج غير متوفر (المخزون صفر)",
+    "maxStockReached": "الكمية المطلوبة تتجاوز المخزون المتاح"
   },
   "Products": {
     "title": "المنتجات",
@@ -142,7 +144,9 @@
     "unitDeleteFailed": "فشل حذف الوحدة",
     "unitDeleteConfirm": "هل تريد حذف هذه الوحدة؟",
     "noUnits": "لا توجد وحدات لهذا المنتج",
-    "defaultUnitName": "قطعة"
+    "defaultUnitName": "قطعة",
+    "pageInfo": "صفحة {page} من {pageCount}",
+    "productsCount": "{count} منتج"
   },
   "Invoices": {
     "title": "فواتير اليوم",
@@ -168,7 +172,10 @@
     "today": "اليوم",
     "thisWeek": "هذا الأسبوع",
     "thisMonth": "هذا الشهر",
-    "all": "الكل"
+    "all": "الكل",
+    "searchByNumber": "ابحث برقم الفاتورة...",
+    "pageInfo": "صفحة {page} من {pageCount}",
+    "invoicesCount": "{count} فاتورة"
   },
   "Sidebar": {
     "dashboard": "لوحة التحكم",

@@ -1,6 +1,6 @@
 "use client"
 
-import { Product, ProductUnit } from "@/lib/api"
+import { Product, ProductUnit,api } from "@/lib/api"
 import { usePOSStore, CartItem } from "@/features/pos/store/usePOSStore"
 import { findUnitByBarcode } from "@/features/products/actions"
 import { Input } from "@/components/ui/input"
@@ -39,10 +39,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
-interface POSClientProps {
-  products: Product[]
-  onRefresh?: () => Promise<Product[]>
-}
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
@@ -89,7 +85,8 @@ interface LineEditState {
   discountValue: string
 }
 
-export function POSClient({ products, onRefresh }: POSClientProps) {
+export function POSClient() {
+
   const t = useTranslations("POS")
   const {
     cartItems,
@@ -111,6 +108,8 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
 
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState("")
+  const [searchResults, setSearchResults] = useState<Product[]>([])
+  const [isSearching, setIsSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const discountInputRef = useRef<HTMLInputElement>(null)
@@ -127,6 +126,7 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
   const [unitPicker, setUnitPicker] = useState<UnitPickerState | null>(null)
   const [lineEditFor, setLineEditFor] = useState<LineEditState | null>(null)
   const [triggerWidth, setTriggerWidth] = useState(0)
+  const [products, setProducts] = useState<Product[]>([])
 
   const subtotal = cartItems.reduce((acc, item) => acc + lineSubtotal(item), 0)
   const itemsDiscount = cartItems.reduce((acc, item) => acc + lineDiscountAmount(item), 0)
@@ -145,6 +145,11 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
 
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
 
+  const handleOpenChange = useCallback((next: boolean) => {
+    if (!next) setInputValue("")
+    setOpen(next)
+  }, [])
+
   useEffect(() => {
     if (open && triggerRef.current) {
       setTriggerWidth(triggerRef.current.offsetWidth)
@@ -155,24 +160,66 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
   }, [open])
 
   useEffect(() => {
+    const q = inputValue.trim()
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const results = await api.products.search(q, 20, controller.signal)
+        if (!controller.signal.aborted) setSearchResults(results)
+      } catch {
+        if (!controller.signal.aborted) setSearchResults([])
+      } finally {
+        if (!controller.signal.aborted) setIsSearching(false)
+      }
+    }, 300)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [inputValue])
+
+  const refresh = useCallback(async () => {
+    const list = await api.products.list()
+    setProducts(list)
+    return list
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    api.products
+      .list()
+      .then((list) => {
+        if (!cancelled) setProducts(list)
+      })
+      .catch(() => {
+        if (!cancelled) setProducts([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     if (!paidTouched.current) {
       setAmountPaid(total)
     }
   }, [total])
 
-  const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(inputValue.toLowerCase()) ||
-    allBarcodes(p).some((b) => b.includes(inputValue))
-  )
-
   const addAndClose = useCallback((product: Product, unit: ProductUnit) => {
-    addItem(product, unit)
+    const result = addItem(product, unit)
+    if (result === 'out') {
+      toast.error(t("outOfStock"))
+    } else if (result === 'max') {
+      toast.error(t("maxStockReached"))
+    }
     setInputValue("")
     setSearchQuery("")
     setOpen(false)
     setUnitPicker(null)
     triggerRef.current?.focus()
-  }, [addItem, setSearchQuery])
+  }, [addItem, setSearchQuery, t])
 
   const handleSelect = useCallback((product: Product) => {
     const units = product.units?.length ? product.units : []
@@ -181,6 +228,9 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
     } else if (units.length > 1) {
       setOpen(false)
       setUnitPicker({ product, onPick: (unit) => addAndClose(product, unit) })
+    } else {
+      const base = baseUnitOf(product)
+      if (base) addAndClose(product, base)
     }
   }, [addAndClose])
 
@@ -205,14 +255,14 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
       await addProductBarcode(product.id, unit.id, unknownBarcode)
       toast.success(t("barcodeLinked"))
       addItem(product, unit)
-      if (onRefresh) await onRefresh()
+      await refresh()
     } catch (e) {
       toast.error((e as Error).message || t("linkFailed"))
     } finally {
       closeUnknownDialog()
       setUnitPicker(null)
     }
-  }, [unknownBarcode, onRefresh, addItem, closeUnknownDialog, t])
+  }, [unknownBarcode, refresh, addItem, closeUnknownDialog, t])
 
   const handleLinkConfirm = () => {
     if (!selectedLinkProduct || !unknownBarcode) return
@@ -228,14 +278,14 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
   const handleCreatedProduct = useCallback(async () => {
     if (!unknownBarcode) return
     try {
-      const fresh = onRefresh ? await onRefresh() : products
+      const fresh = await refresh()
       const resolved = resolveBarcode(fresh, unknownBarcode)
       if (resolved) addItem(resolved.product, resolved.unit)
     } finally {
       toast.success(t("productCreated"))
       closeUnknownDialog()
     }
-  }, [unknownBarcode, onRefresh, products, addItem, closeUnknownDialog, t])
+  }, [unknownBarcode, refresh, addItem, closeUnknownDialog, t])
 
   const linkedProducts = products.filter((p) => {
     const q = linkQuery.trim().toLowerCase()
@@ -326,11 +376,11 @@ export function POSClient({ products, onRefresh }: POSClientProps) {
         discountInputRef.current?.select()
         return
       }
-if (e.key === 'F11' && canCheckout) {
-  e.preventDefault()
-  handleCheckout(false)
-  return
-}
+      if (e.key === 'F11' && canCheckout) {
+        e.preventDefault()
+        handleCheckout(false)
+        return
+      }
 
       if ((e.key === 'F12' || (e.ctrlKey && e.key === 'Enter')) && canCheckout) {
         e.preventDefault()
@@ -377,7 +427,7 @@ if (e.key === 'F11' && canCheckout) {
               {t("wholesale")}
             </Button>
           </div>
-          <Popover open={open} onOpenChange={setOpen}>
+          <Popover open={open} onOpenChange={handleOpenChange}>
             <PopoverTrigger
               ref={triggerRef}
               render={
@@ -415,40 +465,46 @@ if (e.key === 'F11' && canCheckout) {
                               return
                             }
                           }
-                          if (filteredProducts.length > 0) {
-                            handleSelect(filteredProducts[0])
+                          if (searchResults.length > 0) {
+                            handleSelect(searchResults[0])
                           }
-                        }
-                        if (e.key === "Escape") {
+                        } else if (e.key === "Escape") {
                           setOpen(false)
                           triggerRef.current?.focus()
                         }
                       }}
                     />
-                    {inputValue.length >= 2 && (
+                    {inputValue.trim().length >= 1 && (
                       <CommandList>
-                        <CommandEmpty>{t("productNotFound")}</CommandEmpty>
-                        <CommandGroup>
-                          {filteredProducts.slice(0, 20).map((product) => (
-                            <CommandItem
-                              key={product.id}
-                              onClick={() => handleSelect(product)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault()
-                                  handleSelect(product)
-                                }
-                              }}
-                            >
-                              <div className="flex flex-1 items-center justify-between">
-                                <span>{product.name}</span>
-                                <span className="text-muted-foreground text-sm">
-                                  {product.salePrice.toFixed(2)}
-                                </span>
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
+                        {isSearching ? (
+                          <div className="flex items-center justify-center py-6">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          </div>
+                        ) : searchResults.length === 0 ? (
+                          <CommandEmpty>{t("productNotFound")}</CommandEmpty>
+                        ) : (
+                          <CommandGroup>
+                            {searchResults.map((product) => (
+                              <CommandItem
+                                key={product.id}
+                                onClick={() => handleSelect(product)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault()
+                                    handleSelect(product)
+                                  }
+                                }}
+                              >
+                                <div className="flex flex-1 items-center justify-between">
+                                  <span>{product.name}</span>
+                                  <span className="text-muted-foreground text-sm">
+                                    {product.salePrice.toFixed(2)}
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
                       </CommandList>
                     )}
                   </Command>
