@@ -5,6 +5,41 @@ All notable changes to the POS System are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-08-15
+
+Release name: Roles, Permissions & Feature-Based Access Control
+
+### Added
+- **Authentication** — username + password login replacing the PIN code.
+  PBKDF2 password hashing, rate-limited attempts (lockout after 5 failures),
+  and bearer-token sessions. Default login: `admin` / `1234` (change after
+  first login).
+- **Roles** — three system roles (Admin, Manager, Cashier) with the ability
+  to create/edit/delete custom roles and assign permissions per role.
+- **Permissions** — 19 permission keys across products, invoices, discounts,
+  pricing, reports, printing, license, settings, users and roles. Enforced
+  on the backend (attribute-based) and mirrored in the UI (menus, buttons,
+  sections hidden without the right permission).
+- **Tenant features** — 9 feature switches (multiple units/barcodes,
+  wholesale price, product/invoice discount, price override, low-stock
+  report, receipt/barcode printing) configured per restaurant and combined
+  with permissions (`AND`): a capability is usable only when both are granted.
+- **Settings screens** — Users (manage accounts, roles, activation), Roles
+  (permission matrix), Permissions (grouped reference), Features (toggles).
+  Saving a change refreshes the active session immediately.
+- **License management** — unlock/license endpoints now require
+  `license.manage` and log the acting user.
+
+### Changed
+- Login flow and all existing screens re-gated by permissions/features.
+- CORS restricted to localhost dev origins (the SPA is same-origin in
+  production).
+
+### Database
+- Migrations `009_auth_schema` through `013_username_password` add the
+  User/Role/Permission/TenantFeature tables, seed roles/permissions/features,
+  and migrate PIN storage to username + password hash.
+
 ## [1.4.1] - 2026-08-08
 
 Release name: Performance Fixes & Server-Side Tables
