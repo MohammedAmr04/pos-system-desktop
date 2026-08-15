@@ -3,6 +3,9 @@
 import { Product, ProductUnit,api } from "@/lib/api"
 import { usePOSStore, CartItem } from "@/features/pos/store/usePOSStore"
 import { findUnitByBarcode } from "@/features/products/actions"
+import { useAuth } from "@/features/auth/auth-context"
+import { PERMISSIONS, FEATURES } from "@/lib/constants"
+import { AccessDenied } from "@/components/common/access-denied"
 import { Input } from "@/components/ui/input"
 import { createInvoice } from "@/features/invoices/actions"
 import { addProductBarcode } from "@/features/products/actions"
@@ -88,6 +91,7 @@ interface LineEditState {
 export function POSClient() {
 
   const t = useTranslations("POS")
+  const { hasAccess, hasPermission, hasFeature } = useAuth()
   const {
     cartItems,
     setSearchQuery,
@@ -105,6 +109,16 @@ export function POSClient() {
     setPriceMode,
     clearCart
   } = usePOSStore()
+
+  const canUsePOS = hasAccess(PERMISSIONS.INVOICES_CREATE) && hasPermission(PERMISSIONS.PRODUCTS_VIEW)
+  const canWholesale = hasFeature(FEATURES.WHOLESALE_PRICE)
+  const canLineDiscount = hasAccess(PERMISSIONS.DISCOUNTS_PRODUCT, FEATURES.PRODUCT_DISCOUNT)
+  const canInvoiceDiscount = hasAccess(PERMISSIONS.DISCOUNTS_INVOICE, FEATURES.INVOICE_DISCOUNT)
+  const canPriceOverride = hasAccess(PERMISSIONS.PRICE_OVERRIDE, FEATURES.PRICE_OVERRIDE)
+  const canCreateProduct = hasPermission(PERMISSIONS.PRODUCTS_CREATE)
+  const canLinkBarcode = hasAccess(PERMISSIONS.PRODUCTS_UPDATE, FEATURES.MULTIPLE_BARCODES)
+  const canPrintReceipt = hasAccess(PERMISSIONS.PRINTING_RECEIPT, FEATURES.RECEIPT_PRINTING)
+  const canPickUnit = hasFeature(FEATURES.MULTIPLE_UNITS)
 
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState("")
@@ -207,6 +221,12 @@ export function POSClient() {
     }
   }, [total])
 
+  useEffect(() => {
+    if (!canWholesale && priceMode === 'wholesale') {
+      setPriceMode('retail')
+    }
+  }, [canWholesale, priceMode, setPriceMode])
+
   const addAndClose = useCallback((product: Product, unit: ProductUnit) => {
     const result = addItem(product, unit)
     if (result === 'out') {
@@ -225,14 +245,14 @@ export function POSClient() {
     const units = product.units?.length ? product.units : []
     if (units.length === 1) {
       addAndClose(product, units[0])
-    } else if (units.length > 1) {
+    } else if (units.length > 1 && canPickUnit) {
       setOpen(false)
       setUnitPicker({ product, onPick: (unit) => addAndClose(product, unit) })
     } else {
       const base = baseUnitOf(product)
       if (base) addAndClose(product, base)
     }
-  }, [addAndClose])
+  }, [addAndClose, canPickUnit])
 
   const openUnknownDialog = useCallback((barcode: string) => {
     setUnknownBarcode(barcode)
@@ -269,9 +289,12 @@ export function POSClient() {
     const units = selectedLinkProduct.units?.length ? selectedLinkProduct.units : []
     if (units.length === 1) {
       doLink(selectedLinkProduct, units[0])
-    } else if (units.length > 1) {
+    } else if (units.length > 1 && canPickUnit) {
       setUnitPicker({ product: selectedLinkProduct, onPick: (unit) => doLink(selectedLinkProduct, unit) })
       closeUnknownDialog()
+    } else {
+      const base = baseUnitOf(selectedLinkProduct)
+      if (base) doLink(selectedLinkProduct, base)
     }
   }
 
@@ -343,6 +366,7 @@ export function POSClient() {
 
   const handleCheckout = useCallback(async (print: boolean) => {
     if (cartItems.length === 0) return
+    if (print && !canPrintReceipt) print = false
     const validationError = validateDiscount()
     if (validationError) {
       toast.error(validationError)
@@ -359,7 +383,7 @@ export function POSClient() {
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, validateDiscount, t, clearCart])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, validateDiscount, t, clearCart, canPrintReceipt])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -382,7 +406,7 @@ export function POSClient() {
         return
       }
 
-      if ((e.key === 'F12' || (e.ctrlKey && e.key === 'Enter')) && canCheckout) {
+      if ((e.key === 'F12' || (e.ctrlKey && e.key === 'Enter')) && canCheckout && canPrintReceipt) {
         e.preventDefault()
         handleCheckout(true)
         return
@@ -397,7 +421,11 @@ export function POSClient() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, handleCheckout, toggleDiscountType, canCheckout])
+  }, [open, handleCheckout, toggleDiscountType, canCheckout, canPrintReceipt])
+
+  if (!canUsePOS) {
+    return <AccessDenied />
+  }
 
   return (
     <>
@@ -409,24 +437,26 @@ export function POSClient() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div className="flex shrink-0 rounded-lg border bg-background p-1">
-            <Button
-              variant={priceMode === 'retail' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-8 px-3"
-              onClick={() => setPriceMode('retail')}
-            >
-              {t("retail")}
-            </Button>
-            <Button
-              variant={priceMode === 'wholesale' ? 'default' : 'ghost'}
-              size="sm"
-              className="h-8 px-3"
-              onClick={() => setPriceMode('wholesale')}
-            >
-              {t("wholesale")}
-            </Button>
-          </div>
+          {canWholesale && (
+            <div className="flex shrink-0 rounded-lg border bg-background p-1">
+              <Button
+                variant={priceMode === 'retail' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8 px-3"
+                onClick={() => setPriceMode('retail')}
+              >
+                {t("retail")}
+              </Button>
+              <Button
+                variant={priceMode === 'wholesale' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8 px-3"
+                onClick={() => setPriceMode('wholesale')}
+              >
+                {t("wholesale")}
+              </Button>
+            </div>
+          )}
           <Popover open={open} onOpenChange={handleOpenChange}>
             <PopoverTrigger
               ref={triggerRef}
@@ -596,9 +626,9 @@ export function POSClient() {
                         <div className="w-24 text-right text-lg font-semibold">
                           {lineFinalTotal(item).toFixed(2)}
                         </div>
-                        <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => openLineEdit(item)} title={t("editLine")}>
+                        {(canPriceOverride || canLineDiscount) && <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => openLineEdit(item)} title={t("editLine")}>
                           <Pencil className="h-5 w-5" />
-                        </Button>
+                        </Button>}
                         <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-destructive h-10 w-10">
                           <Trash2 className="h-5 w-5" />
                         </Button>
@@ -629,7 +659,7 @@ export function POSClient() {
                   <span className="text-destructive">-{itemsDiscount.toFixed(2)}</span>
                 </div>
               )}
-              {eligibleSubtotal > 0 && (
+              {eligibleSubtotal > 0 && canInvoiceDiscount && (
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground text-xl">{t("discount")}</span>
                 <div className="flex items-center gap-2">
@@ -719,13 +749,15 @@ export function POSClient() {
                 </kbd>
               </Button>
 
-              <Button className="h-16 text-lg" size="lg" onClick={() => handleCheckout(true)} disabled={isCheckingOut || !canCheckout}>
-                {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t("saveAndPrint")}
-                <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
-                  F12
-                </kbd>
-              </Button>
+              {canPrintReceipt && (
+                <Button className="h-16 text-lg" size="lg" onClick={() => handleCheckout(true)} disabled={isCheckingOut || !canCheckout}>
+                  {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {t("saveAndPrint")}
+                  <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
+                    F12
+                  </kbd>
+                </Button>
+              )}
 
               <Button variant="outline" className="h-16 col-span-2 text-lg" onClick={() => {
                 paidTouched.current = false
@@ -754,12 +786,19 @@ export function POSClient() {
               </div>
             </div>
             <DialogFooter className="flex-col gap-2 sm:flex-col">
-              <Button onClick={() => setUnknownFlow("create")}>
-                <PackagePlus className="mr-2 h-4 w-4" /> {t("createNewProduct")}
-              </Button>
-              <Button variant="outline" onClick={() => setUnknownFlow("link")}>
-                <Link2 className="mr-2 h-4 w-4" /> {t("linkToExistingProduct")}
-              </Button>
+              {canCreateProduct && (
+                <Button onClick={() => setUnknownFlow("create")}>
+                  <PackagePlus className="mr-2 h-4 w-4" /> {t("createNewProduct")}
+                </Button>
+              )}
+              {canLinkBarcode && (
+                <Button variant="outline" onClick={() => setUnknownFlow("link")}>
+                  <Link2 className="mr-2 h-4 w-4" /> {t("linkToExistingProduct")}
+                </Button>
+              )}
+              {!canCreateProduct && !canLinkBarcode && (
+                <p className="text-sm text-muted-foreground">{t("noBarcodeActions")}</p>
+              )}
               <Button variant="ghost" onClick={closeUnknownDialog}>
                 {t("cancel")}
               </Button>
@@ -902,24 +941,26 @@ export function POSClient() {
           </DialogDescription>
         </DialogHeader>
         <div className="py-2 space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">{t("unitPrice")}</label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              className="text-right text-lg h-12"
-              value={lineEditFor?.unitPrice ?? ''}
-              onChange={(e) => setLineEditFor((s) => s ? { ...s, unitPrice: e.target.value } : s)}
-              autoFocus
-            />
-            {lineEditFor && parseFloat(lineEditFor.unitPrice) !== lineEditFor.item.originalUnitPrice && (
-              <div className="text-xs text-muted-foreground">
-                {t("originalPrice")}: {lineEditFor.item.originalUnitPrice.toFixed(2)}
-              </div>
-            )}
-          </div>
-          {lineEditFor && lineEditFor.item.allowDiscount && (
+          {canPriceOverride && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t("unitPrice")}</label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="text-right text-lg h-12"
+                value={lineEditFor?.unitPrice ?? ''}
+                onChange={(e) => setLineEditFor((s) => s ? { ...s, unitPrice: e.target.value } : s)}
+                autoFocus
+              />
+              {lineEditFor && parseFloat(lineEditFor.unitPrice) !== lineEditFor.item.originalUnitPrice && (
+                <div className="text-xs text-muted-foreground">
+                  {t("originalPrice")}: {lineEditFor.item.originalUnitPrice.toFixed(2)}
+                </div>
+              )}
+            </div>
+          )}
+          {canLineDiscount && lineEditFor && lineEditFor.item.allowDiscount && (
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("lineDiscount")}</label>
               <div className="flex gap-2">
@@ -949,7 +990,7 @@ export function POSClient() {
               />
             </div>
           )}
-          {lineEditFor && parseFloat(lineEditFor.unitPrice) !== lineEditFor.item.originalUnitPrice && (
+          {canPriceOverride && lineEditFor && parseFloat(lineEditFor.unitPrice) !== lineEditFor.item.originalUnitPrice && (
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("priceEditNote")}</label>
               <textarea

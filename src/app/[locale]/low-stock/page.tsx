@@ -3,14 +3,24 @@
 import { useEffect, useState } from "react"
 import { api, Product } from "@/lib/api"
 import { LowStockClient } from "./low-stock-client"
+import { useAuth } from "@/features/auth/auth-context"
+import { PERMISSIONS, FEATURES } from "@/lib/constants"
+import { AccessDenied } from "@/components/common/access-denied"
 
 export default function LowStockPage() {
+  const { hasAccess } = useAuth()
+  const canView = hasAccess(PERMISSIONS.REPORTS_VIEW, FEATURES.LOW_STOCK_REPORT)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!canView) return
     api.reports.lowStock().then(setProducts).finally(() => setLoading(false))
-  }, [])
+  }, [canView])
+
+  if (!canView) {
+    return <AccessDenied />
+  }
 
   if (loading) {
     return (
