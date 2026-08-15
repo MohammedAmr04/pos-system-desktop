@@ -52,8 +52,27 @@ built frontend. The database is a single SQLite file stored in the `data/` folde
 - Printer name configurable via the `PRINTER_NAME` environment variable
   (default `Xprinter`).
 
+### Authentication & Access Control
+- **Username + password login** (replaces the PIN code) with PBKDF2 password
+  hashing and rate-limited attempts (5 failures lock out for 60 seconds).
+- **Roles** — Admin, Manager and Cashier system roles plus custom roles with a
+  per-permission matrix.
+- **Permissions** — 19 permission keys enforced on the backend (attribute-based)
+  and mirrored in the UI: menus, buttons and sections hide without the right
+  permission.
+- **Tenant features** — 9 per-restaurant capability switches combined with
+  permissions (`AND`): a capability is usable only when both are granted.
+- Default login: `admin` / `1234` (change after first login).
+
+### Settings
+- **Users** — manage accounts, assign roles, activate/deactivate.
+- **Roles** — create/edit/delete roles and assign permissions.
+- **Permissions** — grouped reference of all permission keys.
+- **Features** — per-tenant feature toggles; changes apply immediately.
+
 ### License & Activation
 - Machine-ID-based activation with a lock screen gate on first boot.
+- Unlocking requires the `license.manage` permission and logs the acting user.
 
 ### Dashboard
 - Today's revenue, sales count, discounts given, and total product count with a
@@ -66,6 +85,7 @@ built frontend. The database is a single SQLite file stored in the `data/` folde
 | Layer     | Technology |
 |-----------|------------|
 | Backend   | C# / .NET Framework 4.8, OWIN self-host, ASP.NET Web API |
+| Auth      | Bearer tokens (OWIN middleware), PBKDF2 password hashing |
 | Database  | SQLite via Dapper (`Microsoft.Data.Sqlite`), SQL migration files |
 | Printing  | winspool.drv P/Invoke (RawPrinterHelper), System.Drawing receipt rendering |
 | Frontend  | Next.js 16 (static export), React 19, TypeScript, Tailwind CSS 4 |
@@ -79,18 +99,23 @@ built frontend. The database is a single SQLite file stored in the `data/` folde
 
 ```
 backend-cs/                  # .NET Framework 4.8 backend
-  Controllers/               # Products, Invoices, License, Printing, Reports, Health
-  Database/Migrations/       # 001_init .. 008_price_edit_note (auto-applied on start)
-  Models/                    # Product, ProductUnit, ProductBarcode, Invoice, Settings
-  Repositories/              # Dapper data access
-  Services/                  # Receipt, Printer, Barcode
+  Controllers/               # Auth, Users, Roles, Permissions, TenantFeatures,
+                             # Products, Invoices, License, Printing, Reports, Health
+  Database/Migrations/       # 001_init .. 013_username_password (auto-applied on start)
+  Models/                    # User, Role, Permission, TenantFeature, Product, Invoice
+  Repositories/              # Dapper data access (Auth, Users, Roles, ...)
+  Services/                  # Auth, Authorization, Receipt, Printer, Barcode, License
+  Middleware/                # ApiAuthMiddleware (bearer token parsing)
+  Attributes/                # RequirePermissionAttribute (permission + feature checks)
   Printers/                  # ESC/POS image + barcode output
   Builders/ReceiptBuilder.cs # Receipt image construction
 src/                         # Next.js frontend (client components only)
-  app/[locale]/              # Pages: /, /pos, /products, /invoices, /low-stock
-  components/                # UI components, layouts, common dialogs
-  features/                  # pos store, invoices, products, license actions
+  app/[locale]/              # Pages: /, /pos, /products, /invoices, /low-stock,
+                             #   /settings/{users,roles,permissions,features}
+  components/                # UI components, layouts, auth gate, login screen
+  features/                  # auth context, pos store, invoices, products, license
   lib/api.ts                 # Typed API client
+  lib/constants.ts           # Permission and feature key catalogs
 messages/                    # next-intl translations (ar.json)
 docs/                        # Feature specs and release notes
 CHANGELOG.md                 # Version history
@@ -112,6 +137,7 @@ dotnet build backend-cs/pos-cs.csproj --configuration Release
 
 The server listens on `http://localhost:3001`. The database is created in
 `data/` next to the executable and migrations are applied automatically.
+Sign in with the default account **`admin` / `1234`**.
 
 Optional environment variables:
 
@@ -157,7 +183,8 @@ The backend serves the static frontend, so there is no separate web server.
 
 > **Upgrade note:** when updating an existing installation, replace the
 > executable, `Migrations/` and `wwwroot/` but **keep the `data/` folder** — it
-> contains the database. Migrations run automatically on start.
+> contains the database. Migrations run automatically on start. The default
+> login after upgrading is `admin` / `1234`.
 
 ---
 
@@ -188,6 +215,11 @@ to avoid serving a partially upgraded database.
 | `006_product_barcodes` | ProductBarcode table, drop Product.barcode |
 | `007_product_units` | ProductUnit table, unit-scoped barcodes, price mode |
 | `008_price_edit_note` | InvoiceDetail.PriceEditNote |
+| `009_auth_schema` | User, Role, Permission, RolePermission, UserRole, Tenant, TenantFeature |
+| `010_seed_permissions` | 19 permission keys |
+| `011_seed_roles` | Admin / Manager / Cashier roles + role-permission assignments |
+| `012_seed_tenant` | Default tenant + 9 feature flags + admin user |
+| `013_username_password` | Replace `pinHash` with `username` + PBKDF2 `passwordHash` |
 
 ---
 
@@ -197,6 +229,11 @@ All endpoints live under `http://localhost:3001/api`.
 
 | Area      | Endpoints |
 |-----------|-----------|
+| Auth      | `POST /auth/login`, `GET /auth/me` |
+| Users     | `GET/POST /users`, `PUT /users/{id}` |
+| Roles     | `GET/POST /roles`, `GET/PUT/DELETE /roles/{id}`, `GET/PUT /roles/{id}/permissions` |
+| Permissions | `GET /permissions` |
+| Features  | `GET/PUT /tenant/features` |
 | Products  | `GET /products`, `GET /products/{id}`, `POST /products`, `PUT /products/{id}`, `DELETE /products/{id}`, `GET /products/paged`, `GET /products/search`, `GET /products/count` |
 | Units     | `POST/PUT/DELETE /products/{id}/units[/{unitId}]`, `POST/DELETE /products/{id}/units/{unitId}/barcodes[/{barcodeId}]`, `PUT .../barcodes/{barcodeId}/default` |
 | Invoices  | `GET /invoices`, `POST /invoices`, `GET /invoices/{id}`, `GET /invoices/paged`, `GET /invoices/filter` |
@@ -204,6 +241,9 @@ All endpoints live under `http://localhost:3001/api`.
 | Printing  | `POST /printing/print`, `POST /printing/print-barcode` |
 | License   | `GET /license`, `POST /license/unlock` |
 | Health    | `GET /health` |
+
+> All endpoints except `POST /auth/login` and `GET /license` require a
+> `Bearer <token>` header issued by `POST /auth/login`.
 
 ---
 
@@ -218,6 +258,10 @@ additional locales can be added by adding a new message file and a static param.
 ## Documentation
 
 - `docs/features/` — feature specs (multiple barcodes, advanced pricing & units).
+- `docs/core_features/` — core feature specs (license & subscription).
+- `docs/FEATURES.md` — the tenant feature catalog and how it gates the UI/backend.
+- `docs/PERMISSIONS.md` — the 19 permission keys grouped by resource.
+- `docs/AUTHORIZATION-ANALYSIS.md` — roles/permissions/features architecture.
 - `docs/release/` — per-version release notes.
 - `CHANGELOG.md` — full version history.
 - `PRINTING-ANALYSIS.md` — receipt-printing implementation analysis.
