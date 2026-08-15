@@ -44,7 +44,7 @@ export async function createInvoice(
   if (printInvoice) {
     try {
       await api.printing.print(invoice)
-    } catch (e) {
+    } catch {
       console.error("Silent printing failed, printer API might be offline")
     }
   }

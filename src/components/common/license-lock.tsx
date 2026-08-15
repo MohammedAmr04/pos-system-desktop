@@ -12,10 +12,13 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ShieldAlert, Clock, Lock } from "lucide-react"
+import { ShieldAlert, Lock } from "lucide-react"
+import { useAuth } from "@/features/auth/auth-context"
+import { LoginScreen } from "@/components/common/login-screen"
 
 export function LicenseGate({ children }: { children: React.ReactNode }) {
   const t = useTranslations("License")
+  const { isAuthenticated } = useAuth()
   const [license, setLicense] = useState<LicenseStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [code, setCode] = useState("")
@@ -29,13 +32,15 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
   }, [])
 
   const handleUnlock = useCallback(async () => {
+    setError("")
     const result = await unlockLicense(code.trim())
     if (result.success) {
       setLicense({ status: "ok" })
-      setError("")
       setCode("")
     } else {
-      setError(t("invalidCode"))
+      setError(result.message?.includes("Permission") || result.message?.includes("Authentication")
+        ? t("permissionDenied")
+        : t("invalidCode"))
     }
   }, [code, t])
 
@@ -60,6 +65,12 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
   }
 
   if (license?.status === "locked") {
+    // Unlock requires an authenticated user with license.manage, so ask for a
+    // PIN login first when no session exists yet.
+    if (!isAuthenticated) {
+      return <LoginScreen description={t("loginRequired")} />
+    }
+
     return (
       <div className="flex h-screen items-center justify-center bg-muted/30 p-8">
         <div className="max-w-md w-full space-y-8 text-center">

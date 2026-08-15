@@ -1,8 +1,13 @@
+import { getStoredToken } from "@/lib/auth-storage"
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options?.headers as Record<string, string>) }
+  const token = getStoredToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers,
     ...options,
   })
   if (!res.ok) {
@@ -105,7 +110,31 @@ export interface LicenseStatus {
   daysSinceActivation?: number
 }
 
+export interface AccessBundle {
+  user: {
+    id: string
+    name: string
+    isActive: boolean
+    tenantId: string
+  }
+  roles: string[]
+  permissions: string[]
+  features: string[]
+}
+
+export interface LoginResponse {
+  token: string
+  access: AccessBundle
+}
+
 export const api = {
+  // Auth
+  auth: {
+    login: (username: string, password: string) =>
+      request<LoginResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+    me: () => request<AccessBundle>('/api/auth/me'),
+  },
+
   // Products
   products: {
     list: () => request<Product[]>('/api/products'),
@@ -195,10 +224,10 @@ export const api = {
   // License
   license: {
     check: () => request<LicenseStatus>('/api/license'),
-    unlock: (machineId: string) =>
+    unlock: (machineId: string, code: string) =>
       request<{ success: boolean; machineId: string }>('/api/license/unlock', {
         method: 'POST',
-        body: JSON.stringify({ machineId }),
+        body: JSON.stringify({ machineId, code }),
       }),
   },
 
@@ -215,6 +244,79 @@ export const api = {
         body: JSON.stringify(data),
       }),
   },
+
+  // Administration: Roles & Permissions
+  roles: {
+    list: () => request<RoleSummary[]>('/api/roles'),
+    get: (id: string) => request<RoleSummary>(`/api/roles/${id}`),
+    create: (data: { name: string; description?: string | null }) =>
+      request<RoleSummary>('/api/roles', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { name: string; description?: string | null }) =>
+      request<RoleSummary>(`/api/roles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    remove: (id: string) =>
+      request<{ success: boolean }>(`/api/roles/${id}`, { method: 'DELETE' }),
+    getPermissions: (id: string) =>
+      request<{ roleId: string; permissionIds: string[] }>(`/api/roles/${id}/permissions`),
+    setPermissions: (id: string, permissionIds: string[]) =>
+      request<{ success: boolean; permissionIds: string[] }>(`/api/roles/${id}/permissions`, {
+        method: 'PUT',
+        body: JSON.stringify({ permissionIds }),
+      }),
+  },
+  permissions: {
+    list: () => request<PermissionInfo[]>('/api/permissions'),
+  },
+
+  // Administration: Users
+  users: {
+    list: () => request<UserSummary[]>('/api/users'),
+    create: (data: { name: string; username: string; password: string; roleIds: string[] }) =>
+      request<UserSummary>('/api/users', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { name?: string; username?: string; password?: string; isActive?: boolean; roleIds?: string[] }) =>
+      request<UserSummary>(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  },
+
+  // Administration: Tenant Features
+  tenant: {
+    features: () => request<{ features: TenantFeature[] }>('/api/tenant/features'),
+    setFeatures: (features: TenantFeature[]) =>
+      request<{ success: boolean }>('/api/tenant/features', {
+        method: 'PUT',
+        body: JSON.stringify({ features }),
+      }),
+  },
+}
+
+export interface RoleSummary {
+  id: string
+  name: string
+  description: string | null
+  isSystem: boolean
+  userCount: number
+  permissionCount: number
+}
+
+export interface PermissionInfo {
+  id: string
+  key: string
+  name: string
+  description: string | null
+  resource: string
+  action: string
+}
+
+export interface UserSummary {
+  id: string
+  name: string
+  username: string
+  isActive: boolean
+  roleIds: string[]
+  createdAt: string
+}
+
+export interface TenantFeature {
+  key: string
+  enabled: boolean
 }
 
 export interface InvoiceItemPayload {
