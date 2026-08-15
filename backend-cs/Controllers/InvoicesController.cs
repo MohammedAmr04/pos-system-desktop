@@ -4,9 +4,11 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
+using PosCs.Attributes;
 using PosCs.Helpers;
 using PosCs.Models;
 using PosCs.Repositories;
+using PosCs.Services;
 
 namespace PosCs.Controllers
 {
@@ -19,6 +21,7 @@ namespace PosCs.Controllers
 
         [Route("")]
         [HttpGet]
+        [RequirePermission("invoices.view")]
         public HttpResponseMessage GetAll()
         {
             try
@@ -39,6 +42,7 @@ namespace PosCs.Controllers
 
         [Route("filter")]
         [HttpGet]
+        [RequirePermission("invoices.view")]
         public HttpResponseMessage GetFiltered(string from = null, string to = null)
         {
             try
@@ -75,6 +79,7 @@ namespace PosCs.Controllers
 
         [Route("paged")]
         [HttpGet]
+        [RequirePermission("invoices.view")]
         public HttpResponseMessage GetPaged(int page = 1, int pageSize = 20, string from = null, string to = null, string q = null)
         {
             try
@@ -119,6 +124,7 @@ namespace PosCs.Controllers
 
         [Route("{id}")]
         [HttpGet]
+        [RequirePermission("invoices.view")]
         public HttpResponseMessage GetById(string id)
         {
             try
@@ -140,6 +146,7 @@ namespace PosCs.Controllers
 
         [Route("")]
         [HttpPost]
+        [RequirePermission("invoices.create")]
         public HttpResponseMessage Create([FromBody] CreateInvoiceDto dto)
         {
             try
@@ -153,6 +160,14 @@ namespace PosCs.Controllers
 
                 using (var conn = DbConnectionFactory.CreateConnection())
                 {
+                    var userId = AuthorizationService.GetCurrentUserId(Request);
+                    var tenantId = AuthorizationService.GetTenantIdForUser(conn, userId);
+
+                    // Wholesale selling mode requires the tenant feature.
+                    if (priceMode == "wholesale" &&
+                        !AuthorizationService.HasFeature(conn, tenantId, "wholesale_price"))
+                        return Request.CreateErrorResponse(HttpStatusCode.Forbidden, "Feature disabled: wholesale_price");
+
                     var lineDetails = new List<InvoiceDetail>();
                     var lineFinals = new List<double>();
 
@@ -184,12 +199,27 @@ namespace PosCs.Controllers
                             return Request.CreateErrorResponse(HttpStatusCode.BadRequest,
                                 $"Unit price cannot be negative for '{product.Name}'");
 
+                        // Price override: a submitted unit price that differs from the
+                        // product price requires permission + tenant feature.
+                        if (item.UnitPrice > 0 && Math.Abs(item.UnitPrice - originalPrice) > 0.005)
+                        {
+                            if (!AuthorizationService.HasPermission(conn, userId, "price.override"))
+                                return Request.CreateErrorResponse(HttpStatusCode.Forbidden, "Permission denied: price.override");
+                            if (!AuthorizationService.HasFeature(conn, tenantId, "price_override"))
+                                return Request.CreateErrorResponse(HttpStatusCode.Forbidden, "Feature disabled: price_override");
+                        }
+
                         string lineDiscountType = null;
                         double lineDiscountValue = 0;
                         double lineDiscountAmount = 0;
 
                         if (!string.IsNullOrEmpty(item.DiscountType) && item.DiscountValue > 0)
                         {
+                            if (!AuthorizationService.HasPermission(conn, userId, "discounts.product"))
+                                return Request.CreateErrorResponse(HttpStatusCode.Forbidden, "Permission denied: discounts.product");
+                            if (!AuthorizationService.HasFeature(conn, tenantId, "product_discount"))
+                                return Request.CreateErrorResponse(HttpStatusCode.Forbidden, "Feature disabled: product_discount");
+
                             var lineSubtotalBefore = unitPrice * item.Quantity;
                             if (item.DiscountType == "percentage")
                             {
@@ -251,6 +281,15 @@ namespace PosCs.Controllers
                     double invoiceDiscountAmount = 0;
                     var discountType = dto.DiscountType;
                     var discountValue = dto.DiscountValue;
+
+                    var hasInvoiceDiscount = (!string.IsNullOrEmpty(discountType) && discountValue > 0) || dto.Discount > 0;
+                    if (hasInvoiceDiscount)
+                    {
+                        if (!AuthorizationService.HasPermission(conn, userId, "discounts.invoice"))
+                            return Request.CreateErrorResponse(HttpStatusCode.Forbidden, "Permission denied: discounts.invoice");
+                        if (!AuthorizationService.HasFeature(conn, tenantId, "invoice_discount"))
+                            return Request.CreateErrorResponse(HttpStatusCode.Forbidden, "Feature disabled: invoice_discount");
+                    }
 
                     if (!string.IsNullOrEmpty(discountType) && discountValue > 0)
                     {

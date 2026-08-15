@@ -5,11 +5,16 @@ import { useTranslations } from "next-intl"
 import { InvoicesClient } from "./invoices-client"
 import { api, Invoice } from "@/lib/api"
 import { format } from "date-fns"
+import { useAuth } from "@/features/auth/auth-context"
+import { PERMISSIONS } from "@/lib/constants"
+import { AccessDenied } from "@/components/common/access-denied"
 
 const PAGE_SIZE = 20
 
 export default function InvoicesPage() {
   const t = useTranslations("Invoices")
+  const { hasPermission } = useAuth()
+  const canView = hasPermission(PERMISSIONS.INVOICES_VIEW)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [total, setTotal] = useState(0)
   const [totals, setTotals] = useState({ revenue: 0, discounts: 0 })
@@ -20,6 +25,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!canView) return
     let cancelled = false
     api.invoices
       .listPaged(page, PAGE_SIZE, {
@@ -45,7 +51,7 @@ export default function InvoicesPage() {
     return () => {
       cancelled = true
     }
-  }, [page, query, fromDate, toDate])
+  }, [page, query, fromDate, toDate, canView])
 
   const handleQueryChange = useCallback((q: string) => {
     setLoading(true)
@@ -64,6 +70,10 @@ export default function InvoicesPage() {
     setLoading(true)
     setPage(p)
   }, [])
+
+  if (!canView) {
+    return <AccessDenied />
+  }
 
   return (
     <div className="flex-1 space-y-4 pt-6">

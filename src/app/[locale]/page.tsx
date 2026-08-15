@@ -7,22 +7,30 @@ import { Package, ShoppingCart, DollarSign } from "lucide-react"
 import { Link } from "@/i18n/navigation"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
+import { useAuth } from "@/features/auth/auth-context"
+import { PERMISSIONS } from "@/lib/constants"
 
 export default function DashboardPage() {
   const t = useTranslations("Dashboard")
+  const { hasPermission, hasAccess } = useAuth()
+  const canViewProducts = hasPermission(PERMISSIONS.PRODUCTS_VIEW)
+  const canViewInvoices = hasPermission(PERMISSIONS.INVOICES_VIEW)
+  const canUsePOS = hasAccess(PERMISSIONS.INVOICES_CREATE) && hasPermission(PERMISSIONS.PRODUCTS_VIEW)
   const [productsCount, setProductsCount] = useState(0)
   const [revenue, setRevenue] = useState(0)
   const [salesCount, setSalesCount] = useState(0)
   const [discountGiven, setDiscountGiven] = useState(0)
 
   useEffect(() => {
-    api.products.count().then(setProductsCount).catch(() => {})
-    api.invoices.list().then(invoices => {
-      setRevenue(invoices.reduce((acc, inv) => acc + inv.totalAmount, 0))
-      setSalesCount(invoices.length)
-      setDiscountGiven(invoices.reduce((acc, inv) => acc + inv.discount, 0))
-    }).catch(() => {})
-  }, [])
+    if (canViewProducts) api.products.count().then(setProductsCount).catch(() => {})
+    if (canViewInvoices) {
+      api.invoices.list().then(invoices => {
+        setRevenue(invoices.reduce((acc, inv) => acc + inv.totalAmount, 0))
+        setSalesCount(invoices.length)
+        setDiscountGiven(invoices.reduce((acc, inv) => acc + inv.discount, 0))
+      }).catch(() => {})
+    }
+  }, [canViewProducts, canViewInvoices])
 
   return (
     <div className="flex-1 space-y-4 pt-6">
@@ -72,11 +80,13 @@ export default function DashboardPage() {
         <Card className="col-span-4 flex flex-col justify-center items-center py-10">
           <h3 className="text-lg font-semibold mb-4">{t("quickActions")}</h3>
           <div className="flex gap-4">
-            <Link href="/pos">
-              <Button size="lg" className="h-16">
-                <ShoppingCart className="mr-2 h-5 w-5" /> {t("openPOS")}
-              </Button>
-            </Link>
+            {canUsePOS && (
+              <Link href="/pos">
+                <Button size="lg" className="h-16">
+                  <ShoppingCart className="mr-2 h-5 w-5" /> {t("openPOS")}
+                </Button>
+              </Link>
+            )}
           </div>
         </Card>
       </div>

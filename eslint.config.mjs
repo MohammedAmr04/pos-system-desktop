@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Build artifacts (self-hosted static export published into backend output):
+    "backend-cs/bin/**",
   ]),
 ]);
 

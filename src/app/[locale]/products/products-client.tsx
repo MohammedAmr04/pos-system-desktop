@@ -1,8 +1,10 @@
 "use client"
 
-import { Product, ProductBarcode, ProductUnit } from "@/lib/api"
+import { Product, ProductBarcode, ProductUnit, api } from "@/lib/api"
 import { ResponsiveSheet } from "@/components/common/responsive-sheet"
 import { ProductForm, PRODUCT_FORM_ID } from "./product-form"
+import { useAuth } from "@/features/auth/auth-context"
+import { PERMISSIONS, FEATURES } from "@/lib/constants"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Plus, Edit, Trash, Printer, Boxes, Loader2 } from "lucide-react"
@@ -76,6 +78,13 @@ export function ProductsClient({
 }: ProductsClientProps) {
   const t = useTranslations("Products")
   const tc = useTranslations("Common")
+  const { hasAccess, hasPermission } = useAuth()
+  const canCreate = hasPermission(PERMISSIONS.PRODUCTS_CREATE)
+  const canUpdate = hasPermission(PERMISSIONS.PRODUCTS_UPDATE)
+  const canDelete = hasPermission(PERMISSIONS.PRODUCTS_DELETE)
+  const canManageUnits = hasAccess(PERMISSIONS.PRODUCTS_UPDATE, FEATURES.MULTIPLE_UNITS)
+  const canManageBarcodes = hasAccess(PERMISSIONS.PRODUCTS_UPDATE, FEATURES.MULTIPLE_BARCODES)
+  const canPrintBarcode = hasAccess(PERMISSIONS.PRINTING_BARCODE, FEATURES.BARCODE_PRINTING)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [barcodePrintProduct, setBarcodePrintProduct] = useState<Product | null>(null)
@@ -130,15 +139,21 @@ export function ProductsClient({
       header: t("actions"),
       cell: ({ row }) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handlePrintBarcode(row.original)} title={t("printBarcode")}>
-            <Printer className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(row.original)}>
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(row.original.id)}>
-            <Trash className="h-4 w-4 text-destructive" />
-          </Button>
+          {canPrintBarcode && (
+            <Button variant="ghost" size="icon" onClick={() => handlePrintBarcode(row.original)} title={t("printBarcode")}>
+              <Printer className="h-4 w-4" />
+            </Button>
+          )}
+          {canUpdate && (
+            <Button variant="ghost" size="icon" onClick={() => handleEdit(row.original)}>
+              <Edit className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="ghost" size="icon" onClick={() => handleDelete(row.original.id)}>
+              <Trash className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
         </div>
       )
     }
@@ -294,15 +309,11 @@ export function ProductsClient({
   const handleBarcodePrintConfirm = async () => {
     if (!barcodePrintProduct) return
     try {
-      await fetch("http://localhost:3001/api/printing/print-barcode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          barcode: barcodePrintProduct.barcode,
-          name: barcodePrintProduct.name,
-          price: barcodePrintProduct.salePrice,
-          count: barcodeCount,
-        }),
+      await api.printing.printBarcode({
+        barcode: barcodePrintProduct.barcode ?? "",
+        name: barcodePrintProduct.name,
+        price: barcodePrintProduct.salePrice,
+        count: barcodeCount,
       })
       setIsBarcodeDialogOpen(false)
       toast.success(t("barcodePrinting"))
@@ -320,12 +331,14 @@ export function ProductsClient({
           onChange={(e) => setSearchInput(e.target.value)}
           className="max-w-sm"
         />
-        <Button onClick={() => {
-          setEditingProduct(null)
-          setIsSheetOpen(true)
-        }}>
-          <Plus className="mr-2 h-4 w-4" /> {t("addProduct")}
-        </Button>
+        {canCreate && (
+          <Button onClick={() => {
+            setEditingProduct(null)
+            setIsSheetOpen(true)
+          }}>
+            <Plus className="mr-2 h-4 w-4" /> {t("addProduct")}
+          </Button>
+        )}
       </div>
 
       <div className="rounded-md border bg-card">
@@ -424,17 +437,17 @@ export function ProductsClient({
             if (onRefresh) onRefresh()
           }} 
         />
-        {displayProduct && (
+        {displayProduct && canManageUnits && (
           <div className="border-t pt-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Boxes className="h-4 w-4 text-muted-foreground" />
-                <h4 className="text-sm font-semibold">{t("units")}</h4>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Boxes className="h-4 w-4 text-muted-foreground" />
+                  <h4 className="text-sm font-semibold">{t("units")}</h4>
+                </div>
+                <Button variant="outline" size="sm" onClick={openAddUnit}>
+                  <Plus className="mr-2 h-4 w-4" /> {t("addUnit")}
+                </Button>
               </div>
-              <Button variant="outline" size="sm" onClick={openAddUnit}>
-                <Plus className="mr-2 h-4 w-4" /> {t("addUnit")}
-              </Button>
-            </div>
             {displayProduct.units && displayProduct.units.length > 0 ? (
               <div className="space-y-3">
                 {displayProduct.units.map((unit) => (
@@ -461,7 +474,7 @@ export function ProductsClient({
                           )}
                         </div>
                       </div>
-                      {!unit.isBaseUnit && (
+                      {!unit.isBaseUnit && canManageUnits && (
                         <div className="flex items-center gap-1 shrink-0">
                           <Button variant="ghost" size="sm" onClick={() => openEditUnit(unit)}>
                             <Edit className="h-4 w-4" />
@@ -472,37 +485,39 @@ export function ProductsClient({
                         </div>
                       )}
                     </div>
-                    <div className="mt-2 space-y-1">
-                      {unit.barcodes && unit.barcodes.length > 0 ? (
-                        unit.barcodes.map((b) => (
-                          <div key={b.id} className="flex items-center justify-between gap-2 rounded border bg-muted/40 px-2 py-1">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="font-mono text-xs truncate">{b.barcode}</span>
-                              {b.isDefault && (
-                                <span className="shrink-0 inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                                  {t("primary")}
-                                </span>
+                    {canManageBarcodes && (
+                      <div className="mt-2 space-y-1">
+                        {unit.barcodes && unit.barcodes.length > 0 ? (
+                          unit.barcodes.map((b) => (
+                            <div key={b.id} className="flex items-center justify-between gap-2 rounded border bg-muted/40 px-2 py-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-mono text-xs truncate">{b.barcode}</span>
+                                {b.isDefault && (
+                                  <span className="shrink-0 inline-flex items-center rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                                    {t("primary")}
+                                  </span>
+                                )}
+                              </div>
+                              {!b.isDefault && (
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Button variant="ghost" size="sm" onClick={() => handleSetDefault(unit, b.id)}>
+                                    {t("setAsDefault")}
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => handleDeleteBarcode(unit, b)}>
+                                    <Trash className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
                               )}
                             </div>
-                            {!b.isDefault && (
-                              <div className="flex items-center gap-1 shrink-0">
-                                <Button variant="ghost" size="sm" onClick={() => handleSetDefault(unit, b.id)}>
-                                  {t("setAsDefault")}
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleDeleteBarcode(unit, b)}>
-                                  <Trash className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-xs text-muted-foreground">{t("noBarcodes")}</p>
-                      )}
-                      <Button variant="ghost" size="sm" onClick={() => openAddBarcode(unit)}>
-                        <Plus className="mr-2 h-4 w-4" /> {t("addBarcode")}
-                      </Button>
-                    </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-muted-foreground">{t("noBarcodes")}</p>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={() => openAddBarcode(unit)}>
+                          <Plus className="mr-2 h-4 w-4" /> {t("addBarcode")}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

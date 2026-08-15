@@ -2,8 +2,10 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
+using PosCs.Attributes;
 using PosCs.Helpers;
 using PosCs.Repositories;
+using PosCs.Services;
 
 namespace PosCs.Controllers
 {
@@ -60,8 +62,12 @@ namespace PosCs.Controllers
             }
         }
 
+        // Unlock now requires an authenticated user with license.manage AND a valid
+        // server-side unlock code. The old behavior (any caller, hardcoded client code)
+        // is gone.
         [Route("unlock")]
         [HttpPost]
+        [RequirePermission("license.manage")]
         public HttpResponseMessage Unlock([FromBody] UnlockDto dto)
         {
             try
@@ -69,10 +75,13 @@ namespace PosCs.Controllers
                 if (dto?.MachineId == null)
                     return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Machine ID required");
 
+                if (!LicenseService.IsValidUnlockCode(dto.MachineId, dto.Code))
+                    return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Invalid unlock code");
+
                 using (var conn = DbConnectionFactory.CreateConnection())
                 {
                     _settingsRepo.Upsert(conn, dto.MachineId, true);
-                    Console.WriteLine($"[API] License unlocked for machine: {dto.MachineId}");
+                    Console.WriteLine($"[API] License unlocked for machine: {dto.MachineId} (by {AuthorizationService.GetCurrentUserId(Request)})");
                     return Request.CreateResponse(HttpStatusCode.OK, new
                     {
                         success = true,
@@ -91,5 +100,6 @@ namespace PosCs.Controllers
     public class UnlockDto
     {
         public string MachineId { get; set; }
+        public string Code { get; set; }
     }
 }

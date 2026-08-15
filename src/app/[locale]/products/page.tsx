@@ -4,11 +4,16 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { ProductsClient } from "./products-client"
 import { api, Product } from "@/lib/api"
+import { useAuth } from "@/features/auth/auth-context"
+import { PERMISSIONS } from "@/lib/constants"
+import { AccessDenied } from "@/components/common/access-denied"
 
 const PAGE_SIZE = 20
 
 export default function ProductsPage() {
   const t = useTranslations("Products")
+  const { hasPermission } = useAuth()
+  const canView = hasPermission(PERMISSIONS.PRODUCTS_VIEW)
   const [products, setProducts] = useState<Product[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -17,6 +22,7 @@ export default function ProductsPage() {
   const [requestId, setRequestId] = useState(0)
 
   useEffect(() => {
+    if (!canView) return
     let cancelled = false
     api.products
       .listPaged(page, PAGE_SIZE, query.trim() || undefined)
@@ -36,7 +42,7 @@ export default function ProductsPage() {
     return () => {
       cancelled = true
     }
-  }, [page, query, requestId])
+  }, [page, query, requestId, canView])
 
   const handleQueryChange = useCallback((q: string) => {
     setLoading(true)
@@ -53,6 +59,10 @@ export default function ProductsPage() {
     setLoading(true)
     setRequestId((id) => id + 1)
   }, [])
+
+  if (!canView) {
+    return <AccessDenied />
+  }
 
   return (
     <div className="flex-1 space-y-4 pt-6">

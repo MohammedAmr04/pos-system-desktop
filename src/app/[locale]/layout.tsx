@@ -1,5 +1,7 @@
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { LicenseGate } from "@/components/common/license-lock";
+import { AuthGate } from "@/components/common/auth-gate";
+import { AuthProvider } from "@/features/auth/auth-context";
 
 export function generateStaticParams() {
   return [{ locale: "ar" }]
@@ -11,10 +13,14 @@ export default function LocaleLayout({
   children: React.ReactNode;
 }) {
   return (
-    <DashboardLayout>
-      <LicenseGate>
-        {children}
-      </LicenseGate>
-    </DashboardLayout>
+    <AuthProvider>
+      <AuthGate>
+        <LicenseGate>
+          <DashboardLayout>
+            {children}
+          </DashboardLayout>
+        </LicenseGate>
+      </AuthGate>
+    </AuthProvider>
   );
 }

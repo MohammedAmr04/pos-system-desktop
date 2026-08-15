@@ -9,6 +9,7 @@ namespace PosCs.Models
         public DateTime ActivatedAt { get; set; }
         public DateTime LastCheckedAt { get; set; }
         public bool Unlocked { get; set; }
+        public string TokenSecret { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }
