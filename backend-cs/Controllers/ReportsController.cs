@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http;
 using System.Web.Http;
 using Dapper;
+using PosCs.Attributes;
 using PosCs.Helpers;
 using PosCs.Models;
 
@@ -14,6 +15,7 @@ namespace PosCs.Controllers
     {
         [Route("low-stock")]
         [HttpGet]
+        [RequirePermission("reports.view", "low_stock_report")]
         public HttpResponseMessage GetLowStock()
         {
             try

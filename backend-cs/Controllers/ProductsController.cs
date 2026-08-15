@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Web.Http;
 using Dapper;
 using Microsoft.Data.Sqlite;
+using PosCs.Attributes;
 using PosCs.Helpers;
 using PosCs.Models;
 using PosCs.Repositories;
@@ -20,6 +21,7 @@ namespace PosCs.Controllers
 
         [Route("")]
         [HttpGet]
+        [RequirePermission("products.view")]
         public HttpResponseMessage GetAll()
         {
             try
@@ -40,6 +42,7 @@ namespace PosCs.Controllers
 
         [Route("{id}")]
         [HttpGet]
+        [RequirePermission("products.view")]
         public HttpResponseMessage GetById(string id)
         {
             try
@@ -63,6 +66,7 @@ namespace PosCs.Controllers
 
         [Route("search")]
         [HttpGet]
+        [RequirePermission("products.view")]
         public HttpResponseMessage Search(string q, int limit = 20)
         {
             try
@@ -86,6 +90,7 @@ namespace PosCs.Controllers
 
         [Route("paged")]
         [HttpGet]
+        [RequirePermission("products.view")]
         public HttpResponseMessage GetPaged(int page = 1, int pageSize = 20, string q = null)
         {
             try
@@ -116,6 +121,7 @@ namespace PosCs.Controllers
 
         [Route("count")]
         [HttpGet]
+        [RequirePermission("products.view")]
         public HttpResponseMessage GetCount()
         {
             try
@@ -136,6 +142,7 @@ namespace PosCs.Controllers
 
         [Route("")]
         [HttpPost]
+        [RequirePermission("products.create")]
         public HttpResponseMessage Create([FromBody] CreateProductDto dto)
         {
             try
@@ -214,6 +221,7 @@ namespace PosCs.Controllers
 
         [Route("{id}")]
         [HttpPut]
+        [RequirePermission("products.update")]
         public HttpResponseMessage Update(string id, [FromBody] UpdateProductDto dto)
         {
             try
@@ -305,6 +313,7 @@ namespace PosCs.Controllers
 
         [Route("{id}")]
         [HttpDelete]
+        [RequirePermission("products.delete")]
         public HttpResponseMessage Delete(string id)
         {
             try
@@ -327,6 +336,7 @@ namespace PosCs.Controllers
 
         [Route("{id}/units")]
         [HttpPost]
+        [RequirePermission("products.update", "multiple_units")]
         public HttpResponseMessage AddUnit(string id, [FromBody] AddUnitDto dto)
         {
             try
@@ -372,6 +382,7 @@ namespace PosCs.Controllers
 
         [Route("{id}/units/{unitId}")]
         [HttpPut]
+        [RequirePermission("products.update", "multiple_units")]
         public HttpResponseMessage UpdateUnit(string id, string unitId, [FromBody] UpdateUnitDto dto)
         {
             try
@@ -419,6 +430,7 @@ namespace PosCs.Controllers
 
         [Route("{id}/units/{unitId}")]
         [HttpDelete]
+        [RequirePermission("products.update", "multiple_units")]
         public HttpResponseMessage DeleteUnit(string id, string unitId)
         {
             try
@@ -447,6 +459,7 @@ namespace PosCs.Controllers
 
         [Route("{id}/units/{unitId}/barcodes")]
         [HttpPost]
+        [RequirePermission("products.update", "multiple_barcodes")]
         public HttpResponseMessage AddBarcode(string id, string unitId, [FromBody] AddBarcodeDto dto)
         {
             try
@@ -478,6 +491,7 @@ namespace PosCs.Controllers
 
         [Route("{id}/units/{unitId}/barcodes/{barcodeId}")]
         [HttpDelete]
+        [RequirePermission("products.update", "multiple_barcodes")]
         public HttpResponseMessage DeleteBarcode(string id, string unitId, string barcodeId)
         {
             try
@@ -511,6 +525,7 @@ namespace PosCs.Controllers
 
         [Route("{id}/units/{unitId}/barcodes/{barcodeId}/default")]
         [HttpPut]
+        [RequirePermission("products.update", "multiple_barcodes")]
         public HttpResponseMessage SetDefaultBarcode(string id, string unitId, string barcodeId)
         {
             try

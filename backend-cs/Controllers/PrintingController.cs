@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Web.Http;
+using PosCs.Attributes;
 using PosCs.Helpers;
 using PosCs.Services;
 
@@ -22,6 +23,7 @@ namespace PosCs.Controllers
 
         [Route("print")]
         [HttpPost]
+        [RequirePermission("printing.receipt", "receipt_printing")]
         public HttpResponseMessage Print([FromBody] PrintDto dto)
         {
             try
@@ -111,6 +113,7 @@ namespace PosCs.Controllers
 
         [Route("print-barcode")]
         [HttpPost]
+        [RequirePermission("printing.barcode", "barcode_printing")]
         public HttpResponseMessage PrintBarcode([FromBody] PrintBarcodeDto dto)
         {
             // اترك كود الباركود كما هو بدون تغيير لاعتماده على تصميم مختلف
