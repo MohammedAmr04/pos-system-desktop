@@ -1,7 +1,9 @@
 using System;
 using System.Net.Http.Formatting;
+using System.Threading.Tasks;
 using System.Web.Http;
 using Owin;
+using System.Web.Cors;
 using Microsoft.Owin.Cors;
 using Microsoft.Owin.FileSystems;
 using Microsoft.Owin.StaticFiles;
@@ -11,6 +13,7 @@ using Newtonsoft.Json.Serialization;
 using Microsoft.Owin.Hosting;
 using PosCs.Database.Migrations;
 using PosCs.Helpers;
+using PosCs.Middleware;
 
 namespace PosCs
 {
@@ -43,7 +46,34 @@ namespace PosCs
             };
             config.Formatters.Remove(config.Formatters.XmlFormatter);
 
-            app.UseCors(CorsOptions.AllowAll);
+            // Restrict CORS to local development origins only (the SPA is served
+            // same-origin in production, so API CORS is only needed for `next dev`).
+            app.UseCors(new CorsOptions
+            {
+                PolicyProvider = new CorsPolicyProvider
+                {
+                    PolicyResolver = req =>
+                    {
+                        var policy = new CorsPolicy
+                        {
+                            AllowAnyMethod = true,
+                            AllowAnyHeader = true,
+                            SupportsCredentials = true
+                        };
+                        var origin = req.Headers.Get("Origin");
+                        if (!string.IsNullOrEmpty(origin) &&
+                            (origin.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase) ||
+                             origin.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            policy.Origins.Add(origin);
+                        }
+                        return Task.FromResult(policy);
+                    }
+                }
+            });
+
+            // Authenticate bearer tokens before any controller runs.
+            app.Use<ApiAuthMiddleware>();
 
             var wwwroot = System.IO.Path.Combine(
                 System.AppDomain.CurrentDomain.BaseDirectory, "wwwroot");
