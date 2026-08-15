@@ -35,7 +35,6 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
-.env*
 !.env.example
 
 # vercel
@@ -47,3 +46,4 @@ yarn-error.log*
 # release packages (build output)
 /v1.0.0-fixed/
 /v1.0.1/
+config.bat
