@@ -7,6 +7,7 @@ import { Package, ShoppingCart, DollarSign } from "lucide-react"
 import { Link } from "@/i18n/navigation"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
+import { format } from "date-fns"
 import { useAuth } from "@/features/auth/auth-context"
 import { PERMISSIONS } from "@/lib/constants"
 
@@ -24,11 +25,15 @@ export default function DashboardPage() {
   useEffect(() => {
     if (canViewProducts) api.products.count().then(setProductsCount).catch(() => {})
     if (canViewInvoices) {
-      api.invoices.list().then(invoices => {
-        setRevenue(invoices.reduce((acc, inv) => acc + inv.totalAmount, 0))
-        setSalesCount(invoices.length)
-        setDiscountGiven(invoices.reduce((acc, inv) => acc + inv.discount, 0))
-      }).catch(() => {})
+      // Aggregate today's stats on the backend; pageSize=1 keeps the payload tiny.
+      api.invoices
+        .listPaged(1, 1, { from: format(new Date(), "yyyy-MM-dd") })
+        .then((res) => {
+          setRevenue(res.totals.revenue)
+          setSalesCount(res.total)
+          setDiscountGiven(res.totals.discounts)
+        })
+        .catch(() => {})
     }
   }, [canViewProducts, canViewInvoices])
 
