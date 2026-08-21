@@ -6,6 +6,7 @@ import { ProductForm, PRODUCT_FORM_ID } from "./product-form"
 import { useAuth } from "@/features/auth/auth-context"
 import { PERMISSIONS, FEATURES } from "@/lib/constants"
 import { useEffect, useState } from "react"
+import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
 import { Button } from "@/components/ui/button"
 import { Plus, Edit, Trash, Printer, Boxes, Loader2 } from "lucide-react"
 import {
@@ -102,6 +103,7 @@ export function ProductsClient({
   })
   const [sorting, setSorting] = useState<SortingState>([])
   const [searchInput, setSearchInput] = useState(query)
+  const debouncedQueryChange = useDebouncedCallback(onQueryChange, 300)
 
   const displayProduct = editingProduct
     ? (items.find((p) => p.id === editingProduct.id) ?? editingProduct)
@@ -110,9 +112,8 @@ export function ProductsClient({
   useEffect(() => {
     const value = searchInput.trim()
     if (value === query) return
-    const timer = setTimeout(() => onQueryChange(value), 300)
-    return () => clearTimeout(timer)
-  }, [searchInput, query, onQueryChange])
+    debouncedQueryChange(value)
+  }, [debouncedQueryChange, query, searchInput])
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 

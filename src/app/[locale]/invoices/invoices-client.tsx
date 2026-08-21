@@ -2,6 +2,7 @@
 
 import { api, Invoice } from "@/lib/api"
 import { useEffect, useState } from "react"
+import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
 import { Button } from "@/components/ui/button"
 import { Eye, Loader2 } from "lucide-react"
 import {
@@ -62,13 +63,13 @@ export function InvoicesClient({
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [sorting, setSorting] = useState<SortingState>([])
   const [searchInput, setSearchInput] = useState(query)
+  const debouncedQueryChange = useDebouncedCallback(onQueryChange, 300)
 
   useEffect(() => {
     const value = searchInput.trim()
     if (value === query) return
-    const timer = setTimeout(() => onQueryChange(value), 300)
-    return () => clearTimeout(timer)
-  }, [searchInput, query, onQueryChange])
+    debouncedQueryChange(value)
+  }, [debouncedQueryChange, query, searchInput])
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
