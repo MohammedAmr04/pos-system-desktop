@@ -67,12 +67,3 @@ export async function removeProductBarcode(productId: string, unitId: string, ba
 export async function setDefaultProductBarcode(productId: string, unitId: string, barcodeId: string) {
   await api.products.units.barcodes.setDefault(productId, unitId, barcodeId)
 }
-
-export const findUnitByBarcode = (product: Product, barcode: string): ProductUnit | null => {
-  for (const unit of product.units ?? []) {
-    for (const b of unit.barcodes ?? []) {
-      if (b.barcode === barcode) return unit
-    }
-  }
-  return null
-}

@@ -56,7 +56,6 @@
     "productCreated": "تم إنشاء المنتج وإضافته للسلة",
     "back": "رجوع",
     "noBarcodeActions": "ليس لديك صلاحية لإنشاء أو ربط منتجات جديدة",
-    "save": "حفظ",
     "cancel": "إلغاء",
     "noResults": "لا توجد نتائج",
     "retail": "تجزئة",
@@ -77,7 +76,10 @@
     "priceEditNoteHint": "سيظهر السبب في تفاصيل الفاتورة فقط ولن يظهر في إيصال الطباعة.",
     "note": "ملاحظة",
     "outOfStock": "المنتج غير متوفر (المخزون صفر)",
-    "maxStockReached": "الكمية المطلوبة تتجاوز المخزون المتاح"
+    "maxStockReached": "الكمية المطلوبة تتجاوز المخزون المتاح",
+    "increaseQuantity": "زيادة الكمية",
+    "decreaseQuantity": "تقليل الكمية",
+    "remove": "إزالة"
   },
   "Products": {
     "title": "المنتجات",
@@ -88,7 +90,7 @@
     "barcode": "الباركود",
     "buyPrice": "سعر الشراء",
     "salePrice": "سعر البيع",
-    "notes":"ملاحظات",
+    "notes": "ملاحظات",
     "stockQuantity": "كمية المخزون",
     "allowDiscount": "السماح بالخصم",
     "lowStockThreshold": "حد المخزون المنخفض",
