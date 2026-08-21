@@ -1,8 +1,4 @@
-import { api, Product, ProductUnit } from "@/lib/api"
-
-export const getProducts = async () => {
-  return api.products.list()
-}
+import { api } from "@/lib/api"
 
 export async function createProduct(data: {
   barcode?: string | null

@@ -1,14 +1,6 @@
 import { api, Invoice, PriceMode } from "@/lib/api"
 import { CartItem } from "@/features/pos/store/usePOSStore"
 
-export const getInvoices = async (): Promise<Invoice[]> => {
-  return api.invoices.list()
-}
-
-export async function getFilteredInvoices(from?: string, to?: string): Promise<Invoice[]> {
-  return api.invoices.filter(from, to)
-}
-
 export async function createInvoice(
   cartItems: CartItem[],
   discount: number,

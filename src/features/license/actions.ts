@@ -23,7 +23,3 @@ export async function unlockLicense(code: string): Promise<{ success: boolean; m
     return { success: false, message: (e as Error).message }
   }
 }
-
-export async function getLicenseStatus(): Promise<LicenseStatus> {
-  return checkLicense()
-}

@@ -235,13 +235,6 @@ export const api = {
       return request<PagedInvoices>(`/api/invoices/paged?${params}`)
     },
     get: (id: string) => request<Invoice>(`/api/invoices/${id}`),
-    filter: (from?: string, to?: string) => {
-      const params = new URLSearchParams()
-      if (from) params.set('from', from)
-      if (to) params.set('to', to)
-      const qs = params.toString()
-      return request<Invoice[]>(`/api/invoices/filter${qs ? '?' + qs : ''}`)
-    },
     create: (data: InvoiceCreatePayload) =>
       request<Invoice>('/api/invoices', { method: 'POST', body: JSON.stringify(data) }),
   },
