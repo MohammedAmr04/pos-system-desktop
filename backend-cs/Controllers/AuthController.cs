@@ -3,16 +3,20 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
+using PosCs.Api;
+using PosCs.Application.Models;
+using PosCs.Application.Services;
 using PosCs.Attributes;
-using PosCs.Helpers;
-using PosCs.Services;
+using PosCs.Domain.Exceptions;
 
 namespace PosCs.Controllers
 {
     [RoutePrefix("api/auth")]
     public class AuthController : ApiController
     {
-        private static object ToAccessPayload(PosCs.Services.AccessBundle bundle)
+        private readonly AuthService _auth = CompositionRoot.AuthService;
+
+        private static object ToAccessPayload(AccessBundle bundle)
         {
             return new
             {
@@ -31,7 +35,7 @@ namespace PosCs.Controllers
 
         [Route("login")]
         [HttpPost]
-        public HttpResponseMessage Login([FromBody] LoginDto dto)
+        public HttpResponseMessage Login([FromBody] LoginRequest dto)
         {
             try
             {
@@ -40,31 +44,21 @@ namespace PosCs.Controllers
                 if (string.IsNullOrWhiteSpace(dto.Password))
                     return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Password required");
 
-                var username = dto.Username.Trim();
-                if (AuthService.IsLockedOut(username))
-                    return Request.CreateErrorResponse((HttpStatusCode)429,
-                        "Too many attempts. Try again in a minute.");
+                var result = _auth.Login(dto.Username.Trim(), dto.Password);
+                if (result.Bundle == null)
+                    return Request.CreateErrorResponse(HttpStatusCode.Unauthorized, "Invalid username or password");
 
-                using (var conn = DbConnectionFactory.CreateConnection())
+                Console.WriteLine($"[API] Login: {result.Bundle.User.Name} ({result.Bundle.Roles.FirstOrDefault() ?? "no role"})");
+                return Request.CreateResponse(HttpStatusCode.OK, new
                 {
-                    var result = AuthService.Login(conn, username, dto.Password);
-                    if (result.Bundle == null)
-                    {
-                        AuthService.RecordFailure(username);
-                        return Request.CreateErrorResponse(HttpStatusCode.Unauthorized, "Invalid username or password");
-                    }
-
-                    AuthService.ResetThrottle(username);
-                    Console.WriteLine($"[API] Login: {result.Bundle.User.Name} ({result.Bundle.Roles.FirstOrDefault() ?? "no role"})");
-                    return Request.CreateResponse(HttpStatusCode.OK, new
-                    {
-                        token = result.Token,
-                        access = ToAccessPayload(result.Bundle)
-                    });
-                }
+                    token = result.Token,
+                    access = ToAccessPayload(result.Bundle)
+                });
             }
             catch (Exception ex)
             {
+                if (ex is LoginLockedException)
+                    return ApiErrors.From(Request, ex, null);
                 Console.Error.WriteLine($"[API ERR] Login failed: {ex}");
                 return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Login failed");
             }
@@ -77,14 +71,11 @@ namespace PosCs.Controllers
         {
             try
             {
-                var userId = AuthorizationService.GetCurrentUserId(Request);
-                using (var conn = DbConnectionFactory.CreateConnection())
-                {
-                    var bundle = AuthService.GetBundleForToken(conn, ExtractBearerToken());
-                    if (bundle?.User == null || bundle.User.Id != userId)
-                        return Request.CreateErrorResponse(HttpStatusCode.Unauthorized, "Invalid session");
-                    return Request.CreateResponse(HttpStatusCode.OK, ToAccessPayload(bundle));
-                }
+                var userId = Request.GetOwinContextUserId();
+                var bundle = _auth.GetBundleForToken(ExtractBearerToken());
+                if (bundle?.User == null || bundle.User.Id != userId)
+                    return Request.CreateErrorResponse(HttpStatusCode.Unauthorized, "Invalid session");
+                return Request.CreateResponse(HttpStatusCode.OK, ToAccessPayload(bundle));
             }
             catch (Exception ex)
             {
@@ -101,11 +92,5 @@ namespace PosCs.Controllers
                 return header.Parameter;
             return null;
         }
-    }
-
-    public class LoginDto
-    {
-        public string Username { get; set; }
-        public string Password { get; set; }
     }
 }

@@ -8,7 +8,19 @@
     <RestorePackages>true</RestorePackages>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Management" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="Pos.Domain\Pos.Domain.csproj" />
+    <ProjectReference Include="Pos.Application\Pos.Application.csproj" />
+    <ProjectReference Include="Pos.Infrastructure\Pos.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Sibling projects compile their own sources; keep them out of this project's globs. -->
+    <Compile Remove="Pos.Domain\**;Pos.Application\**;Pos.Infrastructure\**;Pos.Tests\**" />
+    <None Remove="Pos.Domain\**;Pos.Application\**;Pos.Infrastructure\**;Pos.Tests\**" />
+    <EmbeddedResource Remove="Pos.Domain\**;Pos.Application\**;Pos.Infrastructure\**;Pos.Tests\**" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Database\Migrations\*.sql">

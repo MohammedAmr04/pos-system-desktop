@@ -5,8 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Http.Controllers;
 using System.Web.Http.Filters;
-using PosCs.Helpers;
-using PosCs.Services;
+using PosCs.Api;
 
 namespace PosCs.Attributes
 {
@@ -35,7 +34,7 @@ namespace PosCs.Attributes
             Func<Task<HttpResponseMessage>> continuation)
         {
             var request = actionContext.Request;
-            var userId = AuthorizationService.GetCurrentUserId(request);
+            var userId = request.GetOwinContextUserId();
 
             if (string.IsNullOrEmpty(userId))
             {
@@ -44,19 +43,17 @@ namespace PosCs.Attributes
                 return Task.FromResult(response);
             }
 
-            using (var conn = DbConnectionFactory.CreateConnection())
-            {
-                var hasPermission = string.IsNullOrEmpty(Permission) ||
-                    AuthorizationService.HasPermission(conn, userId, Permission);
-                var hasFeature = string.IsNullOrEmpty(Feature) ||
-                    AuthorizationService.HasFeature(conn, AuthorizationService.GetTenantIdForUser(conn, userId), Feature);
+            var access = CompositionRoot.Access;
+            var hasPermission = string.IsNullOrEmpty(Permission) ||
+                access.HasPermission(userId, Permission);
+            var hasFeature = string.IsNullOrEmpty(Feature) ||
+                access.HasFeature(access.GetTenantIdForUser(userId), Feature);
 
-                if (!hasPermission || !hasFeature)
-                {
-                    var reason = !hasFeature ? "Feature disabled" : "Permission denied";
-                    var response = request.CreateResponse(HttpStatusCode.Forbidden, new { error = reason });
-                    return Task.FromResult(response);
-                }
+            if (!hasPermission || !hasFeature)
+            {
+                var reason = !hasFeature ? "Feature disabled" : "Permission denied";
+                var response = request.CreateResponse(HttpStatusCode.Forbidden, new { error = reason });
+                return Task.FromResult(response);
             }
 
             return continuation();

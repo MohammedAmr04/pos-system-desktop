@@ -1,4 +1,5 @@
 using System;
+using PosCs.Infrastructure.Persistence;
 
 namespace PosCs
 {
@@ -7,7 +8,7 @@ namespace PosCs
         static void Main(string[] args)
         {
             Console.WriteLine("=== POS C# Backend ===");
-            Console.WriteLine($"[API] Data directory: {Helpers.DbConnectionFactory.DbPath}");
+            Console.WriteLine($"[API] Data directory: {DbConnectionFactory.DbPath}");
 
             // Handle Ctrl+C gracefully
             Console.CancelKeyPress += (sender, e) =>

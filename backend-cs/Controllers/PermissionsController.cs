@@ -3,10 +3,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Web.Http;
-using Dapper;
 using PosCs.Attributes;
-using PosCs.Helpers;
-using PosCs.Models;
 
 namespace PosCs.Controllers
 {
@@ -21,20 +18,16 @@ namespace PosCs.Controllers
         {
             try
             {
-                using (var conn = DbConnectionFactory.CreateConnection())
+                var permissions = CompositionRoot.PermissionsRepo.GetAll();
+                return Request.CreateResponse(HttpStatusCode.OK, permissions.Select(p => new
                 {
-                    var permissions = conn.Query<Permission>(
-                        "SELECT * FROM Permission ORDER BY resource ASC, action ASC");
-                    return Request.CreateResponse(HttpStatusCode.OK, permissions.Select(p => new
-                    {
-                        id = p.Id,
-                        key = p.Key,
-                        name = p.Name,
-                        description = p.Description,
-                        resource = p.Resource,
-                        action = p.Action
-                    }));
-                }
+                    id = p.Id,
+                    key = p.Key,
+                    name = p.Name,
+                    description = p.Description,
+                    resource = p.Resource,
+                    action = p.Action
+                }));
             }
             catch (Exception ex)
             {

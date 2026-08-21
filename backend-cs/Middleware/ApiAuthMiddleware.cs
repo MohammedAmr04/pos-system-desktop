@@ -1,13 +1,12 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Owin;
-using PosCs.Helpers;
-using PosCs.Services;
+using PosCs.Application.Services;
 
 namespace PosCs.Middleware
 {
     /// <summary>
-    /// Parses the bearer token (set by AuthService.IssueToken) and stores the current
+    /// Parses the bearer token (issued by AuthService) and stores the current
     /// user id in the OWIN environment under "PosCs.UserId". Enforcement happens in
     /// the RequirePermissionAttribute — this middleware only authenticates.
     /// Public endpoints (health, license check, auth login) skip validation.
@@ -30,14 +29,11 @@ namespace PosCs.Middleware
                     var token = header.Substring("Bearer ".Length).Trim();
                     try
                     {
-                        using (var conn = DbConnectionFactory.CreateConnection())
+                        var bundle = CompositionRoot.AuthService.GetBundleForToken(token);
+                        if (bundle?.User != null)
                         {
-                            var bundle = AuthService.GetBundleForToken(conn, token);
-                            if (bundle?.User != null)
-                            {
-                                context.Set("PosCs.UserId", bundle.User.Id);
-                                context.Set("PosCs.TenantId", bundle.TenantId);
-                            }
+                            context.Set("PosCs.UserId", bundle.User.Id);
+                            context.Set("PosCs.TenantId", bundle.TenantId);
                         }
                     }
                     catch

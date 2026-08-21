@@ -11,8 +11,9 @@ using Microsoft.Owin.StaticFiles.ContentTypes;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using Microsoft.Owin.Hosting;
-using PosCs.Database.Migrations;
-using PosCs.Helpers;
+using PosCs.Api;
+using PosCs.Infrastructure.Persistence;
+using PosCs.Infrastructure.Data;
 using PosCs.Middleware;
 
 namespace PosCs
@@ -40,7 +41,7 @@ namespace PosCs
 
             config.Formatters.JsonFormatter.SerializerSettings = new JsonSerializerSettings
             {
-                ContractResolver = new CamelCasePropertyNamesContractResolver(),
+                ContractResolver = new LegacyJsonContractResolver(),
                 NullValueHandling = NullValueHandling.Include,
                 Formatting = Formatting.None
             };
