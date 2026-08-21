@@ -1,20 +1,50 @@
-import { getStoredToken } from "@/lib/auth-storage"
+import { clearStoredSession, getStoredToken } from "@/lib/auth-storage"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options?.headers as Record<string, string>) }
-  const token = getStoredToken()
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers,
-    ...options,
-  })
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(body || `HTTP ${res.status}`)
+export const AUTH_EXPIRED_EVENT = 'pos:auth-expired'
+
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
   }
-  return res.json()
+}
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getStoredToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...((options?.headers as Record<string, string>) ?? {}),
+  }
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  const bodyText = await res.text()
+
+  if (!res.ok) {
+    let message = bodyText || `HTTP ${res.status}`
+    try {
+      const parsed = JSON.parse(bodyText) as { message?: string; error?: string }
+      message = parsed.message ?? parsed.error ?? message
+    } catch {
+      // keep raw text as message
+    }
+    if (res.status === 401 && typeof window !== 'undefined') {
+      clearStoredSession()
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT))
+    }
+    throw new ApiError(res.status, message)
+  }
+
+  if (!bodyText) return null as T
+  try {
+    return JSON.parse(bodyText) as T
+  } catch {
+    throw new ApiError(res.status, `Unexpected non-JSON response (HTTP ${res.status})`)
+  }
 }
 
 export interface ProductBarcode {

@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
-import { api } from "@/lib/api"
+import { api, AUTH_EXPIRED_EVENT } from "@/lib/api"
 import {
   AuthSession,
   loadStoredSession,
@@ -28,6 +28,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [initial] = useState(() => loadStoredSession())
   const [session, setSession] = useState<AuthSession | null>(initial)
   const [isReady, setIsReady] = useState(initial === null)
+
+  useEffect(() => {
+    const handleExpired = () => setSession(null)
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpired)
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpired)
+  }, [])
 
   useEffect(() => {
     if (!initial) return
