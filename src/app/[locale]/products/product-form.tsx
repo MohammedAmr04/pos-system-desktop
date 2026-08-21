@@ -2,7 +2,8 @@
 
 import { Input } from "@/components/ui/input"
 import { createProduct, updateProduct } from "@/features/products/actions"
-import { Product, ProductUnit } from "@/lib/api"
+import { baseUnitOf } from "@/features/products/utils"
+import { Product } from "@/lib/api"
 import { toast } from "sonner"
 import { useRef } from "react"
 import { useTranslations } from "next-intl"
@@ -14,9 +15,6 @@ interface ProductFormProps {
 }
 
 export const PRODUCT_FORM_ID = "product-form"
-
-const baseUnitOf = (p: Product): ProductUnit | null =>
-  p.units?.find((u) => u.isBaseUnit) ?? p.units?.[0] ?? null
 
 export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductFormProps) {
   const t = useTranslations("Products")
