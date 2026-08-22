@@ -1,4 +1,4 @@
-import type { CartItem } from "@/features/pos/store/usePOSStore"
+import type { CartItem } from "@/store/pos.store"
 
 export type DiscountType = 'fixed' | 'percentage'
 

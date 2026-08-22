@@ -7,11 +7,11 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { usePOSStore } from "@/features/pos/store/usePOSStore"
-import { useAuth } from "@/features/auth/auth-context"
+import { usePOSStore } from "@/store/pos.store"
+import { useAuth } from "@/components/common/auth-context"
 import { FEATURES, PERMISSIONS } from "@/lib/constants"
-import { cartTotals, lineDiscountAmount, lineSubtotal, round2 } from "@/features/pos/pricing"
-import { createInvoice } from "@/features/invoices/actions"
+import { cartTotals, lineDiscountAmount, lineSubtotal, round2 } from "./utils/pricing"
+import { createInvoice } from "@/actions/invoices.actions"
 
 export function CheckoutPanel() {
   const t = useTranslations("POS")

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { api, Product } from "@/lib/api"
 import { LowStockClient } from "./low-stock-client"
-import { useAuth } from "@/features/auth/auth-context"
+import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS, FEATURES } from "@/lib/constants"
 import { AccessDenied } from "@/components/common/access-denied"
 

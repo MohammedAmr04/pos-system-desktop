@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { PermissionsClient } from "./permissions-client"
 import { api, PermissionInfo, RoleSummary } from "@/lib/api"
-import { useAuth } from "@/features/auth/auth-context"
+import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS } from "@/lib/constants"
 import { AccessDenied } from "@/components/common/access-denied"
 

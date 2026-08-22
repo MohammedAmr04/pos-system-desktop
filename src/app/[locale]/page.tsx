@@ -8,7 +8,7 @@ import { Link } from "@/i18n/navigation"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import { format } from "date-fns"
-import { useAuth } from "@/features/auth/auth-context"
+import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS } from "@/lib/constants"
 
 export default function DashboardPage() {

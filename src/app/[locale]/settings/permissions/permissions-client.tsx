@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { Checkbox } from "@/components/ui/checkbox"
 import { PERMISSION_LABELS, RESOURCE_LABELS } from "@/lib/constants"
-import { useAuth } from "@/features/auth/auth-context"
+import { useAuth } from "@/components/common/auth-context"
 import { cn } from "@/lib/utils"
 
 interface PermissionsClientProps {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Product, ProductUnit } from "@/lib/api"
+import { Product } from "@/lib/api"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,8 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { X, PackagePlus, Link2 } from "lucide-react"
-import { allBarcodes } from "@/features/products/utils"
-import { ProductForm, PRODUCT_FORM_ID } from "@/app/[locale]/products/product-form"
+import { allBarcodes } from "@/lib/barcode"
+import { ProductForm, PRODUCT_FORM_ID } from "@/components/common/product-form"
 
 type UnknownFlow = "options" | "create" | "link"
 

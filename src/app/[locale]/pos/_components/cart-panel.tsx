@@ -6,10 +6,10 @@ import { Ban, Minus, Pencil, Plus, StickyNote, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { CartItem, usePOSStore } from "@/features/pos/store/usePOSStore"
-import { useAuth } from "@/features/auth/auth-context"
+import { CartItem, usePOSStore } from "@/store/pos.store"
+import { useAuth } from "@/components/common/auth-context"
 import { FEATURES, PERMISSIONS } from "@/lib/constants"
-import { lineDiscountAmount, lineFinalTotal } from "@/features/pos/pricing"
+import { lineDiscountAmount, lineFinalTotal } from "./utils/pricing"
 import { LineEditDialog, LineEditState } from "./line-edit-dialog"
 
 export function CartPanel() {

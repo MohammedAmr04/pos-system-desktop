@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Lock, LogIn } from "lucide-react"
-import { useAuth } from "@/features/auth/auth-context"
+import { useAuth } from "@/components/common/auth-context"
 
 interface LoginScreenProps {
   description?: string

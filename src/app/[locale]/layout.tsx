@@ -1,7 +1,7 @@
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { LicenseGate } from "@/components/common/license-lock";
 import { AuthGate } from "@/components/common/auth-gate";
-import { AuthProvider } from "@/features/auth/auth-context";
+import { AuthProvider } from "@/components/common/auth-context";
 
 export function generateStaticParams() {
   return [{ locale: "ar" }]

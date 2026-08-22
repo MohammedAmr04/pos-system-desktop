@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import { Package, ShoppingCart, FileText, LayoutDashboard, AlertTriangle, LogOut, Settings, Users, Shield, SlidersHorizontal, KeyRound } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
-import { useAuth } from "@/features/auth/auth-context"
+import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS, FEATURES } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 

@@ -5,8 +5,8 @@ import {
   lineFinalTotal,
   lineSubtotal,
   round2,
-} from "@/features/pos/pricing"
-import type { CartItem } from "@/features/pos/store/usePOSStore"
+} from "./pricing"
+import type { CartItem } from "@/store/pos.store"
 
 const makeItem = (overrides: Partial<CartItem> = {}): CartItem => ({
   id: "line-1",

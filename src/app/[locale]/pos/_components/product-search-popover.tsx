@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { Product, ProductUnit, api } from "@/lib/api"
-import { usePOSStore } from "@/features/pos/store/usePOSStore"
-import { resolveBarcode } from "@/features/products/utils"
+import { usePOSStore } from "@/store/pos.store"
+import { resolveBarcode } from "@/lib/barcode"
 import { useTranslations } from "next-intl"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { checkLicense, unlockLicense, LicenseStatus } from "@/features/license/actions"
+import { checkLicense, unlockLicense, LicenseStatus } from "@/actions/license.actions"
 import { useTranslations } from "next-intl"
 import {
   Dialog,
@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ShieldAlert, Lock } from "lucide-react"
-import { useAuth } from "@/features/auth/auth-context"
+import { useAuth } from "@/components/common/auth-context"
 import { LoginScreen } from "@/components/common/login-screen"
 
 export function LicenseGate({ children }: { children: React.ReactNode }) {

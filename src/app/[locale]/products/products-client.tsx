@@ -2,8 +2,8 @@
 
 import { Product, ProductBarcode, ProductUnit, api } from "@/lib/api"
 import { ResponsiveSheet } from "@/components/common/responsive-sheet"
-import { ProductForm, PRODUCT_FORM_ID } from "./product-form"
-import { useAuth } from "@/features/auth/auth-context"
+import { ProductForm, PRODUCT_FORM_ID } from "@/components/common/product-form"
+import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS, FEATURES } from "@/lib/constants"
 import { useEffect, useState } from "react"
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
@@ -33,7 +33,7 @@ import {
   addProductBarcode,
   removeProductBarcode,
   setDefaultProductBarcode,
-} from "@/features/products/actions"
+} from "@/actions/products.actions"
 import { toast } from "sonner"
 import { useTranslations } from "next-intl"
 import {

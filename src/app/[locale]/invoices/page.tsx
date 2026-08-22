@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl"
 import { InvoicesClient } from "./invoices-client"
 import { api, Invoice } from "@/lib/api"
 import { format } from "date-fns"
-import { useAuth } from "@/features/auth/auth-context"
+import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS } from "@/lib/constants"
 import { AccessDenied } from "@/components/common/access-denied"
 

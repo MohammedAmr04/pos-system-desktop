@@ -25,7 +25,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { PERMISSION_LABELS, RESOURCE_LABELS } from "@/lib/constants"
-import { useAuth } from "@/features/auth/auth-context"
+import { useAuth } from "@/components/common/auth-context"
 
 interface RolesClientProps {
   roles: RoleSummary[]

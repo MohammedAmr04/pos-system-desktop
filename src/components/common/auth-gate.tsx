@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth } from "@/features/auth/auth-context"
+import { useAuth } from "@/components/common/auth-context"
 import { LoginScreen } from "@/components/common/login-screen"
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
