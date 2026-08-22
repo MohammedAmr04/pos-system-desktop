@@ -1,1515 +1,1265 @@
-# POS — Feature-Based Access Control & Permissions Architecture
+# POS Clean Architecture Refactoring Task
 
 ## Objective
 
-Analyze the existing POS project thoroughly and introduce a clean, scalable authorization architecture based on:
+Refactor the existing POS backend into a cleaner, maintainable architecture inspired by Clean Architecture principles.
 
-1. **Features**
-2. **Roles**
-3. **Permissions**
-4. **Role-Permission assignments**
-5. **Restaurant/Tenant feature availability**
+The main goal is **not** to rewrite the application.
 
-The goal is NOT to blindly refactor the project.
+The goal is to:
 
-First understand the existing codebase, identify all current features and authorization-related behavior, classify them correctly, then propose and implement the architecture with minimal disruption to the existing POS functionality.
-
----
-
-# 1. Important Concepts
-
-Use these definitions throughout the implementation.
-
-## Feature
-
-A Feature answers:
-
-> "Does this restaurant/tenant have this capability enabled?"
-
-Examples:
-
-```text
-product_discount
-invoice_discount
-multiple_barcodes
-multiple_units
-wholesale_price
-reports
-```
-
-A Feature is associated with the restaurant/tenant.
-
-Example:
-
-```text
-Restaurant A
-    product_discount = enabled
-
-Restaurant B
-    product_discount = disabled
-```
-
-Even if a user has the required permission, the feature must not be available if the restaurant does not have it enabled.
+1. Preserve all existing functionality and business behavior.
+2. Separate business rules from ASP.NET Web API, EF6, SQLite, printing, filesystem, and other infrastructure concerns.
+3. Make adding future POS features easier and safer.
+4. Reduce coupling to `.NET Framework 4.8`, ASP.NET Web API 2, EF6, and SQLite.
+5. Make a future migration to ASP.NET Core / .NET 9 significantly easier.
+6. Keep the current application working after every refactoring step.
 
 ---
 
-## Permission
+# 1. Important Constraints
 
-A Permission answers:
+## DO NOT
 
-> "Is this user/role allowed to perform this action?"
+* Do not rewrite the entire project.
+* Do not migrate from .NET Framework 4.8 to .NET 9 now.
+* Do not migrate from EF6 to EF Core now.
+* Do not replace SQLite now.
+* Do not introduce unnecessary frameworks.
+* Do not change existing business behavior.
+* Do not modify database schema unless absolutely required.
+* Do not change API contracts unless required and explicitly documented.
+* Do not blindly move every existing class into a different folder.
+* Do not create abstractions that have no real architectural value.
+* Do not introduce a generic repository/unit-of-work abstraction everywhere just for the sake of Clean Architecture.
 
-Use the format:
+## DO
 
-```text
-resource.action
-```
-
-Examples:
-
-```text
-orders.view
-orders.create
-orders.update
-orders.delete
-
-products.view
-products.create
-products.update
-products.delete
-
-discounts.product
-discounts.invoice
-
-reports.view
-reports.export
-```
-
-Permissions belong to Roles.
-
-Users receive permissions through their assigned Roles.
-
-Do NOT create a large list of permissions directly on every user unless the existing architecture absolutely requires it.
-
-Preferred relationship:
-
-```text
-User
-  ↓
-Role
-  ↓
-Permissions
-```
+* Inspect the existing project before making changes.
+* Understand the current architecture and dependencies.
+* Refactor incrementally.
+* Keep the application buildable after each logical step.
+* Preserve existing endpoints and behavior.
+* Prefer small, focused changes.
+* Use dependency inversion where it provides real value.
+* Keep the Domain independent from frameworks and infrastructure.
 
 ---
 
-# 2. First Task — Analyze the Existing Project
+# 2. Target Architecture
 
-Before changing code, inspect the entire project.
+The target structure should conceptually be:
 
-Understand:
+```text
+Pos
+│
+├── Domain
+│   ├── Entities
+│   ├── ValueObjects
+│   ├── Enums
+│   ├── Exceptions
+│   └── Rules
+│
+├── Application
+│   ├── Interfaces
+│   ├── Services
+│   ├── UseCases
+│   ├── DTOs
+│   └── Validators
+│
+├── Infrastructure
+│   ├── Persistence
+│   │   ├── EF
+│   │   ├── Dapper
+│   │   └── SQLite
+│   ├── Repositories
+│   ├── Printing
+│   ├── Logging
+│   └── System
+│
+└── Presentation
+    ├── Controllers
+    ├── Requests
+    └── Responses
+```
 
-* Backend architecture
-* Frontend architecture
-* Database structure
-* Authentication
-* Existing users
-* Existing roles
-* Existing permission logic
-* Existing API endpoints
-* Existing pages
-* Existing components
-* Existing feature flags/configuration
-* Existing restaurant/tenant structure
-* Existing business rules
-* Existing validation
-* Existing authorization checks
+The exact folder/project structure may be adapted to the existing codebase.
 
-Do NOT start implementation immediately.
+Do not create unnecessary projects if the current project structure makes that impractical.
 
-First produce an analysis report.
+The architectural boundaries are more important than the exact folder names.
 
 ---
 
-# 3. Build a Complete Feature Inventory
+# 3. Dependency Direction
 
-Search the entire project and identify all major POS features.
-
-Examples include but are not limited to:
+The dependency direction must be:
 
 ```text
-Orders
-Products
-Categories
-Customers
-Tables
-Takeaway
-Delivery
-Payments
-Discounts
-Product Discount
-Invoice Discount
-Multiple Barcodes
-Multiple Units
-Unit Conversion
-Pack Quantity
-Pack Barcode
-Retail Price
-Wholesale Price
-Reports
-Daily Reports
-Expenses
-Returns
-Held Invoices
-Printing
-Receipt Printing
-End of Shift
-Users
-Roles
-Settings
+Presentation
+      ↓
+Application
+      ↓
+Domain
+
+Infrastructure
+      ↓
+Application
+      ↓
+Domain
 ```
 
-Do not assume the above list is complete.
-
-Discover additional features from the codebase.
-
----
-
-# 4. Classify Every Feature
-
-For every discovered feature, classify it as one of:
-
-### A. Feature
-
-The restaurant may or may not have access to this capability.
-
-Example:
-
-```text
-product_discount
-multiple_units
-wholesale_price
-```
-
-### B. Permission
-
-The feature exists for the restaurant, but different users/roles may or may not be allowed to use it.
-
-Example:
-
-```text
-discounts.product
-discounts.invoice
-reports.export
-products.delete
-```
-
-### C. UI-only
-
-The behavior exists only for presentation/UX and does not represent a meaningful authorization or business capability.
-
-Do NOT create unnecessary permissions for simple UI behavior.
-
-### D. Business Rule
-
-The behavior affects business data or financial calculations and therefore must be enforced by the backend/business layer.
-
-Examples:
-
-```text
-discount amount
-unit price
-payment amount
-order total
-tax
-refund
-```
-
-A UI restriction must NEVER be treated as the only security mechanism for these operations.
-
----
-
-# 5. Create the Main Audit Table
-
-Create a detailed table with the following columns:
-
-| Area | Feature / Action | Type | Resource | Permission Key | Feature Key | Frontend Location | Backend Endpoint | Requires Backend Authorization | Notes |
-| ---- | ---------------- | ---- | -------- | -------------- | ----------- | ----------------- | ---------------- | ------------------------------ | ----- |
-
-Example:
-
-| Area      | Feature / Action   | Type                 | Resource  | Permission Key    | Feature Key       | Frontend       | Backend     | Authorization | Notes              |
-| --------- | ------------------ | -------------------- | --------- | ----------------- | ----------------- | -------------- | ----------- | ------------- | ------------------ |
-| Discounts | Product Discount   | Feature + Permission | discounts | discounts.product | product_discount  | Order screen   | Order API   | Yes           | Financial impact   |
-| Discounts | Invoice Discount   | Feature + Permission | discounts | discounts.invoice | invoice_discount  | Payment screen | Order API   | Yes           | Financial impact   |
-| Products  | Multiple Barcode   | Feature              | products  | -                 | multiple_barcodes | Product form   | Product API | Depends       | Product capability |
-| Reports   | Export Report      | Permission           | reports   | reports.export    | reports           | Reports page   | Reports API | Yes           | Sensitive data     |
-| UI        | Advanced UI filter | UI-only              | -         | -                 | -                 | Component X    | None        | No            | UI behavior only   |
-
-The actual table must be generated from the real project, not invented.
-
----
-
-# 6. Identify Existing Roles
-
-Find every existing role in the project.
-
-For each role determine:
-
-```text
-Role name
-Current permissions
-Current usage
-Where it is checked
-Whether it is hard-coded
-Whether it is stored in DB
-Whether it exists only in frontend
-```
-
-Create:
-
-| Role | Current Behavior | Existing Permissions | Problems | Recommended Changes |
-| ---- | ---------------- | -------------------- | -------- | ------------------- |
-
----
-
-# 7. Design the Permission Model
-
-If the current architecture does not already have a proper permission system, design one.
-
-Preferred entities:
-
-```text
-Users
-Roles
-Permissions
-UserRoles
-RolePermissions
-```
-
-For multi-restaurant / multi-tenant support:
-
-```text
-Restaurants
-RestaurantFeatures
-```
-
-Potential schema:
-
-```text
-Permissions
------------
-Id
-Key
-Name
-Description
-Resource
-Action
-CreatedAt
-UpdatedAt
-```
-
-Example:
-
-```text
-Key: discounts.product
-Name: Product Discount
-Resource: discounts
-Action: product
-```
-
-Roles:
-
-```text
-Roles
------
-Id
-Name
-Description
-CreatedAt
-UpdatedAt
-```
-
-RolePermissions:
-
-```text
-RolePermissions
----------------
-RoleId
-PermissionId
-```
-
-UserRoles:
-
-```text
-UserRoles
----------
-UserId
-RoleId
-```
-
-RestaurantFeatures:
-
-```text
-RestaurantFeatures
-------------------
-RestaurantId
-FeatureKey
-Enabled
-```
-
-Adapt this design to the existing project's conventions instead of blindly copying it.
-
----
-
-# 8. Permission Naming Convention
-
-Use a consistent convention:
-
-```text
-resource.action
-```
-
-Examples:
-
-```text
-orders.view
-orders.create
-orders.update
-orders.delete
-
-products.view
-products.create
-products.update
-products.delete
-
-customers.view
-customers.create
-customers.update
-
-discounts.product
-discounts.invoice
-
-payments.create
-payments.refund
-
-reports.view
-reports.export
-
-users.view
-users.create
-users.update
-users.delete
-
-roles.view
-roles.create
-roles.update
-roles.delete
-```
-
-Avoid names like:
-
-```text
-CanManageEverything
-CanDoOrders
-AdminPermission
-SuperPermission
-```
-
-Permissions should represent a specific capability/action.
-
----
-
-# 9. Backend Permission API
-
-Design and implement APIs for managing permissions.
-
-At minimum evaluate whether the project needs:
-
-```http
-GET    /api/permissions
-GET    /api/permissions/{id}
-
-POST   /api/permissions
-PUT    /api/permissions/{id}
-DELETE /api/permissions/{id}
-```
-
-However, if permissions are system-defined and should NOT be freely created by restaurant admins, do NOT expose unnecessary CRUD APIs.
-
-Instead consider:
-
-```http
-GET /api/permissions
-```
-
-for reading system permissions, while creating permissions through:
-
-* database seed
-* migration
-* backend constants
-* controlled system configuration
-
-Determine which approach is appropriate based on the project's business model.
-
----
-
-# 10. Role-Permission APIs
-
-Evaluate and implement APIs such as:
-
-```http
-GET /api/roles
-GET /api/roles/{id}
-
-POST /api/roles
-PUT /api/roles/{id}
-DELETE /api/roles/{id}
-
-GET /api/roles/{id}/permissions
-
-PUT /api/roles/{id}/permissions
-```
-
-Example request:
-
-```json
-{
-  "permissionIds": [
-    1,
-    2,
-    5,
-    7
-  ]
-}
-```
-
-The backend should validate:
-
-* Permission exists
-* Role exists
-* User is authorized to modify roles
-* Restaurant/tenant boundaries are respected
-* System roles cannot be modified if the business rules prohibit it
-
----
-
-# 11. Current User Authorization API
-
-The frontend needs to know the current user's effective access.
-
-Evaluate the existing authentication response.
-
-If appropriate, expose something like:
-
-```http
-GET /api/auth/me
-```
-
-Response:
-
-```json
-{
-  "user": {
-    "id": 10,
-    "name": "Ahmed"
-  },
-  "roles": [
-    "Manager"
-  ],
-  "permissions": [
-    "orders.view",
-    "orders.create",
-    "discounts.product",
-    "discounts.invoice"
-  ],
-  "features": [
-    "product_discount",
-    "invoice_discount",
-    "multiple_units"
-  ]
-}
-```
-
-Adapt this to the existing auth architecture.
-
-Do not duplicate authorization state unnecessarily.
-
----
-
-# 12. Backend Authorization
-
-Create a reusable authorization mechanism.
+Infrastructure must implement interfaces defined by Application or Domain.
+
+The Domain must NOT depend on:
+
+* ASP.NET
+* Web API
+* Entity Framework
+* SQLite
+* Dapper
+* System.Web
+* HttpContext
+* Windows printer APIs
+* filesystem implementations
+* logging frameworks
+
+Application should also avoid depending directly on infrastructure implementations.
 
 For example:
 
 ```text
-RequirePermission("products.delete")
+BAD:
+
+Application
+   ↓
+SqliteProductRepository
 ```
 
-or equivalent middleware / attribute / policy based on the existing backend framework.
-
-Every sensitive endpoint must validate authorization on the backend.
-
-Example:
+Instead:
 
 ```text
-DELETE /api/products/{id}
-        ↓
+Application
+   ↓
+IProductRepository
+
+Infrastructure
+   ↓
+SqliteProductRepository
+```
+
+---
+
+# 4. Domain Layer
+
+The Domain represents the actual POS business.
+
+Identify and move/refactor business concepts such as:
+
+* Product
+* Category
+* Order
+* OrderLine
+* Customer
+* Payment
+* Discount
+* Unit
+* UnitConversion
+* Barcode
+* Shift
+* Table
+* Delivery
+* Takeaway
+* Pricing
+* Receipt-related business concepts where appropriate
+
+Do not blindly move database models into Domain.
+
+Determine whether each existing model is:
+
+* Domain Entity
+* Database Entity
+* DTO
+* Request Model
+* Response Model
+* Infrastructure model
+
+These should not automatically be the same class.
+
+---
+
+# 5. Domain Business Rules
+
+Business rules must live in Domain/Application rather than Controllers.
+
+Examples from the POS:
+
+```text
+Quantity must be greater than zero.
+
+Line discount cannot exceed line subtotal.
+
+Order total must be calculated consistently.
+
+A product unit conversion must be valid.
+
+A barcode must identify a valid product/unit.
+
+A table can only have one active invoice if this is an existing business rule.
+
+A completed invoice cannot be modified if this is an existing business rule.
+
+Payment amount must satisfy the existing payment rules.
+
+Shift/day calculations must respect the configured business day.
+
+Retail/wholesale pricing must follow the existing pricing rules.
+```
+
+Do not invent new business rules.
+
+Only extract rules that already exist in the application/documentation.
+
+If a rule is unclear, preserve current behavior and document the ambiguity instead of guessing.
+
+---
+
+# 6. Application Layer
+
+Application represents POS use cases.
+
+Examples:
+
+```text
+CreateOrder
+AddProductToOrder
+RemoveOrderItem
+UpdateOrderItemQuantity
+ApplyLineDiscount
+UpdateUnitPrice
+ApplyCustomerDiscount
+CalculateOrderTotal
+CompleteOrder
+ProcessPayment
+HoldOrder
+ResumeOrder
+CloseShift
+GenerateDailyReport
+PrintReceipt
+```
+
+These are examples.
+
+First inspect the existing code and identify the actual use cases.
+
+Application services should orchestrate operations.
+
+They should not contain:
+
+```text
+SQL queries
+EF DbContext logic
+SQLite connection logic
+Windows printer implementation
+HTTP-specific code
+```
+
+---
+
+# 7. Interfaces
+
+Create interfaces only where they protect the application/domain from infrastructure.
+
+Examples:
+
+```csharp
+public interface IProductRepository
+{
+    Product GetById(int id);
+}
+```
+
+```csharp
+public interface IOrderRepository
+{
+    Order GetById(int id);
+    void Save(Order order);
+}
+```
+
+```csharp
+public interface IReceiptPrinter
+{
+    void Print(Receipt receipt);
+}
+```
+
+```csharp
+public interface IClock
+{
+    DateTime Now { get; }
+}
+```
+
+Only create an interface when there is a meaningful boundary.
+
+Avoid creating interfaces for every class automatically.
+
+---
+
+# 8. Infrastructure
+
+Infrastructure contains implementation details.
+
+Current infrastructure may include:
+
+```text
+EF6
+SQLite
+Dapper
+Winspool / printer APIs
+Serilog
+Filesystem
+Configuration
+External services
+```
+
+Move infrastructure-specific logic here.
+
+For example:
+
+```text
+Infrastructure
+    Persistence
+        PosDbContext
+        EF configurations
+
+    Repositories
+        ProductRepository
+        OrderRepository
+        CustomerRepository
+
+    Printing
+        WindowsPrinter
+        ReceiptPrinter
+
+    Logging
+        ...
+```
+
+The rest of the application should depend on abstractions rather than these implementations.
+
+---
+
+# 9. Presentation
+
+Controllers should become thin.
+
+A controller should primarily:
+
+1. Receive HTTP request.
+2. Validate request shape.
+3. Map request to application input.
+4. Execute application use case.
+5. Map result to HTTP response.
+
+Avoid putting business rules inside controllers.
+
+BAD:
+
+```csharp
+if (discount > product.Price * quantity)
+{
+    ...
+}
+
+db.Products...
+db.Orders...
+```
+
+Better:
+
+```csharp
+var result = _applyLineDiscount.Execute(command);
+
+return Ok(result);
+```
+
+---
+
+# 10. DTO Separation
+
+Do not expose EF/database entities directly as API contracts when that creates coupling.
+
+Separate:
+
+```text
+Request DTO
+Application Command
+Domain Entity
+Response DTO
+Database Entity
+```
+
+when the distinction is meaningful.
+
+Do not create unnecessary mapping layers for trivial cases.
+
+---
+
+# 11. Database Compatibility
+
+The current database is SQLite.
+
+Keep it.
+
+The refactoring must not require a database migration unless absolutely necessary.
+
+Database-specific concerns should remain in Infrastructure.
+
+The Domain must not contain:
+
+```csharp
+[Table(...)]
+[Column(...)]
+```
+
+or similar persistence-specific concerns unless the existing architecture makes a specific exception necessary.
+
+Prefer keeping persistence configuration in Infrastructure.
+
+---
+
+# 12. Future Migration Goal
+
+The architecture must make this future transition easier:
+
+## Current
+
+```text
+.NET Framework 4.8
+ASP.NET Web API 2
+EF6
+SQLite
+```
+
+## Future
+
+```text
+.NET 9
+ASP.NET Core
+EF Core
+PostgreSQL / SQL Server
+```
+
+The goal is that the following areas require minimal or no business-logic changes:
+
+```text
+Domain
+Business Rules
+Application Use Cases
+```
+
+The main migration work should be concentrated around:
+
+```text
+Presentation
+Infrastructure
+Persistence
+Hosting
 Authentication
-        ↓
-Permission Check
-        ↓
-products.delete
-        ↓
-Business Validation
-        ↓
-Database
+Configuration
 ```
 
-Do NOT rely on frontend checks for security.
+Do not implement the future migration now.
 
 ---
 
-# 13. Feature Check
+# 13. Existing POS Features
 
-Create a reusable backend mechanism for checking restaurant features.
+Before changing architecture, identify the existing functionality.
 
-Conceptually:
+Pay special attention to:
 
-```text
-HasFeature("product_discount")
-```
+* Products
+* Categories
+* Multiple Barcodes
+* Units
+* Unit Conversion
+* Pack Quantity
+* Pack Barcode
+* Retail Price
+* Wholesale Price
+* Line Discount
+* Edit Unit Price
+* Orders
+* Tables
+* Takeaway
+* Delivery
+* Customers
+* Payments
+* Discounts
+* Service Tax
+* Hold Invoice
+* Receipt Printing
+* Daily Reports
+* Shifts
+* Audit Log
+* Licensing
 
-Then sensitive operations can require:
-
-```text
-Feature enabled
-AND
-User has permission
-```
-
-Example:
-
-```text
-Product Discount
-
-Restaurant Feature:
-product_discount = true
-
-AND
-
-User Permission:
-discounts.product = true
-```
-
-Only then should the operation be allowed.
+Do not break any of these.
 
 ---
 
-# 14. Frontend Authorization Utilities
+# 14. Refactoring Strategy
 
-Create reusable frontend utilities.
+Follow this sequence.
+
+## Step 1 — Analyze
+
+First inspect the entire backend.
+
+Identify:
+
+* Controllers
+* Models
+* Services
+* Database access
+* EF6
+* Dapper
+* SQLite
+* Printer code
+* Business rules
+* Authentication
+* Logging
+* Configuration
+* Existing dependencies
+
+Create an architecture/dependency map before modifying code.
+
+---
+
+## Step 2 — Identify Coupling
+
+Find cases such as:
+
+```text
+Controller → DbContext
+Controller → SQL
+Controller → Business Logic
+Service → HttpContext
+Domain → EF
+Domain → SQLite
+Business Logic → Printer API
+Application → concrete infrastructure class
+```
+
+Document them.
+
+---
+
+## Step 3 — Extract Domain
+
+Move business rules into Domain entities/services where appropriate.
+
+Do not change behavior.
+
+---
+
+## Step 4 — Extract Application Use Cases
+
+Move orchestration logic into Application services/use cases.
+
+---
+
+## Step 5 — Introduce Interfaces
+
+Introduce abstractions only at real architectural boundaries.
+
+---
+
+## Step 6 — Move Implementations
+
+Move:
+
+```text
+EF6
+SQLite
+Dapper
+Printer
+Filesystem
+Logging
+```
+
+into Infrastructure.
+
+---
+
+## Step 7 — Thin Controllers
+
+Controllers should become transport adapters rather than business logic containers.
+
+---
+
+## Step 8 — Validate
+
+After each major refactoring step:
+
+* Build the solution.
+* Run the existing application.
+* Verify existing endpoints.
+* Verify database operations.
+* Verify order calculations.
+* Verify discounts.
+* Verify pricing.
+* Verify unit conversion.
+* Verify printing.
+* Verify reports.
+* Verify authentication.
+* Verify licensing if already implemented.
+
+---
+
+# 15. Important Architectural Rule
+
+Do not confuse Clean Architecture with:
+
+```text
+More folders
+More interfaces
+More abstractions
+More classes
+```
+
+The objective is:
+
+```text
+Low Coupling
++
+High Cohesion
++
+Clear Dependencies
++
+Protected Business Rules
++
+Replaceable Infrastructure
+```
+
+Every abstraction should have a reason.
+
+---
+
+# 16. Before/After Requirement
+
+For every significant refactoring, explain:
+
+```text
+BEFORE:
+What was coupled?
+
+AFTER:
+What is separated?
+
+WHY:
+How does this improve maintainability?
+
+FUTURE:
+How does this help migration to ASP.NET Core / .NET 9?
+```
+
+---
+
+# 17. Do Not Over-Engineer
+
+This is a real POS application, not an architecture demonstration.
+
+Avoid unnecessary:
+
+* CQRS
+* MediatR
+* Event Sourcing
+* Generic Repository
+* Unit of Work abstraction over everything
+* excessive factories
+* excessive interfaces
+* unnecessary design patterns
+
+Use simple C# where simple C# is enough.
+
+Clean Architecture principles are more important than following a specific template.
+
+---
+
+# 18. Final Deliverables
+
+After completing the refactoring, provide:
+
+### 1. Architecture Summary
+
+Explain the resulting architecture.
+
+### 2. Dependency Map
+
+Show:
+
+```text
+Presentation
+    ↓
+Application
+    ↓
+Domain
+
+Infrastructure
+    ↓
+Application / Domain
+```
+
+### 3. Changed Files
+
+List important files created, moved, or modified.
+
+### 4. Remaining Technical Debt
+
+Clearly identify what is still coupled to:
+
+```text
+.NET Framework 4.8
+ASP.NET Web API 2
+EF6
+SQLite
+Windows
+```
+
+### 5. Migration Readiness
+
+Explain what would need to change when migrating to:
+
+```text
+.NET 9
+ASP.NET Core
+EF Core
+```
+
+### 6. Feature Development Guide
+
+Provide a short example showing where a future feature should be implemented.
 
 For example:
 
-```ts
-hasPermission(permission)
-hasFeature(feature)
+```text
+Feature: Multiple Units
+
+Domain:
+    Unit
+    UnitConversion
+
+Application:
+    AddProductUnit
+    ConvertQuantity
+
+Infrastructure:
+    UnitRepository
+    EF mapping
+
+Presentation:
+    UnitsController
 ```
 
-Or an equivalent hook/context/service matching the existing architecture.
+---
+
+# Success Criteria
+
+The refactoring is successful if:
+
+* Existing functionality still works.
+* Business rules are not hidden inside controllers.
+* Domain does not depend on ASP.NET/EF/SQLite.
+* Application does not depend on concrete infrastructure implementations.
+* Infrastructure contains database/printer/system-specific code.
+* Controllers are thin.
+* New features can be added without touching unrelated layers.
+* The architecture provides a realistic path from `.NET Framework 4.8` to `.NET 9 / ASP.NET Core`.
+* The code remains simple and understandable for a small-to-medium POS product.
+
+**Most important rule: preserve behavior first, improve architecture second. Do not perform a large rewrite just to achieve a theoretical Clean Architecture structure.**
+
+# 19. Testing Requirements
+
+Testing is a required part of this refactoring.
+
+The purpose of the tests is to create a reliable safety net before adding more features and before the future migration from `.NET Framework 4.8` to `.NET 9 / ASP.NET Core`.
+
+## Main Goal
+
+After the refactoring, we should be able to run the test suite and verify that the important POS business behavior still works.
+
+The tests should protect against regressions.
+
+For example:
+
+```text
+Refactor code
+    ↓
+Run Tests
+    ↓
+All tests pass
+    ↓
+Business behavior is still correct
+```
+
+---
+
+# 20. What Should Be Unit Tested?
+
+Prioritize business-critical logic.
+
+At minimum, create unit tests for:
+
+### Orders
+
+* Adding an item.
+* Removing an item.
+* Updating quantity.
+* Calculating subtotal.
+* Calculating total.
+* Empty order behavior.
+
+### Discounts
+
+* Valid line discount.
+* Discount equal to subtotal.
+* Discount greater than subtotal.
+* Zero discount.
+* Negative discount if the business rules prohibit it.
+
+### Pricing
+
+* Retail price.
+* Wholesale price.
+* Editing unit price.
+* Correct price selection.
+
+### Units
+
+* Piece.
+* Pack.
+* Carton.
+* Unit conversion.
+* Pack quantity.
+* Invalid conversion.
+
+### Multiple Barcodes
+
+* Valid barcode lookup.
+* Unknown barcode.
+* Multiple barcodes for the same product/unit.
+* Barcode associated with the correct unit where applicable.
+
+### Payments
+
+* Valid payment.
+* Insufficient payment.
+* Exact payment.
+* Change calculation.
+* Multiple payment methods if supported by the current system.
+
+### Tables / Orders
+
+Test the existing business rules around:
+
+* Active table orders.
+* One active invoice per table if this is an existing rule.
+* Completing an invoice.
+* Preventing invalid modifications after completion if applicable.
+
+### Shifts / Business Day
+
+Test the existing rules around:
+
+* Shift start.
+* Shift end.
+* Business-day boundaries.
+* Cross-midnight shifts.
+
+### Reports
+
+Where practical, test business calculations used by reports:
+
+* Totals.
+* Order counts.
+* Dine-in totals.
+* Takeaway totals.
+* Delivery totals.
+* Payment totals.
+
+Do not test presentation formatting as a unit test unless it contains meaningful business logic.
+
+---
+
+# 21. Domain Tests Should Be Pure
+
+Domain unit tests should not require:
+
+* SQLite
+* EF6
+* Database connection
+* HTTP
+* ASP.NET
+* Filesystem
+* Physical printer
+* Windows APIs
+
+For example:
+
+```csharp
+[Test]
+public void ApplyDiscount_ShouldRejectDiscountGreaterThanSubtotal()
+{
+    var line = new OrderLine(
+        productId: 1,
+        unitPrice: 100,
+        quantity: 2
+    );
+
+    Assert.Throws<InvalidOperationException>(
+        () => line.ApplyDiscount(250)
+    );
+}
+```
+
+This should run without starting the API or connecting to SQLite.
+
+---
+
+# 22. Application Tests
+
+Application use cases should also be tested.
+
+Infrastructure dependencies should be mocked/faked through interfaces.
 
 Example:
 
-```ts
-const canProductDiscount =
-  hasFeature(FEATURES.PRODUCT_DISCOUNT) &&
-  hasPermission(PERMISSIONS.DISCOUNTS_PRODUCT);
+```text
+AddProductToOrder
+       ↓
+IProductRepository
+IOrderRepository
 ```
+
+The test should provide fake/mock implementations instead of SQLite.
+
+Example scenario:
+
+```text
+Given:
+    Product exists
+    Order exists
+
+When:
+    AddProductToOrder is executed
 
 Then:
-
-```tsx
-{canProductDiscount && (
-  <ProductDiscountButton />
-)}
+    Order contains the product
+    Correct quantity is used
+    Correct price is used
 ```
 
-Avoid scattering raw permission strings throughout the application.
+Also test failure cases:
 
-Create centralized constants:
-
-```ts
-export const PERMISSIONS = {
-  ORDERS_VIEW: "orders.view",
-  ORDERS_CREATE: "orders.create",
-
-  PRODUCT_DISCOUNT: "discounts.product",
-  INVOICE_DISCOUNT: "discounts.invoice",
-
-  REPORTS_VIEW: "reports.view",
-  REPORTS_EXPORT: "reports.export",
-} as const;
+```text
+Product does not exist
+Order does not exist
+Invalid quantity
+Invalid business rule
 ```
-
-And:
-
-```ts
-export const FEATURES = {
-  PRODUCT_DISCOUNT: "product_discount",
-  INVOICE_DISCOUNT: "invoice_discount",
-  MULTIPLE_BARCODES: "multiple_barcodes",
-  MULTIPLE_UNITS: "multiple_units",
-} as const;
-```
-
-Adapt naming to project conventions.
 
 ---
 
-# 15. UI for Roles & Permissions
+# 23. Integration Tests
 
-Create an administration UI for managing roles and their permissions.
+Do not confuse Unit Tests with Integration Tests.
 
-Suggested page:
-
-```text
-Settings
-  └── Roles & Permissions
-```
-
-Roles list:
-
-| Role    | Description   | Users | Permissions | Actions |
-| ------- | ------------- | ----- | ----------- | ------- |
-| Manager | Store manager | 2     | 18          | Edit    |
-| Cashier | POS cashier   | 5     | 8           | Edit    |
-
-Role form:
+Integration tests may be introduced for important infrastructure behavior such as:
 
 ```text
-Role Name
-Description
-
-Permissions
-
-Orders
-[x] View Orders
-[x] Create Orders
-[x] Update Orders
-[ ] Delete Orders
-
-Products
-[x] View Products
-[x] Create Products
-[x] Update Products
-[ ] Delete Products
-
-Discounts
-[x] Invoice Discount
-[ ] Product Discount
-
-Reports
-[x] View Reports
-[ ] Export Reports
+Repository + SQLite
+EF6 mappings
+Database persistence
+API endpoint behavior
 ```
 
-Group permissions by resource/module.
+However, do not create a huge integration-test suite during this refactoring.
 
-Do NOT display a flat list of dozens of permissions if grouping improves usability.
+Priority should be:
+
+```text
+1. Domain Unit Tests
+2. Application Unit Tests
+3. Critical Integration Tests
+```
 
 ---
 
-# 16. Permission Creation UI
+# 24. Test Project Structure
 
-Before creating a "Create Permission" UI, determine whether permissions are:
+Prefer a separate test project if the current solution structure allows it.
 
-### System-defined
-
-If permissions represent capabilities of the POS product, prefer defining them in code/database migrations/seeds.
-
-Example:
+For example:
 
 ```text
-orders.view
-orders.create
-orders.update
-discounts.product
-reports.export
+Pos
+│
+├── Pos.Domain
+├── Pos.Application
+├── Pos.Infrastructure
+├── Pos.Api
+│
+└── Pos.Tests
+    ├── Domain
+    │   ├── OrderTests
+    │   ├── OrderLineTests
+    │   ├── DiscountTests
+    │   ├── PricingTests
+    │   └── UnitConversionTests
+    │
+    └── Application
+        ├── AddProductToOrderTests
+        ├── CompleteOrderTests
+        └── PaymentTests
 ```
 
-Restaurant admins should generally NOT be able to invent:
+Adapt the structure to the existing solution.
+
+Do not create unnecessary test projects.
+
+---
+
+# 25. Test Naming
+
+Use clear names that describe behavior.
+
+Prefer:
 
 ```text
-my.custom.permission
+AddItem_WithValidProduct_AddsItemToOrder
+
+ApplyDiscount_WhenDiscountExceedsSubtotal_ThrowsException
+
+ConvertQuantity_WithValidConversion_ReturnsExpectedQuantity
+
+CompleteOrder_WhenOrderIsValid_CompletesOrder
 ```
 
-unless the product explicitly supports custom permissions.
-
-Therefore, most likely:
+Avoid:
 
 ```text
-Permission Management
+Test1
+TestOrder
+ShouldWork
+CheckDiscount
+```
+
+---
+
+# 26. Arrange / Act / Assert
+
+Prefer the AAA pattern:
+
+```csharp
+// Arrange
+var order = CreateOrder();
+var product = CreateProduct(price: 100);
+
+// Act
+order.AddItem(product, 2);
+
+// Assert
+Assert.AreEqual(200, order.Subtotal);
+```
+
+Tests should be easy to read.
+
+A developer should understand the business rule by reading the test.
+
+---
+
+# 27. Test Current Behavior Before Changing It
+
+Before changing business logic, inspect the current implementation.
+
+If an existing behavior is unclear:
+
+1. Do not invent a new rule.
+2. Capture the current behavior with a test if it is valid.
+3. Refactor.
+4. Make sure the test still passes.
+
+This is especially important for:
+
+* Discounts
+* Pricing
+* Unit conversion
+* Shift/day calculations
+* Payment calculations
+* Reports
+
+---
+
+# 28. Tests Are Part of the Architecture
+
+The architecture should make testing easy.
+
+If testing a business rule requires:
+
+```text
+Start API
     ↓
-Read-only system permissions
-
-Role Management
+Start SQLite
     ↓
-Assign/unassign permissions
+Create database
+    ↓
+Insert data
+    ↓
+Call HTTP endpoint
 ```
 
-Do not create unnecessary permission CRUD UI.
+then the business logic is probably too tightly coupled.
 
-If the project requirements indicate custom permissions are needed, then design a proper CRUD UI.
-
----
-
-# 17. Feature Management UI
-
-Create a separate UI for restaurant feature configuration if the product requires it.
-
-Example:
+A good target is:
 
 ```text
-Settings
-  └── Features
-
-[x] Invoice Discount
-[ ] Product Discount
-[x] Multiple Barcodes
-[x] Multiple Units
-[ ] Wholesale Price
-```
-
-This must remain separate from Role & Permission management.
-
-Remember:
-
-```text
-Feature = Restaurant capability
-Permission = User capability
+Business Rule
+     ↓
+Plain C# Test
+     ↓
+Milliseconds
 ```
 
 ---
 
-# 18. Frontend Route Protection
+# 29. Regression Protection
 
-Inspect existing routes.
+After the refactoring, the test suite should become the minimum regression safety net for future development.
 
-Determine which pages need permissions.
-
-Examples:
+Whenever a new feature is added:
 
 ```text
-/orders
-/products
-/customers
-/reports
-/settings/users
-/settings/roles
+New Feature
+    ↓
+Implement
+    ↓
+Add/Update Tests
+    ↓
+Run Full Test Suite
+    ↓
+All Green
 ```
 
-Create reusable route protection if appropriate.
+If a bug is discovered later:
 
-Example concept:
-
-```tsx
-<PermissionGuard permission="reports.view">
-    <ReportsPage />
-</PermissionGuard>
+```text
+Bug
+ ↓
+Write failing test
+ ↓
+Fix bug
+ ↓
+Test passes
 ```
 
-Do not rely only on route hiding.
-
-Backend APIs must also enforce authorization.
+This prevents the same bug from silently returning.
 
 ---
 
-# 19. Important Business Rule
+# 30. Migration Safety
 
-For any financial or business-critical operation:
+The test suite should also help with the future migration:
 
 ```text
-Discount
-Price
-Payment
-Refund
-Tax
-Order Total
+.NET Framework 4.8
+       ↓
+Run Tests
+       ↓
+All Green
+
+Migrate to .NET 9
+       ↓
+Run Same Tests
+       ↓
+All Green
 ```
 
-frontend hiding is NOT enough.
+The goal is not to guarantee that the migration has zero issues.
 
-Even if:
-
-```tsx
-{canProductDiscount && <ProductDiscount />}
-```
-
-the backend must validate the operation when the request is submitted.
-
-The frontend is responsible for UX.
-
-The backend is responsible for security and business integrity.
+The goal is to verify that the **core business behavior remained unchanged**.
 
 ---
 
-# 20. Do Not Overengineer
+# 31. Important Testing Rule
 
-Do NOT introduce:
+Do not chase 100% code coverage.
 
-* ABAC
-* ReBAC
-* complex policy engines
-* role inheritance
-* dynamic authorization DSL
-* microservice authorization
-* unnecessary permission hierarchy
+Prioritize **business-critical behavior** over coverage percentage.
 
-unless the existing project clearly requires them.
+A small suite of meaningful tests is better than hundreds of meaningless tests.
 
-Start with:
+Focus on:
 
 ```text
-Feature Flags
+Business Rules
 +
-RBAC
+Calculations
 +
-Backend Authorization
+Use Cases
++
+Important Edge Cases
 ```
 
-Add more advanced authorization only when an actual requirement appears.
+rather than testing trivial getters/setters.
 
 ---
 
-# 21. Implementation Order
+# 32. Final Testing Deliverables
 
-Follow this order:
+At the end of the refactoring, provide:
 
-### Phase 1 — Audit
+### Test Project
 
-* Analyze existing project
-* Identify features
-* Identify roles
-* Identify permissions
-* Identify UI-only behavior
-* Identify backend-sensitive behavior
-* Produce the audit table
+A working test project that can be executed independently.
 
-### Phase 2 — Architecture
+### Test Coverage Summary
 
-* Design DB changes
-* Define permission naming convention
-* Define feature naming convention
-* Define roles
-* Define role-permission relationships
-* Define restaurant-feature relationships
+Explain which important business areas are covered.
 
-### Phase 3 — Backend
+### Commands
 
-* Create migrations
-* Create entities/models
-* Create seed permissions
-* Create default roles if needed
-* Implement permission service
-* Implement feature service
-* Implement authorization middleware/policies
-* Implement role APIs
-* Implement permission APIs where appropriate
-* Implement current-user access endpoint
-* Protect sensitive endpoints
+Document exactly how to run the tests.
 
-### Phase 4 — Frontend
-
-* Create permission constants
-* Create feature constants
-* Create auth access state
-* Create `hasPermission`
-* Create `hasFeature`
-* Create permission/feature guards
-* Update existing UI visibility
-* Protect routes where appropriate
-
-### Phase 5 — Administration UI
-
-Create:
+For example:
 
 ```text
-Roles List
-Role Details
-Create Role
-Edit Role
-Assign Permissions
-Feature Configuration
+dotnet test
 ```
 
-Only create Permission CRUD UI if custom permissions are actually required.
+or the appropriate command for the current .NET Framework test setup.
 
-### Phase 6 — Testing
+### Remaining Test Gaps
 
-Test at least:
-
-```text
-Manager + Feature enabled
-Manager + Feature disabled
-
-Cashier + Feature enabled
-Cashier + Feature disabled
-
-User without permission
-User with permission
-
-Direct API request without permission
-Direct API request with permission
-
-Restaurant A accessing Restaurant B resources
-```
-
-Especially verify that frontend-hidden actions cannot be executed through direct API calls.
+Clearly document areas that are not yet covered.
 
 ---
 
-# 22. Deliverables Before Coding
+# Testing Success Criteria
+
+The refactoring is considered successful only if:
+
+* The test project builds successfully.
+* Tests can run independently.
+* Core business rules have meaningful unit tests.
+* Application use cases have tests where appropriate.
+* Tests do not require a physical printer.
+* Domain tests do not require SQLite or EF6.
+* Important regression scenarios are covered.
+* Existing functionality remains unchanged.
+* The test suite can be reused after the future migration to ASP.NET Core / .NET 9.
 
-Before modifying implementation, produce these artifacts:
-
-## A. Feature Inventory
-
-Complete table of discovered features.
-
-## B. Permission Inventory
-
-```text
-Permission Key
-Resource
-Action
-Description
-Used By
-Related Feature
-```
-
-## C. Feature Inventory
-
-```text
-Feature Key
-Name
-Description
-Restaurant Configurable?
-Related Permissions
-```
-
-## D. Role Matrix
-
-Example:
-
-| Role    | orders.view | orders.create | products.delete | discounts.product | reports.export |
-| ------- | ----------- | ------------- | --------------- | ----------------- | -------------- |
-| Admin   | ✓           | ✓             | ✓               | ✓                 | ✓              |
-| Manager | ✓           | ✓             | ✓               | ✓                 | ✓              |
-| Cashier | ✓           | ✓             | ✗               | ✗                 | ✗              |
-
-Use the actual roles and permissions discovered in the project.
-
-## E. API Design
-
-List every new/modified endpoint:
-
-```text
-HTTP Method
-Route
-Purpose
-Authentication
-Required Permission
-Required Feature
-Request
-Response
-```
-
-## F. Database Changes
-
-Document:
-
-```text
-New tables
-Modified tables
-Relationships
-Indexes
-Unique constraints
-Seed data
-Migration strategy
-```
-
-## G. Frontend Changes
-
-Document:
-
-```text
-New hooks
-New services
-New contexts/stores
-New guards
-New constants
-Modified pages
-Modified components
-```
-
----
-
-# 23. Critical Constraint
-
-Do not rewrite working POS functionality unnecessarily.
-
-Preserve:
-
-* Existing business rules
-* Existing API contracts where possible
-* Existing UI behavior where access is allowed
-* Existing database data
-* Existing authentication behavior
-* Existing printing functionality
-* Existing order/payment behavior
-
-Make the authorization system incremental and backward-compatible.
-
----
-
-# 24. Final Expected Output
-
-Before implementation, return:
-
-1. **Architecture summary**
-2. **Feature inventory table**
-3. **Permission inventory table**
-4. **Role matrix**
-5. **Feature matrix**
-6. **Database design**
-7. **API design**
-8. **Frontend architecture**
-9. **Roles & Permissions UI design**
-10. **Migration/seed strategy**
-11. **Security risks found in the current project**
-12. **Implementation plan ordered by dependency**
-
-Then STOP and wait for approval before making large architectural changes.
-
-Do not implement the entire system before presenting the analysis and proposed architecture.
-# 25. Documentation — Permissions & Features
-
-As part of the analysis and implementation, create dedicated Markdown documentation files for the discovered and implemented authorization model.
-
-The documentation must be generated from the actual project analysis.
-
-Do NOT invent permissions or features that do not exist unless they are explicitly proposed as new architecture.
-
----
-
-## A. Create `docs/PERMISSIONS.md`
-
-Create a complete documentation file containing every permission discovered or introduced in the project.
-
-The file should include:
-
-### 1. Permission Overview
-
-Explain briefly:
-
-* What permissions represent
-* How permissions relate to Roles
-* Permission naming convention
-* Difference between Feature and Permission
-
-Use the convention:
-
-```text
-resource.action
-```
-
----
-
-### 2. Complete Permission Table
-
-Create a table similar to:
-
-| Permission Key    | Resource  | Action  | Name             | Description                             | Related Feature  | Sensitive? |
-| ----------------- | --------- | ------- | ---------------- | --------------------------------------- | ---------------- | ---------- |
-| orders.view       | orders    | view    | View Orders      | Allows viewing orders                   | orders           | No         |
-| orders.create     | orders    | create  | Create Orders    | Allows creating orders                  | orders           | Yes        |
-| discounts.product | discounts | product | Product Discount | Allows applying product-level discounts | product_discount | Yes        |
-| discounts.invoice | discounts | invoice | Invoice Discount | Allows applying invoice-level discounts | invoice_discount | Yes        |
-| reports.export    | reports   | export  | Export Reports   | Allows exporting reports                | reports          | Yes        |
-
-The actual table must be generated from the real project.
-
----
-
-### 3. Permissions Grouped by Module
-
-Group permissions logically:
-
-```text
-Orders
-Products
-Customers
-Payments
-Discounts
-Reports
-Users
-Roles
-Settings
-Printing
-Tables
-Delivery
-Takeaway
-```
-
-Only include modules that actually exist.
-
-Example:
-
-```text
-## Orders
-
-- `orders.view`
-- `orders.create`
-- `orders.update`
-- `orders.delete`
-```
-
----
-
-### 4. Role → Permission Matrix
-
-Create a complete matrix:
-
-| Permission        | Admin | Manager | Cashier |
-| ----------------- | ----: | ------: | ------: |
-| orders.view       |     ✓ |       ✓ |       ✓ |
-| orders.create     |     ✓ |       ✓ |       ✓ |
-| orders.delete     |     ✓ |       ✓ |       ✗ |
-| discounts.product |     ✓ |       ✓ |       ✗ |
-| discounts.invoice |     ✓ |       ✓ |       ✓ |
-| reports.export    |     ✓ |       ✓ |       ✗ |
-
-Use the actual roles discovered in the project.
-
----
-
-### 5. Backend Enforcement
-
-For every sensitive permission, document where it is enforced.
-
-Example:
-
-| Permission        | Endpoint / Service      | Authorization Mechanism    |
-| ----------------- | ----------------------- | -------------------------- |
-| orders.delete     | DELETE /api/orders/{id} | RequirePermission          |
-| discounts.product | POST /api/orders        | Permission + Feature check |
-| reports.export    | GET /api/reports/export | RequirePermission          |
-
-This section is important because the documentation should make it clear that frontend visibility is not the security boundary.
-
----
-
-### 6. Frontend Usage
-
-Document where each permission is used in the frontend.
-
-Example:
-
-```text
-discounts.product
-    ↓
-OrderPage
-    ↓
-ProductDiscountButton
-```
-
-Use actual file paths from the project.
-
-Example:
-
-```text
-src/pages/orders/OrderPage.tsx
-src/components/orders/ProductDiscountButton.tsx
-```
-
----
-
-## B. Create `docs/FEATURES.md`
-
-Create a complete documentation file containing every POS feature discovered or introduced.
-
----
-
-### 1. Feature Overview
-
-Explain:
-
-```text
-Feature = capability available to a restaurant/tenant.
-```
-
-Explain that Features are different from Permissions.
-
-Example:
-
-```text
-Feature:
-product_discount
-```
-
-means:
-
-> The restaurant has Product Discount capability.
-
-While:
-
-```text
-Permission:
-discounts.product
-```
-
-means:
-
-> The current user is allowed to use Product Discount.
-
----
-
-### 2. Complete Feature Table
-
-Create:
-
-| Feature Key       | Name              | Description                           | Category  | Tenant Configurable? | Related Permissions | Frontend Location | Backend Impact |
-| ----------------- | ----------------- | ------------------------------------- | --------- | -------------------- | ------------------- | ----------------- | -------------- |
-| product_discount  | Product Discount  | Apply discount to individual products | Discounts | Yes                  | discounts.product   | Order Page        | Yes            |
-| invoice_discount  | Invoice Discount  | Apply discount to the entire invoice  | Discounts | Yes                  | discounts.invoice   | Payment Page      | Yes            |
-| multiple_barcodes | Multiple Barcodes | Allow multiple barcodes per product   | Products  | Yes                  | -                   | Product Form      | Yes            |
-| multiple_units    | Multiple Units    | Piece / Pack / Carton support         | Products  | Yes                  | -                   | Product Form      | Yes            |
-
-Again, use the actual project.
-
----
-
-### 3. Features Grouped by Module
-
-Example:
-
-```text
-## Discounts
-
-- `product_discount`
-- `invoice_discount`
-
-## Products
-
-- `multiple_barcodes`
-- `multiple_units`
-- `wholesale_price`
-- `retail_price`
-```
-
-Only include discovered/proposed features.
-
----
-
-### 4. Feature → Permission Relationship
-
-For every Feature, document whether it requires permissions.
-
-Example:
-
-| Feature           | Required Permission(s) | Description                                          |
-| ----------------- | ---------------------- | ---------------------------------------------------- |
-| product_discount  | discounts.product      | User must have permission to apply product discounts |
-| invoice_discount  | discounts.invoice      | User must have permission to apply invoice discounts |
-| multiple_barcodes | -                      | Product configuration capability                     |
-
-Explain cases where a feature has no permission because it is configuration-only.
-
----
-
-### 5. Feature Access Flow
-
-Document the expected access flow:
-
-```text
-Restaurant
-    ↓
-Feature Enabled?
-    ↓
-YES
-    ↓
-User Permission
-    ↓
-Permission Granted?
-    ↓
-YES
-    ↓
-Feature Available in UI
-    ↓
-Backend validates again for sensitive operations
-```
-
-Example:
-
-```text
-product_discount
-        ↓
-Restaurant has product_discount?
-        ↓
-        YES
-        ↓
-User has discounts.product?
-        ↓
-        YES
-        ↓
-Show Product Discount UI
-        ↓
-Backend validates Feature + Permission
-```
-
----
-
-### 6. Frontend Usage
-
-For every Feature, document:
-
-```text
-Feature
-Frontend component/page
-Access helper
-Expected behavior when disabled
-```
-
-Example:
-
-```text
-product_discount
-
-Frontend:
-src/pages/orders/OrderPage.tsx
-
-Access:
-hasFeature(FEATURES.PRODUCT_DISCOUNT)
-&&
-hasPermission(PERMISSIONS.PRODUCT_DISCOUNT)
-
-Disabled behavior:
-Product Discount button/modal is not rendered.
-```
-
----
-
-### 7. Backend Usage
-
-Document backend enforcement where applicable.
-
-Example:
-
-| Feature          | Endpoint / Service | Feature Check |
-| ---------------- | ------------------ | ------------- |
-| product_discount | POST /api/orders   | Required      |
-| invoice_discount | POST /api/orders   | Required      |
-| multiple_units   | Product APIs       | Required      |
-
-Do not mark frontend-only features as backend-enforced unless the feature actually affects backend behavior.
-
----
-
-# 26. Documentation Rules
-
-The documentation must be treated as part of the authorization system.
-
-Whenever a new Permission or Feature is introduced:
-
-1. Add it to the backend seed/constants.
-2. Add it to the frontend constants if required.
-3. Add it to `docs/PERMISSIONS.md`.
-4. Add it to `docs/FEATURES.md`.
-5. Add it to the relevant Role matrix.
-6. Document the related API/UI behavior.
-
-Avoid having permissions defined in code but missing from documentation.
-
----
-
-# 27. Documentation Status
-
-At the top of both files, include:
-
-```md
-> **Status:** Active
->
-> This document represents the current Feature/Permission model of the POS application.
->
-> Last reviewed: YYYY-MM-DD
-```
-
-Use the actual current date.
-
-Also include a small version/change section:
-
-```md
-## Changelog
-
-| Date | Change |
-|------|--------|
-| YYYY-MM-DD | Initial Feature and Permission inventory |
-```
-
-Update this when the authorization model changes.
-
----
-
-# 28. Final Repository Structure
-
-Prefer the following structure if it matches the existing project conventions:
-
-```text
-docs/
-├── PERMISSIONS.md
-├── FEATURES.md
-├── business-overview.md
-├── functional-requirements.md
-├── business-rules.md
-├── domain-model.md
-├── database-design.md
-├── api-spec.md
-└── ...
-```
-
-Do not move or rename existing documentation unnecessarily.
-
----
-
-# 29. Final Verification
-
-Before finishing, verify that:
-
-* Every discovered Feature exists in `FEATURES.md`.
-* Every discovered Permission exists in `PERMISSIONS.md`.
-* Every Permission has a clear naming convention.
-* Every Permission has a known purpose.
-* Every sensitive permission has backend enforcement.
-* Every Feature has a clear tenant/restaurant meaning.
-* Feature and Permission are not incorrectly mixed.
-* Role-Permission relationships are documented.
-* Frontend usage is documented.
-* Backend endpoints are documented.
-* No undocumented permission strings are scattered through the codebase.
-
-Finally, provide a summary of:
-
-```text
-Total Features: X
-Total Permissions: X
-Total Roles: X
-Features requiring permissions: X
-Frontend-only features: X
-Backend-enforced permissions: X
-```
-
-Do not simply create the Markdown files from the proposed architecture.
-
-They must reflect the actual project after the audit and implementation plan.
