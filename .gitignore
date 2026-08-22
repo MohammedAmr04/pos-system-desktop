@@ -15,6 +15,9 @@ dist/
 build
 obj
 bin
+.vs/
+.vscode/
+.idea/
 # database
 *.db
 *.db-journal
