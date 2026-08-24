@@ -19,6 +19,10 @@ namespace PosCs.Domain.Entities
         public string Notes { get; set; }
         public bool AllowDiscount { get; set; } = true;
         public int LowStockThreshold { get; set; }
+        /// <summary>Nullable: NULL means genuinely unassigned (UI shows "Other").</summary>
+        public string CategoryId { get; set; }
+        /// <summary>Nullable: NULL means genuinely unassigned (UI shows "Other").</summary>
+        public string BrandId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }
