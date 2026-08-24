@@ -100,6 +100,18 @@ namespace PosCs.Infrastructure.Printing
             }
         }
 
+        public void AddStoreInfo(string storeName, string storePhone, string storeAddress, string headerLine)
+        {
+            if (!string.IsNullOrWhiteSpace(storeName))
+                DrawStringCenter(storeName, _storeNameFont);
+            if (!string.IsNullOrWhiteSpace(storePhone))
+                DrawStringCenter(storePhone, _regularFont);
+            if (!string.IsNullOrWhiteSpace(storeAddress))
+                DrawStringCenter(storeAddress, _regularFont);
+            if (!string.IsNullOrWhiteSpace(headerLine))
+                DrawStringCenter(headerLine, _regularFont);
+        }
+
         public void AddHeader(ReceiptInvoiceModel invoice)
         {
           
@@ -149,9 +161,11 @@ namespace PosCs.Infrastructure.Printing
     DrawLine();
 }
 
-        public void AddFooter()
+        public void AddFooter(string footerText = null)
         {
-            DrawStringCenter("شكراً لزيارتكم!", _boldFont);
+            DrawStringCenter(
+                string.IsNullOrWhiteSpace(footerText) ? "شكراً لزيارتكم!" : footerText,
+                _boldFont);
             DrawStringCenter("Software by brazilyy", _regularFont);
             _currentY += 40; // Add extra padding at the bottom for tearing
         }

@@ -4,30 +4,38 @@ using System.IO;
 using System.Linq;
 using PosCs.Application.Models;
 using PosCs.Application.Ports;
+using PosCs.Infrastructure.Persistence;
 
 namespace PosCs.Infrastructure.Printing
 {
     /// <summary>
     /// Renders the receipt as a monochrome image (ReceiptBuilder + GDI+ handles Arabic shaping),
     /// converts it to ESC/POS raster bytes and sends them to the raw printer.
+    /// Printer/receipt behaviour comes from stored settings (plan Phase 12) with code defaults.
     /// </summary>
     public class ReceiptPrinter : IReceiptPrinter
     {
-        private static string ResolvePrinterName()
+        private readonly IPrinterSettingsRepository _settings;
+
+        public ReceiptPrinter(IPrinterSettingsRepository settings)
         {
-            return Environment.GetEnvironmentVariable("PRINTER_NAME") ?? "Xprinter";
+            _settings = settings;
         }
 
         public PrintOutcome PrintReceipt(ReceiptContent receipt)
         {
             try
             {
-                var printerName = ResolvePrinterName();
+                var config = _settings.Get();
+                var printerName = Environment.GetEnvironmentVariable("PRINTER_NAME") ?? config.ReceiptPrinterName;
                 var logoFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot", "logo.jpeg");
 
-                using (var builder = new ReceiptBuilder())
+                using (var builder = new ReceiptBuilder(config.RasterWidth))
                 {
-                    builder.AddLogo(logoFile);
+                    if (config.ShowLogo)
+                        builder.AddLogo(logoFile);
+
+                    builder.AddStoreInfo(config.StoreName, config.StorePhone, config.StoreAddress, config.ReceiptHeader);
                     builder.AddHeader(new ReceiptInvoiceModel
                     {
                         Id = receipt.Id,
@@ -47,7 +55,7 @@ namespace PosCs.Infrastructure.Printing
                         Discount = receipt.Discount,
                         TotalAmount = receipt.TotalAmount
                     });
-                    builder.AddFooter();
+                    builder.AddFooter(config.ReceiptFooter);
 
                     using (var finalReceipt = builder.GetFinishedReceipt())
                     {
@@ -55,13 +63,17 @@ namespace PosCs.Infrastructure.Printing
 
                         var bytes = new List<byte>();
                         bytes.AddRange(new byte[] { 0x1B, 0x40 }); // ESC @ reset
-                        bytes.AddRange(imageBytes);                 // raster image
-                        bytes.AddRange(new byte[] { 0x1D, 0x56, 0x42, 0x00 }); // cut
+                        for (var copy = 0; copy < config.Copies; copy++)
+                            bytes.AddRange(imageBytes);             // raster image (one per configured copy)
+                        if (config.AutoCut)
+                            bytes.AddRange(new byte[] { 0x1D, 0x56, 0x42, 0x00 }); // full cut
+                        if (config.OpenCashDrawer)
+                            bytes.AddRange(new byte[] { 0x1B, 0x70, 0x00, 0x19, 0xFA }); // drawer kick pin 2
 
                         bool success = new PrinterService().PrintBytes(printerName, bytes.ToArray());
                         if (success)
                         {
-                            Console.WriteLine($"[API] Custom Arabic Receipt printed for invoice: {receipt.Id}");
+                            Console.WriteLine($"[API] Custom Arabic Receipt printed for invoice: {receipt.Id} copies={config.Copies}");
                             return new PrintOutcome
                             {
                                 Status = 200,
