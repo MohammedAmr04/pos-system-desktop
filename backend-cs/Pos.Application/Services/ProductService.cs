@@ -14,11 +14,18 @@ namespace PosCs.Application.Services
     {
         private readonly IProductRepository _repo;
         private readonly IProductUnitRepository _unitRepo;
+        private readonly IUnitRepository _masterUnits;
+        private readonly ICategoryRepository _categoryRepo;
+        private readonly IBrandRepository _brandRepo;
 
-        public ProductService(IProductRepository repo, IProductUnitRepository unitRepo)
+        public ProductService(IProductRepository repo, IProductUnitRepository unitRepo,
+            ICategoryRepository categoryRepo, IBrandRepository brandRepo, IUnitRepository masterUnits)
         {
             _repo = repo;
             _unitRepo = unitRepo;
+            _categoryRepo = categoryRepo;
+            _brandRepo = brandRepo;
+            _masterUnits = masterUnits;
         }
 
         public List<Product> GetAll()
@@ -74,6 +81,7 @@ namespace PosCs.Application.Services
                 throw new DomainValidationException("Wholesale price cannot be negative");
 
             var unitName = string.IsNullOrWhiteSpace(request.UnitName) ? "Piece" : request.UnitName.Trim();
+            var baseUnitId = ResolveUnitRef(request.UnitId, ref unitName);
 
             var barcode = request.Barcode?.Trim();
             if (string.IsNullOrWhiteSpace(barcode))
@@ -88,10 +96,13 @@ namespace PosCs.Application.Services
                 StockQuantity = request.StockQuantity,
                 Notes = request.Notes,
                 AllowDiscount = request.AllowDiscount,
-                LowStockThreshold = request.LowStockThreshold
+                LowStockThreshold = request.LowStockThreshold,
+                CategoryId = ResolveCategoryRef(request.CategoryId, null),
+                BrandId = ResolveBrandRef(request.BrandId, null)
             }, new ProductUnit
             {
                 UnitName = unitName,
+                UnitId = baseUnitId,
                 QuantityFactor = 1,
                 RetailPrice = retailPrice,
                 WholesalePrice = request.WholesalePrice,
@@ -120,6 +131,12 @@ namespace PosCs.Application.Services
             if (request.LowStockThreshold.HasValue)
                 existing.LowStockThreshold = request.LowStockThreshold.Value;
 
+            // Master-data references: null keeps, empty clears, a value assigns.
+            if (request.CategoryId != null)
+                existing.CategoryId = ResolveCategoryRef(request.CategoryId, existing.CategoryId);
+            if (request.BrandId != null)
+                existing.BrandId = ResolveBrandRef(request.BrandId, existing.BrandId);
+
             if (request.RetailPrice.HasValue && request.RetailPrice.Value < 0)
                 throw new DomainValidationException("Retail price cannot be negative");
             if (request.WholesalePrice.HasValue && request.WholesalePrice.Value < 0)
@@ -128,8 +145,13 @@ namespace PosCs.Application.Services
             var baseUnit = _unitRepo.GetBaseUnit(id);
             if (baseUnit != null)
             {
+                var baseUnitName = baseUnit.UnitName;
+                var resolvedUnitId = ResolveUnitRef(request.UnitId, ref baseUnitName);
                 if (!string.IsNullOrWhiteSpace(request.UnitName))
                     baseUnit.UnitName = request.UnitName.Trim();
+                else if (resolvedUnitId != null)
+                    baseUnit.UnitName = baseUnitName;
+                baseUnit.UnitId = resolvedUnitId ?? baseUnit.UnitId;
                 if (request.RetailPrice.HasValue)
                     baseUnit.RetailPrice = request.RetailPrice.Value;
                 if (request.WholesalePrice.HasValue)
@@ -157,10 +179,14 @@ namespace PosCs.Application.Services
             if (product == null)
                 throw new NotFoundException("Product not found");
 
+            var unitName = request.UnitName.Trim();
+            var unitId = ResolveUnitRef(request.UnitId, ref unitName);
+
             var unit = _unitRepo.Create(new ProductUnit
             {
                 ProductId = productId,
-                UnitName = request.UnitName.Trim(),
+                UnitName = unitName,
+                UnitId = unitId,
                 QuantityFactor = request.QuantityFactor,
                 RetailPrice = request.RetailPrice,
                 WholesalePrice = request.WholesalePrice,
@@ -185,6 +211,19 @@ namespace PosCs.Application.Services
 
             if (!string.IsNullOrWhiteSpace(request.UnitName))
                 unit.UnitName = request.UnitName.Trim();
+
+            if (request.UnitId != null)
+            {
+                var masterName = unit.UnitName;
+                var resolvedUnitId = ResolveUnitRef(request.UnitId, ref masterName);
+                if (resolvedUnitId != null)
+                {
+                    unit.UnitId = resolvedUnitId;
+                    if (string.IsNullOrWhiteSpace(request.UnitName))
+                        unit.UnitName = masterName;
+                }
+            }
+
             if (request.QuantityFactor.HasValue)
                 unit.QuantityFactor = request.QuantityFactor.Value;
             if (request.RetailPrice.HasValue)
@@ -250,6 +289,62 @@ namespace PosCs.Application.Services
                 throw new NotFoundException("Barcode not found");
 
             _unitRepo.SetDefaultBarcode(unitId, barcodeId);
+        }
+
+        /// <summary>
+        /// Resolves a category reference for a product: null keeps the current value,
+        /// empty clears it, and an id must point to an active category (spec §3.3 rule 10).
+        /// </summary>
+        private string ResolveCategoryRef(string categoryId, string current)
+        {
+            if (categoryId == null)
+                return current;
+            var trimmed = categoryId.Trim();
+            if (trimmed.Length == 0)
+                return null;
+
+            var category = _categoryRepo.GetById(trimmed);
+            if (category == null)
+                throw new NotFoundException("Category not found");
+            if (!category.IsActive)
+                throw new DomainValidationException("Inactive categories cannot be assigned to products");
+            return category.Id;
+        }
+
+        /// <summary>Same reference semantics as categories, for brands.</summary>
+        private string ResolveBrandRef(string brandId, string current)
+        {
+            if (brandId == null)
+                return current;
+            var trimmed = brandId.Trim();
+            if (trimmed.Length == 0)
+                return null;
+
+            var brand = _brandRepo.GetById(trimmed);
+            if (brand == null)
+                throw new NotFoundException("Brand not found");
+            if (!brand.IsActive)
+                throw new DomainValidationException("Inactive brands cannot be assigned to products");
+            return brand.Id;
+        }
+
+        /// <summary>
+        /// Resolves a shared Unit master reference; on success the master's name becomes the
+        /// snapshot UnitName. Returns null when no unitId was supplied (legacy free-text path).
+        /// </summary>
+        private string ResolveUnitRef(string unitId, ref string unitName)
+        {
+            if (string.IsNullOrWhiteSpace(unitId))
+                return null;
+
+            var master = _masterUnits.GetById(unitId.Trim());
+            if (master == null)
+                throw new NotFoundException("Unit not found");
+            if (!master.IsActive)
+                throw new DomainValidationException("Inactive units cannot be assigned to products");
+
+            unitName = master.Name;
+            return master.Id;
         }
 
         private void AttachUnits(IEnumerable<Product> products)

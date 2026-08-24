@@ -15,6 +15,7 @@ namespace PosCs.Infrastructure.Persistence
                 Id = Guid.NewGuid().ToString("N"),
                 ProductId = unit.ProductId,
                 UnitName = unit.UnitName,
+                UnitId = unit.UnitId,
                 QuantityFactor = unit.QuantityFactor,
                 RetailPrice = unit.RetailPrice,
                 WholesalePrice = unit.WholesalePrice,
@@ -23,13 +24,14 @@ namespace PosCs.Infrastructure.Persistence
             };
 
             conn.Execute(@"
-                INSERT INTO ProductUnit (id, productId, unitName, quantityFactor, retailPrice, wholesalePrice, isBaseUnit, createdAt)
-                VALUES (@id, @productId, @unitName, @quantityFactor, @retailPrice, @wholesalePrice, @isBaseUnit, @createdAt)",
+                INSERT INTO ProductUnit (id, productId, unitName, unitId, quantityFactor, retailPrice, wholesalePrice, isBaseUnit, createdAt)
+                VALUES (@id, @productId, @unitName, @unitId, @quantityFactor, @retailPrice, @wholesalePrice, @isBaseUnit, @createdAt)",
                 new
                 {
                     id = row.Id,
                     productId = row.ProductId,
                     unitName = row.UnitName,
+                    unitId = row.UnitId,
                     quantityFactor = row.QuantityFactor,
                     retailPrice = row.RetailPrice,
                     wholesalePrice = row.WholesalePrice,
@@ -43,12 +45,13 @@ namespace PosCs.Infrastructure.Persistence
         public static void UpdateUnit(SqliteConnection conn, SqliteTransaction tx, ProductUnit unit)
         {
             conn.Execute(@"
-                UPDATE ProductUnit SET unitName = @unitName, quantityFactor = @quantityFactor,
+                UPDATE ProductUnit SET unitName = @unitName, unitId = @unitId, quantityFactor = @quantityFactor,
                     retailPrice = @retailPrice, wholesalePrice = @wholesalePrice
                 WHERE id = @id",
                 new
                 {
                     unitName = unit.UnitName,
+                    unitId = unit.UnitId,
                     quantityFactor = unit.QuantityFactor,
                     retailPrice = unit.RetailPrice,
                     wholesalePrice = unit.WholesalePrice,

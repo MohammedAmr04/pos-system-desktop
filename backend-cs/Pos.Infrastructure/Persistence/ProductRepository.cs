@@ -186,8 +186,8 @@ namespace PosCs.Infrastructure.Persistence
                 $"Notes='{product.Notes}', CreatedAt={product.CreatedAt:O}, UpdatedAt={product.UpdatedAt:O}");
 
             conn.Execute(@"
-                INSERT INTO Product (id, name, buyPrice, stockQuantity, notes, allowDiscount, lowStockThreshold, createdAt, updatedAt)
-                VALUES (@id, @name, @buyPrice, @stockQuantity, @notes, @allowDiscount, @lowStockThreshold, @createdAt, @updatedAt)",
+                INSERT INTO Product (id, name, buyPrice, stockQuantity, notes, allowDiscount, lowStockThreshold, categoryId, brandId, createdAt, updatedAt)
+                VALUES (@id, @name, @buyPrice, @stockQuantity, @notes, @allowDiscount, @lowStockThreshold, @categoryId, @brandId, @createdAt, @updatedAt)",
                 new
                 {
                     id = product.Id,
@@ -197,6 +197,8 @@ namespace PosCs.Infrastructure.Persistence
                     notes = product.Notes,
                     allowDiscount = product.AllowDiscount ? 1 : 0,
                     lowStockThreshold = product.LowStockThreshold,
+                    categoryId = product.CategoryId,
+                    brandId = product.BrandId,
                     createdAt = product.CreatedAt,
                     updatedAt = product.UpdatedAt
                 }, transaction: tx);
@@ -211,11 +213,12 @@ namespace PosCs.Infrastructure.Persistence
 
         private static void UpdateProduct(SqliteConnection conn, SqliteTransaction tx, Product product)
         {
-            product.UpdatedAt = DateTime.UtcNow;
+            product.UpdatedAt = DateTime.Now;
             conn.Execute(@"
                 UPDATE Product SET name=@name, buyPrice=@buyPrice,
                     stockQuantity=@stockQuantity, notes=@notes,
                     allowDiscount=@allowDiscount, lowStockThreshold=@lowStockThreshold,
+                    categoryId=@categoryId, brandId=@brandId,
                     updatedAt=@updatedAt
                 WHERE id=@id",
                 new
@@ -227,6 +230,8 @@ namespace PosCs.Infrastructure.Persistence
                     notes = product.Notes,
                     allowDiscount = product.AllowDiscount ? 1 : 0,
                     lowStockThreshold = product.LowStockThreshold,
+                    categoryId = product.CategoryId,
+                    brandId = product.BrandId,
                     updatedAt = product.UpdatedAt
                 }, transaction: tx);
         }
