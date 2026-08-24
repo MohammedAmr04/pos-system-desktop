@@ -33,6 +33,13 @@ interface POSStore {
   discountType: 'fixed' | 'percentage'
   priceMode: PriceMode
   searchQuery: string
+  clientId: string | null
+  paymentMethod: 'cash' | 'credit'
+  /** Set while the cart mirrors a saved draft invoice (plan Phase 6). */
+  draftId: string | null
+  setClient: (clientId: string | null) => void
+  setPaymentMethod: (method: 'cash' | 'credit') => void
+  loadDraft: (draft: { id: string; clientId: string | null; paymentMethod: string; discount: number; items: CartItem[] }) => void
   setSearchQuery: (query: string) => void
   setPriceMode: (mode: PriceMode) => void
   togglePriceMode: () => void
@@ -54,6 +61,22 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   discountType: 'fixed',
   priceMode: 'retail',
   searchQuery: '',
+  clientId: null,
+  paymentMethod: 'cash',
+  draftId: null,
+
+  setClient: (clientId) => set({ clientId }),
+
+  setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
+
+  loadDraft: (draft) => set({
+    draftId: draft.id,
+    clientId: draft.clientId,
+    paymentMethod: draft.paymentMethod === 'credit' ? 'credit' : 'cash',
+    discount: draft.discount,
+    discountType: 'fixed',
+    cartItems: draft.items,
+  }),
 
   setSearchQuery: (query) => set({ searchQuery: query }),
 
@@ -168,5 +191,13 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     discountType: state.discountType === 'fixed' ? 'percentage' : 'fixed'
   })),
 
-  clearCart: () => set({ cartItems: [], discount: 0, discountType: 'fixed', searchQuery: '' }),
+  clearCart: () => set({
+    cartItems: [],
+    discount: 0,
+    discountType: 'fixed',
+    searchQuery: '',
+    clientId: null,
+    paymentMethod: 'cash',
+    draftId: null,
+  }),
 }))

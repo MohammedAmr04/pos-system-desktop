@@ -8,6 +8,9 @@ export async function createProduct(data: {
   wholesalePrice?: number | null
   stockQuantity: number
   unitName?: string | null
+  unitId?: string | null
+  categoryId?: string | null
+  brandId?: string | null
   allowDiscount?: boolean
   lowStockThreshold?: number
   notes?: string | null
@@ -25,6 +28,9 @@ export async function updateProduct(
     wholesalePrice?: number | null
     stockQuantity: number
     unitName?: string | null
+    unitId?: string | null
+    categoryId?: string | null
+    brandId?: string | null
     allowDiscount?: boolean
     lowStockThreshold?: number
     notes?: string | null
@@ -39,7 +45,7 @@ export async function deleteProduct(id: string) {
 
 export async function addProductUnit(
   productId: string,
-  data: { unitName: string; quantityFactor: number; retailPrice: number; wholesalePrice?: number | null }
+  data: { unitId?: string | null; unitName: string; quantityFactor: number; retailPrice: number; wholesalePrice?: number | null }
 ) {
   return api.products.units.add(productId, data)
 }
@@ -47,7 +53,7 @@ export async function addProductUnit(
 export async function updateProductUnit(
   productId: string,
   unitId: string,
-  data: { unitName?: string; quantityFactor?: number; retailPrice?: number; wholesalePrice?: number | null }
+  data: { unitId?: string | null; unitName?: string; quantityFactor?: number; retailPrice?: number; wholesalePrice?: number | null }
 ) {
   return api.products.units.update(productId, unitId, data)
 }
