@@ -33,6 +33,10 @@ export function InvoiceDetailsDialog({
   if (!invoice) return null
 
   const details: InvoiceDetail[] = invoice.InvoiceDetail ?? invoice.invoiceDetail ?? []
+  const hasCostData = details.some((d) => d.totalCost != null)
+  const totalCost = details.reduce((sum, d) => sum + (d.totalCost ?? 0), 0)
+  const totalRevenue = details.reduce((sum, d) => sum + (d.finalTotal ?? ((d.unitPrice ?? d.salePrice) * d.quantity - (d.discountAmount || 0))), 0)
+  const totalProfit = totalRevenue - totalCost
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -52,8 +56,13 @@ export function InvoiceDetailsDialog({
                 <TableHead className="text-center">{t("price")}</TableHead>
                 <TableHead className="text-center">{t("discount")}</TableHead>
                 <TableHead className="text-center">{t("itemTotal")}</TableHead>
-              </TableRow>
-            </TableHeader>
+                {hasCostData && (
+                  <>
+                    <TableHead className="text-center">{t("cost")}</TableHead>
+                    <TableHead className="text-center">{t("profit")}</TableHead>
+                  </>
+                )}
+              </TableRow>            </TableHeader>
             <TableBody>
               {details.map((detail: InvoiceDetail) => {
                 const unitPrice = detail.unitPrice ?? detail.salePrice
@@ -89,6 +98,16 @@ export function InvoiceDetailsDialog({
                       {detail.discountAmount > 0 ? `-${detail.discountAmount.toFixed(2)}` : "0.00"}
                     </TableCell>
                     <TableCell className="text-center">{itemTotal.toFixed(2)}</TableCell>
+                    {hasCostData && (
+                      <>
+                        <TableCell className="text-center text-muted-foreground">
+                          {(detail.totalCost ?? 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell className={`text-center font-medium ${(itemTotal - (detail.totalCost ?? 0)) >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                          {(itemTotal - (detail.totalCost ?? 0)).toFixed(2)}
+                        </TableCell>
+                      </>
+                    )}
                   </TableRow>
                 )
               })}
@@ -108,6 +127,18 @@ export function InvoiceDetailsDialog({
               <span>{t("total")}</span>
               <span>{invoice.totalAmount?.toFixed(2)}</span>
             </div>
+            {hasCostData && (
+              <>
+                <div className="flex justify-between text-muted-foreground border-t pt-2 mt-2">
+                  <span>{t("totalCost")}</span>
+                  <span>{totalCost.toFixed(2)}</span>
+                </div>
+                <div className={`flex justify-between font-bold ${totalProfit >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                  <span>{t("grossProfit")}</span>
+                  <span>{totalProfit.toFixed(2)}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </DialogContent>

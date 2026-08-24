@@ -3,9 +3,9 @@
 import { Input } from "@/components/ui/input"
 import { createProduct, updateProduct } from "@/actions/products.actions"
 import { baseUnitOf } from "@/lib/barcode"
-import { Product } from "@/lib/api"
+import { api, Category, Brand, MasterUnit, Product } from "@/lib/api"
 import { toast } from "sonner"
-import { useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 
 interface ProductFormProps {
@@ -16,22 +16,55 @@ interface ProductFormProps {
 
 export const PRODUCT_FORM_ID = "product-form"
 
+const selectClass =
+  "flex h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+
 export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductFormProps) {
   const t = useTranslations("Products")
   const formRef = useRef<HTMLFormElement>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
+  const [units, setUnits] = useState<MasterUnit[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([api.categories.list(), api.brands.list(), api.units.list()])
+      .then(([cats, brs, uns]) => {
+        if (cancelled) return
+        setCategories(cats)
+        setBrands(brs)
+        setUnits(uns)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const baseUnit = initialData ? baseUnitOf(initialData) : null
-  const defaultUnitName = baseUnit?.unitName || t("defaultUnitName")
+  const defaultUnitName = t("defaultUnitName")
+
+  const selectableCategories = categories.filter(
+    (c) => c.isActive || c.id === initialData?.categoryId
+  )
+  const selectableBrands = brands.filter((b) => b.isActive || b.id === initialData?.brandId)
+  const selectableUnits = units.filter((u) => u.isActive || u.id === baseUnit?.unitId)
+  const defaultUnitId = baseUnit?.unitId ?? selectableUnits.find((u) => u.isActive)?.id ?? ""
 
   async function handleSubmit(formData: FormData) {
     const wholesaleRaw = (formData.get("wholesalePrice") as string)?.trim()
+    const unitIdRaw = ((formData.get("unitId") as string) || "").trim()
+    const selectedUnit = units.find((u) => u.id === unitIdRaw)
     const data = {
       name: formData.get("name") as string,
       barcode: formData.get("barcode") as string || undefined,
       buyPrice: parseFloat(formData.get("buyPrice") as string),
       retailPrice: parseFloat(formData.get("retailPrice") as string),
       wholesalePrice: wholesaleRaw ? parseFloat(wholesaleRaw) : null,
-      unitName: (formData.get("unitName") as string)?.trim() || undefined,
+      unitId: unitIdRaw || undefined,
+      unitName: selectedUnit ? selectedUnit.name : initialData ? undefined : defaultUnitName,
+      categoryId: (formData.get("categoryId") as string) || "",
+      brandId: (formData.get("brandId") as string) || "",
       stockQuantity: parseFloat(formData.get("stockQuantity") as string),
       notes: formData.get("notes") as string || null,
       allowDiscount: formData.get("allowDiscount") === "on",
@@ -63,21 +96,52 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
         <label className="text-sm font-medium">{t("barcode")}</label>
         <Input name="barcode" defaultValue={initialData?.barcode || defaultBarcode || ""} placeholder={t("barcode")} />
       </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{t("category")}</label>
+          <select name="categoryId" defaultValue={initialData?.categoryId ?? ""} className={selectClass}>
+            <option value="">{t("noCategory")}</option>
+            {selectableCategories.map((c) => (
+              <option key={c.id} value={c.id} disabled={!c.isActive}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{t("brand")}</label>
+          <select name="brandId" defaultValue={initialData?.brandId ?? ""} className={selectClass}>
+            <option value="">{t("noBrand")}</option>
+            {selectableBrands.map((b) => (
+              <option key={b.id} value={b.id} disabled={!b.isActive}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("unitName")}</label>
-        <Input name="unitName" defaultValue={defaultUnitName} placeholder={t("defaultUnitName")} />
+        <select name="unitId" defaultValue={defaultUnitId} className={selectClass}>
+          <option value="">{t("defaultUnit")}</option>
+          {selectableUnits.map((u) => (
+            <option key={u.id} value={u.id} disabled={!u.isActive}>
+              {u.name}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("buyPrice")} *</label>
-          <Input name="buyPrice" type="number" step="0.01" defaultValue={initialData?.buyPrice} required />
+          <Input name="buyPrice" type="number" step="1" defaultValue={initialData?.buyPrice} required />
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("retailPrice")} *</label>
           <Input
             name="retailPrice"
             type="number"
-            step="0.01"
+            step="1"
             defaultValue={baseUnit?.retailPrice ?? initialData?.salePrice}
             required
           />
@@ -89,14 +153,14 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
           <Input
             name="wholesalePrice"
             type="number"
-            step="0.01"
+            step="1"
             defaultValue={baseUnit?.wholesalePrice ?? ""}
             placeholder={t("optional")}
           />
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("stockQuantity")} *</label>
-          <Input name="stockQuantity" type="number" step="0.01" defaultValue={initialData?.stockQuantity} required />
+          <Input name="stockQuantity" type="number" step="1" defaultValue={initialData?.stockQuantity} required />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">

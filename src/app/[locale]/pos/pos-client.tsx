@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { api, Product, ProductUnit } from "@/lib/api"
 import { usePOSStore } from "@/store/pos.store"
+import type { CartItem } from "@/store/pos.store"
 import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS, FEATURES } from "@/lib/constants"
 import { AccessDenied } from "@/components/common/access-denied"
@@ -11,6 +12,7 @@ import { Link } from "@/i18n/navigation"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { ArrowLeft } from "lucide-react"
+import type { Shift } from "@/lib/api"
 import { addProductBarcode } from "@/actions/products.actions"
 import { baseUnitOf, resolveBarcode } from "@/lib/barcode"
 import { ProductSearchHandle, ProductSearchPopover } from "./_components/product-search-popover"
@@ -30,6 +32,7 @@ export function POSClient() {
   const canPickUnit = hasFeature(FEATURES.MULTIPLE_UNITS)
 
   const addItem = usePOSStore((s) => s.addItem)
+  const loadDraft = usePOSStore((s) => s.loadDraft)
   const priceMode = usePOSStore((s) => s.priceMode)
   const setPriceMode = usePOSStore((s) => s.setPriceMode)
 
@@ -37,6 +40,11 @@ export function POSClient() {
   const [products, setProducts] = useState<Product[]>([])
   const [unitPicker, setUnitPicker] = useState<UnitPickerState | null>(null)
   const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null)
+  const [activeShift, setActiveShift] = useState<Shift | null>(null)
+
+  useEffect(() => {
+    api.shifts.getActive().then(setActiveShift).catch(() => setActiveShift(null))
+  }, [])
 
   useEffect(() => {
     if (!canWholesale && priceMode === 'wholesale') {
@@ -49,6 +57,49 @@ export function POSClient() {
     setProducts(list)
     return list
   }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const draftParam = params.get('draft')
+    if (!draftParam) return
+    window.history.replaceState({}, '', window.location.pathname)
+    api.invoices
+      .get(draftParam)
+      .then((inv) => {
+        if ((inv.status ?? 'posted') !== 'draft') return
+        const items: CartItem[] = (inv.invoiceDetail ?? inv.InvoiceDetail ?? []).map((d) => {
+          const unit = d.product?.units?.find((u) => u.id === d.productUnitId)
+          return {
+            id: d.productUnitId || d.productId || d.id,
+            productId: d.productId ?? '',
+            productUnitId: d.productUnitId ?? '',
+            unitName: d.unitName ?? unit?.unitName ?? '',
+            name: d.product?.name ?? '',
+            buyPrice: d.buyPrice,
+            retailPrice: unit?.retailPrice ?? d.salePrice,
+            wholesalePrice: unit?.wholesalePrice ?? null,
+            originalUnitPrice: d.originalUnitPrice ?? d.unitPrice ?? d.salePrice,
+            unitPrice: d.unitPrice ?? d.salePrice,
+            quantity: d.quantity,
+            maxStock: d.product?.stockQuantity ?? 999999,
+            quantityFactor: unit?.quantityFactor ?? 1,
+            allowDiscount: true,
+            discountType: (d.discountType as 'percentage' | 'fixed' | null) ?? null,
+            discountValue: d.discountValue ?? 0,
+            overridden: false,
+            priceEditNote: d.priceEditNote ?? undefined,
+          }
+        })
+        loadDraft({
+          id: inv.id,
+          clientId: inv.clientId ?? null,
+          paymentMethod: inv.paymentMethod ?? 'cash',
+          discount: inv.discount,
+          items,
+        })
+      })
+      .catch(() => {})
+  }, [loadDraft])
 
   useEffect(() => {
     let cancelled = false
@@ -157,6 +208,19 @@ export function POSClient() {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
+            {activeShift ? (
+              <div className="flex shrink-0 items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-700">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+                {t("shiftActive", { number: activeShift.number })}
+              </div>
+            ) : (
+              <Link href="/shifts/">
+                <div className="flex shrink-0 items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-700">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  {t("noOpenShift")}
+                </div>
+              </Link>
+            )}
             {canWholesale && (
               <div className="flex shrink-0 rounded-lg border bg-background p-1">
                 <Button

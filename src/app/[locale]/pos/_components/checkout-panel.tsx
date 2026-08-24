@@ -11,7 +11,11 @@ import { usePOSStore } from "@/store/pos.store"
 import { useAuth } from "@/components/common/auth-context"
 import { FEATURES, PERMISSIONS } from "@/lib/constants"
 import { cartTotals, lineDiscountAmount, lineSubtotal, round2 } from "./utils/pricing"
-import { createInvoice } from "@/actions/invoices.actions"
+import { createInvoice, saveDraftInvoice } from "@/actions/invoices.actions"
+import { Client, api } from "@/lib/api"
+
+const selectClass =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
 export function CheckoutPanel() {
   const t = useTranslations("POS")
@@ -23,14 +27,39 @@ export function CheckoutPanel() {
   const discount = usePOSStore((s) => s.discount)
   const discountType = usePOSStore((s) => s.discountType)
   const priceMode = usePOSStore((s) => s.priceMode)
+  const clientId = usePOSStore((s) => s.clientId)
+  const paymentMethod = usePOSStore((s) => s.paymentMethod)
+  const draftId = usePOSStore((s) => s.draftId)
+  const setClient = usePOSStore((s) => s.setClient)
+  const setPaymentMethod = usePOSStore((s) => s.setPaymentMethod)
   const setDiscount = usePOSStore((s) => s.setDiscount)
   const toggleDiscountType = usePOSStore((s) => s.toggleDiscountType)
   const clearCart = usePOSStore((s) => s.clearCart)
 
   const [isCheckingOut, setIsCheckingOut] = useState(false)
   const [amountPaid, setAmountPaid] = useState(0)
+  const [clients, setClients] = useState<Client[]>([])
+  const [clientsLoaded, setClientsLoaded] = useState(false)
   const paidTouched = useRef(false)
   const discountInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (clientsLoaded) return
+    let cancelled = false
+    api.clients.getActive()
+      .then((res: Client[]) => {
+        if (!cancelled) setClients(res)
+      })
+      .catch(() => {
+        if (!cancelled) setClients([])
+      })
+      .finally(() => {
+        if (!cancelled) setClientsLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [clientsLoaded])
 
   const { subtotal, itemsDiscount, eligibleSubtotal, effectiveDiscount, total } =
     cartTotals(cartItems, discount, discountType)
@@ -69,6 +98,10 @@ export function CheckoutPanel() {
 
   const handleCheckout = useCallback(async (print: boolean) => {
     if (cartItems.length === 0) return
+    if (paymentMethod === 'credit' && !clientId) {
+      toast.error(t("creditRequiresClient"))
+      return
+    }
     if (print && !canPrintReceipt) print = false
     const validationError = validateDiscount()
     if (validationError) {
@@ -77,7 +110,21 @@ export function CheckoutPanel() {
     }
     setIsCheckingOut(true)
     try {
-      await createInvoice(cartItems, effectiveDiscount, print, discountType || undefined, discount || undefined, priceMode)
+      if (draftId) {
+        await saveDraftInvoice(cartItems, effectiveDiscount, discountType || undefined, discount || undefined, priceMode, {
+          clientId,
+          paymentMethod,
+          status: 'posted',
+          draftId,
+        })
+        await api.invoices.post(draftId)
+      } else {
+        await createInvoice(cartItems, effectiveDiscount, print, discountType || undefined, discount || undefined, priceMode, {
+          clientId,
+          paymentMethod,
+          status: 'posted',
+        })
+      }
       toast.success(t("checkoutSuccess"))
       paidTouched.current = false
       clearCart()
@@ -86,7 +133,31 @@ export function CheckoutPanel() {
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, validateDiscount, t, clearCart, canPrintReceipt])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, validateDiscount, t, clearCart, canPrintReceipt])
+
+  const handleSaveDraft = useCallback(async () => {
+    if (cartItems.length === 0) return
+    if (paymentMethod === 'credit' && !clientId) {
+      toast.error(t("creditRequiresClient"))
+      return
+    }
+    setIsCheckingOut(true)
+    try {
+      await saveDraftInvoice(cartItems, effectiveDiscount, discountType || undefined, discount || undefined, priceMode, {
+        clientId,
+        paymentMethod,
+        status: 'draft',
+        draftId,
+      })
+      toast.success(t("draftSaved"))
+      paidTouched.current = false
+      clearCart()
+    } catch (e) {
+      toast.error((e as Error).message || t("checkoutFailed"))
+    } finally {
+      setIsCheckingOut(false)
+    }
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, t, clearCart])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -123,6 +194,39 @@ export function CheckoutPanel() {
       </CardHeader>
       <CardContent className="flex-1 flex flex-col justify-end gap-6">
         <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label htmlFor="pos-client" className="text-sm font-medium">{t("client")}</label>
+              <select
+                id="pos-client"
+                className={selectClass}
+                value={clientId ?? ""}
+                onChange={(e) => setClient(e.target.value || null)}
+              >
+                <option value="">{t("walkIn")}</option>
+                {clients.filter((c) => c.isActive).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="pos-payment" className="text-sm font-medium">{t("paymentMethod")}</label>
+              <select
+                id="pos-payment"
+                className={selectClass}
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as 'cash' | 'credit')}
+              >
+                <option value="cash">{t("cash")}</option>
+                <option value="credit">{t("credit")}</option>
+              </select>
+            </div>
+          </div>
+          {draftId && (
+            <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-600">
+              {t("editingDraft")}
+            </p>
+          )}
           <div className="flex justify-between text-xl">
             <span className="text-muted-foreground">{t("subtotal")}</span>
             <span className="font-semibold">{subtotal.toFixed(2)}</span>
@@ -180,7 +284,7 @@ export function CheckoutPanel() {
               <Input
                 type="number"
                 min="0"
-                step="0.01"
+                step="1"
                 className="w-40 text-right text-lg h-12"
                 value={amountPaid || ""}
                 onChange={(e) => {
@@ -209,9 +313,13 @@ export function CheckoutPanel() {
         </div>
 
         <div className="grid grid-cols-2 gap-4 mt-8">
+          <Button variant="outline" className="h-16 text-lg" onClick={handleSaveDraft} disabled={isCheckingOut || cartItems.length === 0}>
+            {t("saveDraft")}
+          </Button>
+
           <Button className="h-16 text-lg" size="lg" onClick={() => handleCheckout(false)} disabled={isCheckingOut || !canCheckout}>
             {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t("save")}
+            {draftId ? t("saveAndPostDraft") : t("save")}
             <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
               F11
             </kbd>

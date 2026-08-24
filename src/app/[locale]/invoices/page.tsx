@@ -22,7 +22,9 @@ export default function InvoicesPage() {
   const [query, setQuery] = useState("")
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined)
   const [toDate, setToDate] = useState<Date | undefined>(undefined)
+  const [status, setStatus] = useState("all")
   const [loading, setLoading] = useState(true)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     if (!canView) return
@@ -32,6 +34,7 @@ export default function InvoicesPage() {
         from: fromDate ? format(fromDate, "yyyy-MM-dd") : undefined,
         to: toDate ? format(toDate, "yyyy-MM-dd") : undefined,
         q: query.trim() || undefined,
+        status,
       })
       .then((res) => {
         if (cancelled) return
@@ -51,7 +54,7 @@ export default function InvoicesPage() {
     return () => {
       cancelled = true
     }
-  }, [page, query, fromDate, toDate, canView])
+  }, [page, query, fromDate, toDate, status, refreshKey, canView])
 
   const handleQueryChange = useCallback((q: string) => {
     setLoading(true)
@@ -64,6 +67,16 @@ export default function InvoicesPage() {
     setFromDate(from)
     setToDate(to)
     setPage(1)
+  }, [])
+
+  const handleStatusChange = useCallback((s: string) => {
+    setLoading(true)
+    setStatus(s)
+    setPage(1)
+  }, [])
+
+  const handleRefresh = useCallback(() => {
+    setRefreshKey((k) => k + 1)
   }, [])
 
   const handlePageChange = useCallback((p: number) => {
@@ -90,9 +103,12 @@ export default function InvoicesPage() {
         query={query}
         fromDate={fromDate}
         toDate={toDate}
+        status={status}
         onQueryChange={handleQueryChange}
         onDateChange={handleDateChange}
+        onStatusChange={handleStatusChange}
         onPageChange={handlePageChange}
+        onRefresh={handleRefresh}
       />
     </div>
   )

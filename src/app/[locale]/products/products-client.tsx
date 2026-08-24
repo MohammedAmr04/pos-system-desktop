@@ -1,6 +1,6 @@
 "use client"
 
-import { Product, ProductBarcode, ProductUnit, api } from "@/lib/api"
+import { Product, ProductBarcode, ProductUnit, MasterUnit, api } from "@/lib/api"
 import { ResponsiveSheet } from "@/components/common/responsive-sheet"
 import { ProductForm, PRODUCT_FORM_ID } from "@/components/common/product-form"
 import { useAuth } from "@/components/common/auth-context"
@@ -60,11 +60,14 @@ interface ProductsClientProps {
 
 interface UnitFormState {
   unit?: ProductUnit
-  unitName: string
+  unitMasterId: string
   quantityFactor: string
   retailPrice: string
   wholesalePrice: string
 }
+
+const unitSelectClass =
+  "flex h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
 
 export function ProductsClient({
   items,
@@ -96,11 +99,12 @@ export function ProductsClient({
   const [addBarcodeForUnit, setAddBarcodeForUnit] = useState<ProductUnit | null>(null)
   const [isUnitFormOpen, setIsUnitFormOpen] = useState(false)
   const [unitForm, setUnitForm] = useState<UnitFormState>({
-    unitName: "",
+    unitMasterId: "",
     quantityFactor: "1",
     retailPrice: "",
     wholesalePrice: "",
   })
+  const [masterUnits, setMasterUnits] = useState<MasterUnit[]>([])
   const [sorting, setSorting] = useState<SortingState>([])
   const [searchInput, setSearchInput] = useState(query)
   const debouncedQueryChange = useDebouncedCallback(onQueryChange, 300)
@@ -114,6 +118,24 @@ export function ProductsClient({
     if (value === query) return
     debouncedQueryChange(value)
   }, [debouncedQueryChange, query, searchInput])
+
+  useEffect(() => {
+    let cancelled = false
+    api.units
+      .list()
+      .then((uns) => {
+        if (!cancelled) setMasterUnits(uns)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const activeMasterUnits = masterUnits.filter((u) => u.isActive)
+
+  const selectedUnitMaster = masterUnits.find((u) => u.id === unitForm.unitMasterId)
+  const unitNameFallback = !unitForm.unitMasterId && unitForm.unit ? unitForm.unit.unitName : ""
 
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
@@ -186,14 +208,19 @@ export function ProductsClient({
   }
 
   const openAddUnit = () => {
-    setUnitForm({ unitName: "", quantityFactor: "1", retailPrice: "", wholesalePrice: "" })
+    setUnitForm({
+      unitMasterId: activeMasterUnits[0]?.id ?? "",
+      quantityFactor: "1",
+      retailPrice: "",
+      wholesalePrice: "",
+    })
     setIsUnitFormOpen(true)
   }
 
   const openEditUnit = (unit: ProductUnit) => {
     setUnitForm({
       unit,
-      unitName: unit.unitName,
+      unitMasterId: unit.unitId ?? "",
       quantityFactor: String(unit.quantityFactor),
       retailPrice: String(unit.retailPrice),
       wholesalePrice: unit.wholesalePrice != null ? String(unit.wholesalePrice) : "",
@@ -203,17 +230,17 @@ export function ProductsClient({
 
   const handleSaveUnit = async () => {
     if (!displayProduct) return
-    const unitName = unitForm.unitName.trim()
     const quantityFactor = parseFloat(unitForm.quantityFactor)
     const retailPrice = parseFloat(unitForm.retailPrice)
     const wholesalePrice = unitForm.wholesalePrice.trim()
       ? parseFloat(unitForm.wholesalePrice)
       : null
-    if (!unitName || isNaN(quantityFactor) || quantityFactor <= 0 || isNaN(retailPrice) || retailPrice <= 0) return
+    if (!selectedUnitMaster || isNaN(quantityFactor) || quantityFactor <= 0 || isNaN(retailPrice) || retailPrice <= 0) return
     try {
       if (unitForm.unit) {
         await updateProductUnit(displayProduct.id, unitForm.unit.id, {
-          unitName,
+          unitId: selectedUnitMaster.id,
+          unitName: selectedUnitMaster.name,
           quantityFactor,
           retailPrice,
           wholesalePrice,
@@ -221,7 +248,8 @@ export function ProductsClient({
         toast.success(t("unitUpdated"))
       } else {
         await addProductUnit(displayProduct.id, {
-          unitName,
+          unitId: selectedUnitMaster.id,
+          unitName: selectedUnitMaster.name,
           quantityFactor,
           retailPrice,
           wholesalePrice,
@@ -616,19 +644,27 @@ export function ProductsClient({
           <div className="py-4 space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("unitName")} *</label>
-              <Input
-                value={unitForm.unitName}
-                onChange={(e) => setUnitForm({ ...unitForm, unitName: e.target.value })}
-                placeholder={t("unitNamePlaceholder")}
-                autoFocus
-              />
+              <select
+                className={unitSelectClass}
+                value={unitForm.unitMasterId}
+                onChange={(e) => setUnitForm({ ...unitForm, unitMasterId: e.target.value })}
+              >
+                {!selectedUnitMaster && (
+                  <option value="">{unitNameFallback || t("selectUnit")}</option>
+                )}
+                {activeMasterUnits.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">{t("quantityFactor")} *</label>
                 <Input
                   type="number"
-                  step="0.01"
+                  step="1"
                   min="0.01"
                   value={unitForm.quantityFactor}
                   disabled={!!unitForm.unit?.isBaseUnit}
@@ -639,7 +675,7 @@ export function ProductsClient({
                 <label className="text-sm font-medium">{t("retailPrice")} *</label>
                 <Input
                   type="number"
-                  step="0.01"
+                  step="1"
                   min="0.01"
                   value={unitForm.retailPrice}
                   onChange={(e) => setUnitForm({ ...unitForm, retailPrice: e.target.value })}
@@ -650,7 +686,7 @@ export function ProductsClient({
               <label className="text-sm font-medium">{t("wholesalePrice")}</label>
               <Input
                 type="number"
-                step="0.01"
+                step="1"
                 min="0"
                 value={unitForm.wholesalePrice}
                 onChange={(e) => setUnitForm({ ...unitForm, wholesalePrice: e.target.value })}
@@ -664,7 +700,7 @@ export function ProductsClient({
             </Button>
             <Button
               onClick={handleSaveUnit}
-              disabled={!unitForm.unitName.trim() || isNaN(parseFloat(unitForm.quantityFactor)) || parseFloat(unitForm.quantityFactor) <= 0 || isNaN(parseFloat(unitForm.retailPrice)) || parseFloat(unitForm.retailPrice) <= 0}
+              disabled={!selectedUnitMaster || isNaN(parseFloat(unitForm.quantityFactor)) || parseFloat(unitForm.quantityFactor) <= 0 || isNaN(parseFloat(unitForm.retailPrice)) || parseFloat(unitForm.retailPrice) <= 0}
             >
               {t("save")}
             </Button>

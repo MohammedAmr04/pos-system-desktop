@@ -4,7 +4,7 @@ import { api, Invoice } from "@/lib/api"
 import { useEffect, useState } from "react"
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
 import { Button } from "@/components/ui/button"
-import { Eye, Loader2 } from "lucide-react"
+import { Eye, Loader2, Pencil, Upload, CircleX, Undo2 } from "lucide-react"
 import {
   ColumnDef,
   SortingState,
@@ -27,6 +27,13 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { InvoiceDetailsDialog } from "@/components/common/invoice-details-dialog"
 import { Input } from "@/components/ui/input"
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns"
+import { toast } from "sonner"
+import { useRouter } from "@/i18n/navigation"
+import { useAuth } from "@/components/common/auth-context"
+import { PERMISSIONS } from "@/lib/constants"
+
+const selectClass =
+  "flex h-9 w-[140px] min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
 
 interface InvoicesClientProps {
   items: Invoice[]
@@ -38,9 +45,12 @@ interface InvoicesClientProps {
   query: string
   fromDate?: Date
   toDate?: Date
+  status: string
   onQueryChange: (query: string) => void
   onDateChange: (from?: Date, to?: Date) => void
+  onStatusChange: (status: string) => void
   onPageChange: (page: number) => void
+  onRefresh?: () => void
 }
 
 export function InvoicesClient({
@@ -53,12 +63,19 @@ export function InvoicesClient({
   query,
   fromDate,
   toDate,
+  status,
   onQueryChange,
   onDateChange,
+  onStatusChange,
   onPageChange,
+  onRefresh,
 }: InvoicesClientProps) {
   const t = useTranslations("Invoices")
   const tc = useTranslations("Common")
+  const tp = useTranslations("Payments")
+  const router = useRouter()
+  const { hasPermission } = useAuth()
+  const canCreateReturns = hasPermission(PERMISSIONS.INVOICES_RETURN)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [sorting, setSorting] = useState<SortingState>([])
@@ -83,6 +100,43 @@ export function InvoicesClient({
     }
   }
 
+  const handlePost = async (invoice: Invoice) => {
+    if (!window.confirm(t("confirmPost"))) return
+    try {
+      await api.invoices.post(invoice.id)
+      toast.success(t("postedDone"))
+      onRefresh?.()
+    } catch (e) {
+      toast.error((e as Error).message || t("saveFailed"))
+    }
+  }
+
+  const handleCancelInvoice = async (invoice: Invoice) => {
+    if (!window.confirm(t("confirmCancel"))) return
+    try {
+      await api.invoices.cancel(invoice.id)
+      toast.success(t("cancelledDone"))
+      onRefresh?.()
+    } catch (e) {
+      toast.error((e as Error).message || t("saveFailed"))
+    }
+  }
+
+  const statusBadge = (s?: string) => {
+    const key = s === 'draft' ? 'draft' : s === 'cancelled' ? 'cancelled' : 'posted'
+    const cls =
+      key === 'posted'
+        ? "bg-emerald-500/10 text-emerald-600"
+        : key === 'cancelled'
+          ? "bg-destructive/10 text-destructive"
+          : "bg-amber-500/10 text-amber-600"
+    return (
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+        {t(key)}
+      </span>
+    )
+  }
+
   const columns: ColumnDef<Invoice>[] = [
     {
       accessorKey: "invoiceNumber",
@@ -92,6 +146,24 @@ export function InvoicesClient({
       accessorKey: "createdAt",
       header: t("time"),
       cell: ({ row }) => new Date(row.original.createdAt).toLocaleTimeString(),
+    },
+    {
+      accessorKey: "status",
+      header: t("status"),
+      cell: ({ row }) => {
+        const inv = row.original
+        const rs = inv.returnStatus
+        return (
+          <div className="flex items-center gap-1">
+            {statusBadge(inv.status)}
+            {(rs === 'partial' || rs === 'full') && (
+              <span className="inline-flex items-center rounded-full bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-600">
+                {t(rs === 'full' ? "fullyReturned" : "partiallyReturned")}
+              </span>
+            )}
+          </div>
+        )
+      },
     },
     {
       accessorKey: "totalAmount",
@@ -111,11 +183,49 @@ export function InvoicesClient({
     {
       id: "actions",
       header: t("actions"),
-      cell: ({ row }) => (
-        <Button variant="ghost" size="icon" onClick={() => handleView(row.original)}>
-          <Eye className="h-4 w-4" />
-        </Button>
-      ),
+      cell: ({ row }) => {
+        const inv = row.original
+        const s = inv.status ?? 'posted'
+        return (
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" aria-label={t("details")} onClick={() => handleView(inv)}>
+              <Eye className="h-4 w-4" />
+            </Button>
+            {s === 'draft' && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("resumeDraft")}
+                  title={t("resumeDraft")}
+                  onClick={() => router.push(`/pos/?draft=${inv.id}`)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" aria-label={t("post")} title={t("post")} onClick={() => handlePost(inv)}>
+                  <Upload className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+            {s === 'posted' && canCreateReturns && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("makeReturn")}
+                title={t("makeReturn")}
+                onClick={() => router.push(`/returns/?invoice=${inv.id}`)}
+              >
+                <Undo2 className="h-4 w-4" />
+              </Button>
+            )}
+            {s === 'posted' && (
+              <Button variant="ghost" size="icon" aria-label={tp("cancel")} onClick={() => handleCancelInvoice(inv)}>
+                <CircleX className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        )
+      },
     },
   ]
 
@@ -192,6 +302,17 @@ export function InvoicesClient({
           onChange={handleToChange}
           placeholder={t("toDate")}
         />
+        <select
+          aria-label={t("status")}
+          className={selectClass}
+          value={status}
+          onChange={(e) => onStatusChange(e.target.value)}
+        >
+          <option value="all">{t("statusAll")}</option>
+          <option value="draft">{t("draft")}</option>
+          <option value="posted">{t("posted")}</option>
+          <option value="cancelled">{t("cancelled")}</option>
+        </select>
         <div className="flex gap-2 mr-auto">
           <Button variant="outline" size="sm" onClick={() => quickFilter("today")}>
             {t("today")}
