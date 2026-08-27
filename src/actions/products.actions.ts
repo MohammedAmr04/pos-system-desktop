@@ -16,6 +16,7 @@ export async function createProduct(data: {
   brandId?: string | null
   allowDiscount?: boolean
   lowStockThreshold?: number
+  isHiddenFromPOS?: boolean
   notes?: string | null
 }) {
   await request('/api/products', { method: 'POST', body: JSON.stringify(data) })
@@ -37,6 +38,7 @@ export async function updateProduct(
     brandId?: string | null
     allowDiscount?: boolean
     lowStockThreshold?: number
+    isHiddenFromPOS?: boolean
     notes?: string | null
   }
 ) {

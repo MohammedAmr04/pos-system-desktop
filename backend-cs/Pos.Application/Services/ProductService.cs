@@ -97,6 +97,7 @@ namespace PosCs.Application.Services
                 Notes = request.Notes,
                 AllowDiscount = request.AllowDiscount,
                 LowStockThreshold = request.LowStockThreshold,
+                IsHiddenFromPOS = request.IsHiddenFromPOS,
                 CategoryId = ResolveCategoryRef(request.CategoryId, null),
                 BrandId = ResolveBrandRef(request.BrandId, null)
             }, new ProductUnit
@@ -130,6 +131,8 @@ namespace PosCs.Application.Services
                 existing.AllowDiscount = request.AllowDiscount.Value;
             if (request.LowStockThreshold.HasValue)
                 existing.LowStockThreshold = request.LowStockThreshold.Value;
+            if (request.IsHiddenFromPOS.HasValue)
+                existing.IsHiddenFromPOS = request.IsHiddenFromPOS.Value;
 
             // Master-data references: null keeps, empty clears, a value assigns.
             if (request.CategoryId != null)

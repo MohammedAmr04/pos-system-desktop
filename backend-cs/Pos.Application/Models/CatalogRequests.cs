@@ -17,6 +17,8 @@ namespace PosCs.Application.Models
         public string Notes { get; set; }
         public bool AllowDiscount { get; set; } = true;
         public int LowStockThreshold { get; set; }
+        /// <summary>When true, hide the product from POS search while keeping it visible everywhere else.</summary>
+        public bool IsHiddenFromPOS { get; set; }
         /// <summary>Nullable master-data references: null/empty means unassigned.</summary>
         public string CategoryId { get; set; }
         public string BrandId { get; set; }
@@ -33,6 +35,8 @@ namespace PosCs.Application.Models
         public int? LowStockThreshold { get; set; }
         public double? RetailPrice { get; set; }
         public double? WholesalePrice { get; set; }
+        /// <summary>When true, hide the product from POS search while keeping it visible everywhere else.</summary>
+        public bool? IsHiddenFromPOS { get; set; }
         public string UnitName { get; set; }
         /// <summary>Null keeps the current unit link; a value re-links the base unit to that master unit.</summary>
         public string UnitId { get; set; }

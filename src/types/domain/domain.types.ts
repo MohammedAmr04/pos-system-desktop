@@ -33,6 +33,7 @@ export interface Product {
   notes: string | null
   allowDiscount: boolean
   lowStockThreshold: number
+  isHiddenFromPOS: boolean
   categoryId?: string | null
   brandId?: string | null
   createdAt: string
@@ -53,6 +54,7 @@ export interface ProductWriteRequest {
   notes?: string | null
   allowDiscount?: boolean
   lowStockThreshold?: number
+  isHiddenFromPOS?: boolean
 }
 
 export type PriceMode = 'retail' | 'wholesale'

@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { Edit, Plus, Printer, Trash } from "lucide-react"
+import { Edit, EyeOff, Plus, Printer, Trash } from "lucide-react"
 
 import { Product } from "@/types/domain/domain.types"
 import { useProductsPage } from "@/hooks/use-products"
-import { deleteProduct } from "@/actions/products.actions"
+import { deleteProduct, updateProduct } from "@/actions/products.actions"
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
 import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS, FEATURES } from "@/lib/constants"
@@ -78,6 +78,25 @@ export function ProductsClient() {
     }
   }
 
+  const handleToggleHidden = async (product: Product) => {
+    try {
+      await updateProduct(product.id, {
+        name: product.name,
+        buyPrice: product.buyPrice,
+        retailPrice: product.salePrice,
+        stockQuantity: product.stockQuantity,
+        allowDiscount: product.allowDiscount,
+        lowStockThreshold: product.lowStockThreshold,
+        isHiddenFromPOS: !product.isHiddenFromPOS,
+      })
+      toast.success(
+        product.isHiddenFromPOS ? t("shownOnPOS") : t("hiddenFromPOS")
+      )
+    } catch {
+      toast.error(t("actionError"))
+    }
+  }
+
   const columns: TableColumn<Product>[] = [
     {
       key: "name",
@@ -113,6 +132,16 @@ export function ProductsClient() {
               onClick={() => setBarcodePrintProduct(p)}
             >
               <Printer className="h-4 w-4" />
+            </TooltipIconButton>
+          )}
+          {canUpdate && (
+            <TooltipIconButton
+              label={p.isHiddenFromPOS ? t("shownOnPOS") : t("hiddenFromPOS")}
+              variant="ghost"
+              size="icon"
+              onClick={() => handleToggleHidden(p)}
+            >
+              <EyeOff className="h-4 w-4" />
             </TooltipIconButton>
           )}
           {canUpdate && (

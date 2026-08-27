@@ -19,6 +19,9 @@ namespace PosCs.Domain.Entities
         public string Notes { get; set; }
         public bool AllowDiscount { get; set; } = true;
         public int LowStockThreshold { get; set; }
+        /// <summary>When true, the product is excluded from POS search results but still
+        /// shown everywhere else (e.g. the products page and historical documents).</summary>
+        public bool IsHiddenFromPOS { get; set; }
         /// <summary>Nullable: NULL means genuinely unassigned (UI shows "Other").</summary>
         public string CategoryId { get; set; }
         /// <summary>Nullable: NULL means genuinely unassigned (UI shows "Other").</summary>

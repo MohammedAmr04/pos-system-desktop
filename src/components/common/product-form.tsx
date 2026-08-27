@@ -61,6 +61,7 @@ function makeProductSchema(t: (key: string) => string) {
     stockQuantity: money(required, invalid).refine((v) => parseFloat(v) >= 0, invalid),
     lowStockThreshold: nonNegativeInt(invalid),
     allowDiscount: z.boolean(),
+    isHiddenFromPOS: z.boolean(),
     notes: z.string(),
   })
 }
@@ -115,6 +116,7 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
       stockQuantity: initialData?.stockQuantity != null ? String(initialData.stockQuantity) : "",
       lowStockThreshold: String(initialData?.lowStockThreshold ?? 0),
       allowDiscount: initialData?.allowDiscount ?? true,
+      isHiddenFromPOS: initialData?.isHiddenFromPOS ?? false,
       notes: initialData?.notes ?? "",
     },
   })
@@ -137,6 +139,7 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
           stockQuantity: parseFloat(values.stockQuantity),
           notes: values.notes || null,
           allowDiscount: values.allowDiscount,
+          isHiddenFromPOS: values.isHiddenFromPOS,
           lowStockThreshold: parseInt(values.lowStockThreshold, 10) || 0,
         })
         toast.success(t("productUpdated"))
@@ -154,6 +157,7 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
           stockQuantity: parseFloat(values.stockQuantity),
           notes: values.notes || null,
           allowDiscount: values.allowDiscount,
+          isHiddenFromPOS: values.isHiddenFromPOS,
           lowStockThreshold: parseInt(values.lowStockThreshold, 10) || 0,
         })
         toast.success(t("productCreated"))
@@ -296,14 +300,24 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
           <FieldError message={errors.lowStockThreshold?.message} />
         </div>
         <div className="space-y-2 flex items-end pb-1">
-          <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-            <input
-              type="checkbox"
-              {...register("allowDiscount")}
-              className="h-4 w-4 rounded border-input"
-            />
-            {t("allowDiscount")}
-          </label>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                {...register("allowDiscount")}
+                className="h-4 w-4 rounded border-input"
+              />
+              {t("allowDiscount")}
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                {...register("isHiddenFromPOS")}
+                className="h-4 w-4 rounded border-input"
+              />
+              {t("hideFromPOS")}
+            </label>
+          </div>
         </div>
       </div>
       <div className="space-y-2">

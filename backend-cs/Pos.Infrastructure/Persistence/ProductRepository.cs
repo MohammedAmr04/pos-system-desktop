@@ -165,9 +165,10 @@ namespace PosCs.Infrastructure.Persistence
                 FROM Product p
                 LEFT JOIN ProductUnit pu ON pu.productId = p.id
                 LEFT JOIN ProductBarcode pb ON pb.productUnitId = pu.id
-                WHERE p.name LIKE @like ESCAPE '\'
+                WHERE (p.name LIKE @like ESCAPE '\'
                    OR pb.barcode = @exact
-                   OR pb.barcode LIKE @prefix ESCAPE '\'
+                   OR pb.barcode LIKE @prefix ESCAPE '\')
+                  AND p.isHiddenFromPOS = 0
                 GROUP BY p.id
                 ORDER BY _rank, p.createdAt DESC
                 LIMIT @limit",
@@ -186,8 +187,8 @@ namespace PosCs.Infrastructure.Persistence
                 $"Notes='{product.Notes}', CreatedAt={product.CreatedAt:O}, UpdatedAt={product.UpdatedAt:O}");
 
             conn.Execute(@"
-                INSERT INTO Product (id, name, buyPrice, stockQuantity, notes, allowDiscount, lowStockThreshold, categoryId, brandId, createdAt, updatedAt)
-                VALUES (@id, @name, @buyPrice, @stockQuantity, @notes, @allowDiscount, @lowStockThreshold, @categoryId, @brandId, @createdAt, @updatedAt)",
+                INSERT INTO Product (id, name, buyPrice, stockQuantity, notes, allowDiscount, lowStockThreshold, isHiddenFromPOS, categoryId, brandId, createdAt, updatedAt)
+                VALUES (@id, @name, @buyPrice, @stockQuantity, @notes, @allowDiscount, @lowStockThreshold, @isHiddenFromPOS, @categoryId, @brandId, @createdAt, @updatedAt)",
                 new
                 {
                     id = product.Id,
@@ -197,6 +198,7 @@ namespace PosCs.Infrastructure.Persistence
                     notes = product.Notes,
                     allowDiscount = product.AllowDiscount ? 1 : 0,
                     lowStockThreshold = product.LowStockThreshold,
+                    isHiddenFromPOS = product.IsHiddenFromPOS ? 1 : 0,
                     categoryId = product.CategoryId,
                     brandId = product.BrandId,
                     createdAt = product.CreatedAt,
@@ -218,6 +220,7 @@ namespace PosCs.Infrastructure.Persistence
                 UPDATE Product SET name=@name, buyPrice=@buyPrice,
                     stockQuantity=@stockQuantity, notes=@notes,
                     allowDiscount=@allowDiscount, lowStockThreshold=@lowStockThreshold,
+                    isHiddenFromPOS=@isHiddenFromPOS,
                     categoryId=@categoryId, brandId=@brandId,
                     updatedAt=@updatedAt
                 WHERE id=@id",
@@ -230,6 +233,7 @@ namespace PosCs.Infrastructure.Persistence
                     notes = product.Notes,
                     allowDiscount = product.AllowDiscount ? 1 : 0,
                     lowStockThreshold = product.LowStockThreshold,
+                    isHiddenFromPOS = product.IsHiddenFromPOS ? 1 : 0,
                     categoryId = product.CategoryId,
                     brandId = product.BrandId,
                     updatedAt = product.UpdatedAt
