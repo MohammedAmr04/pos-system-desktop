@@ -7,6 +7,7 @@ namespace PosCs.Application.Ports
     {
         Product GetById(string id);
         System.Collections.Generic.List<Product> GetAll();
+        System.Collections.Generic.List<Product> GetForPOS();
         System.Collections.Generic.List<Product> Search(string query, int limit);
         Models.PagedResult<Product> GetPaged(int page, int pageSize, string query);
         int Count();

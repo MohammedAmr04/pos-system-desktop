@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { countProducts, getProduct, listProducts, listProductsPaged, searchProducts } from "@/api/products"
+import { countProducts, getProduct, listProducts, listProductsForPOS, listProductsPaged, searchProducts } from "@/api/products"
 
 export interface ProductsFilter {
   q?: string
@@ -50,6 +50,14 @@ export function useAllProducts(enabled = true) {
   return useQuery({
     queryKey: [...productsKeys.all, "list"] as const,
     queryFn: listProducts,
+    enabled,
+  })
+}
+
+export function useProductsForPOS(enabled = true) {
+  return useQuery({
+    queryKey: [...productsKeys.all, "pos"] as const,
+    queryFn: listProductsForPOS,
     enabled,
   })
 }

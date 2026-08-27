@@ -24,6 +24,13 @@ namespace PosCs.Infrastructure.Persistence
                 return conn.Query<Product>("SELECT * FROM Product ORDER BY createdAt DESC").ToList();
         }
 
+        public List<Product> GetForPOS()
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+                return conn.Query<Product>(
+                    "SELECT * FROM Product WHERE isHiddenFromPOS = 0 ORDER BY createdAt DESC").ToList();
+        }
+
         public List<Product> Search(string query, int limit)
         {
             using (var conn = DbConnectionFactory.CreateConnection())

@@ -259,11 +259,13 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">{t("defaultUnit")}</SelectItem>
-                {selectableUnits.map((u) => (
-                  <SelectItem key={u.id} value={u.id} disabled={!u.isActive}>
-                    {u.name}
-                  </SelectItem>
-                ))}
+                {selectableUnits
+                  .filter((u) => u.isActive || u.id === field.value)
+                  .map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           )}

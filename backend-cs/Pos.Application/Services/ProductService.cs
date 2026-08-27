@@ -35,6 +35,13 @@ namespace PosCs.Application.Services
             return products;
         }
 
+        public List<Product> GetForPOS()
+        {
+            var products = _repo.GetForPOS();
+            AttachUnits(products);
+            return products;
+        }
+
         public Product GetById(string id)
         {
             var product = _repo.GetById(id);

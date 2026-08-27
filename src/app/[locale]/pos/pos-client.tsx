@@ -16,9 +16,9 @@ import { toast } from "sonner"
 import { ArrowLeft } from "lucide-react"
 import { addProductBarcode } from "@/actions/products.actions"
 import { baseUnitOf, resolveBarcode } from "@/lib/barcode"
-import { listProducts } from "@/api/products"
+import { listProductsForPOS } from "@/api/products"
 import { getInvoice } from "@/api/invoices"
-import { productsKeys, useAllProducts } from "@/hooks/use-products"
+import { productsKeys, useProductsForPOS } from "@/hooks/use-products"
 import { invoicesKeys } from "@/hooks/use-invoices"
 import { useActiveShift } from "@/hooks/use-shifts"
 import { ProductSearchHandle, ProductSearchPopover } from "./_components/product-search-popover"
@@ -48,7 +48,7 @@ export function POSClient() {
   const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null)
 
   const { data: activeShift } = useActiveShift()
-  const { data: productsData = [] } = useAllProducts()
+  const { data: productsData = [] } = useProductsForPOS()
   const products: Product[] = productsData
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export function POSClient() {
   }, [canWholesale, priceMode, setPriceMode])
 
   const refresh = useCallback(async (): Promise<Product[]> => {
-    return queryClient.fetchQuery({ queryKey: [...productsKeys.all, "list"], queryFn: listProducts })
+    return queryClient.fetchQuery({ queryKey: [...productsKeys.all, "pos"], queryFn: listProductsForPOS })
   }, [queryClient])
 
   useEffect(() => {

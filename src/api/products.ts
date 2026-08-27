@@ -5,8 +5,12 @@ export function listProducts() {
   return request<Product[]>('/api/products')
 }
 
+export function listProductsForPOS() {
+  return request<Product[]>('/api/products/pos')
+}
+
 export function searchProducts(q: string, limit = 20, signal?: AbortSignal) {
-  return request<Product[]>(`/api/products${toQuery({ q, limit })}`, { signal })
+  return request<Product[]>(`/api/products/search${toQuery({ q, limit })}`, { signal })
 }
 
 export function listProductsPaged(page = 1, pageSize = 20, q?: string) {

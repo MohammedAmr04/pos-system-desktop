@@ -31,6 +31,22 @@ namespace PosCs.Controllers
             }
         }
 
+        [Route("pos")]
+        [HttpGet]
+        [RequirePermission("products.view")]
+        public HttpResponseMessage GetForPOS()
+        {
+            try
+            {
+                return Request.CreateResponse(HttpStatusCode.OK, _service.GetForPOS());
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[API ERR] Failed to fetch POS products: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to fetch POS products");
+            }
+        }
+
         [Route("{id}")]
         [HttpGet]
         [RequirePermission("products.view")]
