@@ -135,6 +135,11 @@ export function RecordPaymentDialog({
             <Select
               value={method}
               onValueChange={(v) => v && setMethod(v as typeof method)}
+              items={{
+                cash: t("methodCash"),
+                card: t("methodCard"),
+                bank_transfer: t("methodBankTransfer"),
+              }}
             >
               <SelectTrigger id="payment-method" className="w-full">
                 <SelectValue />

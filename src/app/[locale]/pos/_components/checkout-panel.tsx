@@ -202,6 +202,10 @@ export function CheckoutPanel() {
               <Select
                 value={clientId ?? ""}
                 onValueChange={(v) => setClient(v || null)}
+                items={{
+                  "": t("walkIn"),
+                  ...Object.fromEntries(clients.filter((c) => c.isActive).map((c) => [c.id, c.name])),
+                }}
               >
                 <SelectTrigger id="pos-client" className="w-full">
                   <SelectValue />
@@ -219,6 +223,7 @@ export function CheckoutPanel() {
               <Select
                 value={paymentMethod}
                 onValueChange={(v) => v && setPaymentMethod(v as 'cash' | 'credit')}
+                items={{ cash: t("cash"), credit: t("credit") }}
               >
                 <SelectTrigger id="pos-payment" className="w-full">
                   <SelectValue />

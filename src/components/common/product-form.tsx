@@ -186,6 +186,10 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
               <Select
                 value={field.value}
                 onValueChange={(v) => v != null && field.onChange(v)}
+                items={{
+                  "": t("noCategory"),
+                  ...Object.fromEntries(selectableCategories.map((c) => [c.id, c.name])),
+                }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={t("noCategory")} />
@@ -211,6 +215,10 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
               <Select
                 value={field.value}
                 onValueChange={(v) => v != null && field.onChange(v)}
+                items={{
+                  "": t("noBrand"),
+                  ...Object.fromEntries(selectableBrands.map((b) => [b.id, b.name])),
+                }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder={t("noBrand")} />
@@ -237,6 +245,10 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
             <Select
               value={field.value}
               onValueChange={(v) => v != null && field.onChange(v)}
+              items={{
+                "": t("defaultUnit"),
+                ...Object.fromEntries(selectableUnits.map((u) => [u.id, u.name])),
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={t("defaultUnit")} />

@@ -88,6 +88,10 @@ export function ExpenseCreateDialog({ open, onOpenChange, categories, onSaved }:
             <Select
               value={categoryInput}
               onValueChange={(v) => v != null && setCategoryInput(v)}
+              items={{
+                "": t("selectCategory"),
+                ...Object.fromEntries(activeCats.map((c) => [c.id, c.name])),
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={t("selectCategory")} />

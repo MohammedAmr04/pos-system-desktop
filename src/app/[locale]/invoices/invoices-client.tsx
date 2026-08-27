@@ -249,6 +249,12 @@ export function InvoicesClient() {
             setStatus(v)
             setPage(1)
           }}
+          items={{
+            all: t("statusAll"),
+            draft: t("draft"),
+            posted: t("posted"),
+            cancelled: t("cancelled"),
+          }}
         >
           <SelectTrigger aria-label={t("status")} className="w-[140px]">
             <SelectValue />

@@ -320,6 +320,12 @@ export function ProductUnitsManager({
               <Select
                 value={unitForm.unitMasterId}
                 onValueChange={(v) => v != null && setUnitForm({ ...unitForm, unitMasterId: v })}
+                items={{
+                  ...Object.fromEntries(activeMasterUnits.map((u) => [u.id, u.name])),
+                  ...(unitForm.unitMasterId && !selectedUnitMaster
+                    ? { [unitForm.unitMasterId]: unitNameFallback || t("selectUnit") }
+                    : {}),
+                }}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />

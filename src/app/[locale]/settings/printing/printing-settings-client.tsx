@@ -114,6 +114,10 @@ function PrintingSettingsForm({
                 set("paperWidthMm", Number(v) === 58 ? 58 : 80)
               }}
               disabled={!canUpdate}
+              items={{
+                "58": `58 ${t("mm")}`,
+                "80": `80 ${t("mm")}`,
+              }}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />

@@ -79,6 +79,10 @@ export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpda
                     value={line.productId}
                     onValueChange={(v) => v != null && handleProductChange(line, v)}
                     disabled={disabled}
+                    items={{
+                      "": t("product"),
+                      ...Object.fromEntries(products.map((p) => [p.id, p.name])),
+                    }}
                   >
                     <SelectTrigger aria-label={t("product")} className="w-full min-w-[140px]">
                       <SelectValue placeholder={t("product")} />
@@ -98,6 +102,9 @@ export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpda
                     value={line.productUnitId}
                     onValueChange={(v) => v != null && handleUnitChange(line, v)}
                     disabled={disabled || !product}
+                    items={{
+                      ...Object.fromEntries((product?.units ?? []).map((u) => [u.id, u.unitName])),
+                    }}
                   >
                     <SelectTrigger aria-label={t("unit")} className="w-full min-w-[100px]">
                       <SelectValue placeholder="—" />

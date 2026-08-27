@@ -43,6 +43,10 @@ export function PurchaseHeaderFields(props: PurchaseHeaderFieldsProps) {
             value={props.supplierId}
             onValueChange={(v) => v != null && props.onSupplierChange(v)}
             disabled={props.disabled}
+            items={{
+              none: t("selectSupplier"),
+              ...Object.fromEntries(suppliers.map((s) => [s.id, s.name])),
+            }}
           >
             <SelectTrigger aria-label={t("supplier")} className="w-full">
               <SelectValue />
@@ -81,6 +85,7 @@ export function PurchaseHeaderFields(props: PurchaseHeaderFieldsProps) {
             value={props.paymentMethod}
             onValueChange={(v) => v != null && props.onPaymentMethodChange(v as "cash" | "credit")}
             disabled={props.disabled}
+            items={{ cash: t("cash"), credit: t("credit") }}
           >
             <SelectTrigger aria-label={t("paymentMethod")} className="w-full">
               <SelectValue />
