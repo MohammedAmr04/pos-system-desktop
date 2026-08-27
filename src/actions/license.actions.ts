@@ -1,10 +1,12 @@
-import { api, LicenseStatus } from "@/lib/api"
+import { LicenseStatus } from "@/types/domain/domain.types"
+import { checkLicenseStatus } from "@/api/license"
+import { request } from "@/lib/api"
 
 export type { LicenseStatus }
 
 export async function checkLicense(): Promise<LicenseStatus> {
   try {
-    return await api.license.check()
+    return await checkLicenseStatus()
   } catch {
     return { status: "ok" }
   }
@@ -15,9 +17,12 @@ export async function checkLicense(): Promise<LicenseStatus> {
 // with a backend-only secret). The hardcoded "2004" is gone.
 export async function unlockLicense(code: string): Promise<{ success: boolean; message?: string }> {
   try {
-    const status = await api.license.check()
+    const status = await checkLicenseStatus()
     if (!status.machineId) return { success: false, message: "no machine id" }
-    await api.license.unlock(status.machineId, code.trim())
+    await request<{ success: boolean; machineId: string }>('/api/license/unlock', {
+      method: 'POST',
+      body: JSON.stringify({ machineId: status.machineId, code: code.trim() }),
+    })
     return { success: true }
   } catch (e) {
     return { success: false, message: (e as Error).message }

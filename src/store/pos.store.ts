@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Product, ProductUnit, PriceMode } from '@/lib/api'
+import { Product, ProductUnit, PriceMode } from '@/types/domain/domain.types'
 
 export interface CartItem {
   id: string

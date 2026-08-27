@@ -1,19 +1,26 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { Loader2, Save } from "lucide-react"
-import { api, type PrinterSettings as PrinterSettingsData } from "@/lib/api"
+import { PrinterSettings } from "@/types/domain/domain.types"
+import { savePrinterSettings } from "@/actions/settings.actions"
+import { printerSettingsKeys, usePrinterSettings } from "@/hooks/use-printer-settings"
 import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS } from "@/lib/constants"
 import { AccessDenied } from "@/components/common/access-denied"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-
-const selectClass =
-  "flex h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
 
 export function PrintingSettingsClient() {
   const t = useTranslations("Printing")
@@ -21,46 +28,49 @@ export function PrintingSettingsClient() {
   const canView = hasPermission(PERMISSIONS.SETTINGS_VIEW)
   const canUpdate = hasPermission(PERMISSIONS.SETTINGS_UPDATE)
 
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<PrinterSettingsData | null>(null)
-
-  useEffect(() => {
-    if (!canView) return
-    let cancelled = false
-    api.printerSettings
-      .get()
-      .then((data) => {
-        if (!cancelled) setForm(data)
-      })
-      .catch(() => {
-        if (!cancelled) toast.error(t("loadFailed"))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [canView])
+  const { data, isPending: loading, isError } = usePrinterSettings()
 
   if (!canView) return <AccessDenied />
-  if (loading || !form) {
+  if (loading) {
     return (
       <div className="flex h-40 items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
   }
+  if (!data || isError) {
+    return (
+      <div className="flex h-40 items-center justify-center">
+        <p className="text-sm text-muted-foreground">{t("loadFailed")}</p>
+      </div>
+    )
+  }
 
-  const set = <K extends keyof PrinterSettingsData>(key: K, value: PrinterSettingsData[K]) =>
+  return <PrintingSettingsForm initial={data} canUpdate={canUpdate} />
+}
+
+function PrintingSettingsForm({
+  initial,
+  canUpdate,
+}: {
+  initial: PrinterSettings
+  canUpdate: boolean
+}) {
+  const t = useTranslations("Printing")
+  const queryClient = useQueryClient()
+
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<PrinterSettings>(initial)
+
+  const set = <K extends keyof PrinterSettings>(key: K, value: PrinterSettings[K]) =>
     setForm((f) => (f ? { ...f, [key]: value } : f))
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      const saved = await api.printerSettings.save(form)
+      const saved = await savePrinterSettings(form)
       setForm(saved)
+      await queryClient.invalidateQueries({ queryKey: printerSettingsKeys.current() })
       toast.success(t("saved"))
     } catch (e) {
       toast.error((e as Error).message || t("saveFailed"))
@@ -97,15 +107,22 @@ export function PrintingSettingsClient() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">{t("paperWidth")}</label>
-            <select
-              className={selectClass}
+            <Select
               value={String(form.paperWidthMm)}
-              onChange={(e) => set("paperWidthMm", Number(e.target.value) === 58 ? 58 : 80)}
+              onValueChange={(v) => {
+                if (v == null) return
+                set("paperWidthMm", Number(v) === 58 ? 58 : 80)
+              }}
               disabled={!canUpdate}
             >
-              <option value="58">58 {t("mm")}</option>
-              <option value="80">80 {t("mm")}</option>
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="58">58 {t("mm")}</SelectItem>
+                <SelectItem value="80">80 {t("mm")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">{t("copies")}</label>

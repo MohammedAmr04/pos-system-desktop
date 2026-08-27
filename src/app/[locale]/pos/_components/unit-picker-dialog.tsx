@@ -1,6 +1,6 @@
 "use client"
 
-import { Product, ProductUnit } from "@/lib/api"
+import { Product, ProductUnit } from "@/types/domain/domain.types"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import {

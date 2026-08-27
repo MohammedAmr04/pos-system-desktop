@@ -29,7 +29,9 @@ export function ReturnsClient() {
   const [initialPurchaseId] = useState<string | null>(getInitialPurchaseId)
 
   useEffect(() => {
-    window.history.replaceState({}, "", window.location.pathname)
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", window.location.pathname)
+    }
   }, [])
 
   if (!canView) return <AccessDenied />

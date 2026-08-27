@@ -1,6 +1,5 @@
 "use client"
 
-import { Product, PurchaseInvoice, api } from "@/lib/api"
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { useSearchParams } from "next/navigation"
@@ -10,6 +9,10 @@ import { PERMISSIONS } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { Loader2, Save, Upload } from "lucide-react"
 import { toast } from "sonner"
+import { Product, PurchaseInvoice } from "@/types/domain/domain.types"
+import { useAllProducts } from "@/hooks/use-products"
+import { usePurchase } from "@/hooks/use-purchases"
+import { createPurchase, updatePurchase } from "@/actions/purchases.actions"
 import { PurchaseHeaderFields } from "./_components/purchase-header-fields"
 import { LinesEditor } from "./_components/lines-editor"
 
@@ -49,7 +52,6 @@ export function EditorClient() {
   const { hasPermission } = useAuth()
   const editId = params.get("id")
 
-  const [products, setProducts] = useState<Product[]>([])
   const [invoiceNumber, setInvoiceNumber] = useState<number | null>(null)
   const [status, setStatus] = useState<"draft" | "posted" | "cancelled">("draft")
   const [supplierId, setSupplierId] = useState("none")
@@ -60,57 +62,46 @@ export function EditorClient() {
   const [tax, setTax] = useState("0")
   const [notes, setNotes] = useState("")
   const [lines, setLines] = useState<EditorLine[]>([emptyLine()])
-  const [loading, setLoading] = useState(!!params.get("id"))
+  const [lastHydratedId, setLastHydratedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  const { data: products = [] } = useAllProducts()
+  const { data: existing, isError: loadFailed } = usePurchase(editId ?? "", !!editId)
+
+  const loading = !!editId && !existing && !loadFailed
+
+  // Canonical React "adjust state when data changes" render-phase pattern.
+  if (existing && lastHydratedId !== existing.id) {
+    setLastHydratedId(existing.id)
+    const inv: PurchaseInvoice = existing
+    setInvoiceNumber(inv.invoiceNumber)
+    setStatus(inv.status ?? "draft")
+    setSupplierId(inv.supplierId ?? "none")
+    setSupplierInvoiceNumber(inv.supplierInvoiceNumber ?? "")
+    setDate(inv.date.slice(0, 10))
+    setPaymentMethod(inv.paymentMethod === "credit" ? "credit" : "cash")
+    setDiscount(String(inv.discount))
+    setTax(String(inv.tax))
+    setNotes(inv.notes ?? "")
+    setLines(
+      (inv.items ?? []).map((item) => ({
+        key: makeKey(),
+        productId: item.productId,
+        productUnitId: item.productUnitId,
+        quantity: String(item.quantity),
+        unitCost: String(item.unitCost),
+        newRetailPrice: item.newRetailPrice != null ? String(item.newRetailPrice) : "",
+        newWholesalePrice: item.newWholesalePrice != null ? String(item.newWholesalePrice) : "",
+      }))
+    )
+  }
+
   useEffect(() => {
-    let cancelled = false
-    api.products.list().then((list) => {
-      if (!cancelled) setProducts(list)
-    }).catch(() => {
-      if (!cancelled) setProducts([])
-    })
-
-    const editId = params.get("id")
-    if (!editId) {
-      return () => {
-        cancelled = true
-      }
-    }
-
-    api.purchases.get(editId).then((inv: PurchaseInvoice) => {
-      if (cancelled) return
-      setInvoiceNumber(inv.invoiceNumber)
-      setStatus(inv.status)
-      setSupplierId(inv.supplierId ?? "none")
-      setSupplierInvoiceNumber(inv.supplierInvoiceNumber ?? "")
-      setDate(inv.date.slice(0, 10))
-      setPaymentMethod(inv.paymentMethod === "credit" ? "credit" : "cash")
-      setDiscount(String(inv.discount))
-      setTax(String(inv.tax))
-      setNotes(inv.notes ?? "")
-      setLines(
-        (inv.items ?? []).map((item) => ({
-          key: makeKey(),
-          productId: item.productId,
-          productUnitId: item.productUnitId,
-          quantity: String(item.quantity),
-          unitCost: String(item.unitCost),
-          newRetailPrice: item.newRetailPrice != null ? String(item.newRetailPrice) : "",
-          newWholesalePrice: item.newWholesalePrice != null ? String(item.newWholesalePrice) : "",
-        }))
-      )
-      setLoading(false)
-    }).catch(() => {
-      if (cancelled) return
+    if (loadFailed && editId) {
       toast.error(t("saveFailed"))
       router.push("/purchases")
-    })
-
-    return () => {
-      cancelled = true
     }
-  }, [params, router, t])
+  }, [loadFailed, editId, router, t])
 
   const readOnly = status === "cancelled"
   const canSaveNew = !editId && hasPermission(PERMISSIONS.PURCHASES_CREATE)
@@ -153,12 +144,13 @@ export function EditorClient() {
     setSaving(true)
     try {
       if (editId) {
-        await api.purchases.update(editId, buildRequest(targetStatus))
+        await updatePurchase(editId, buildRequest(targetStatus))
       } else {
-        await api.purchases.create(buildRequest(targetStatus))
+        await createPurchase(buildRequest(targetStatus))
       }
       toast.success(targetStatus === "posted" ? t("posted") : t("updated"))
-      router.push("/purchases")    } catch (e) {
+      router.push("/purchases")
+    } catch (e) {
       toast.error((e as Error).message || t("saveFailed"))
     } finally {
       setSaving(false)

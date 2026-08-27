@@ -1,6 +1,7 @@
 "use client"
 
-import { MasterUnit, api } from "@/lib/api"
+import { MasterUnit } from "@/types/domain/domain.types"
+import { createUnit, updateUnit } from "@/actions/units.actions"
 import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -21,7 +22,7 @@ interface UnitFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   unit: MasterUnit | null
-  onSaved: () => void
+  onSaved?: () => void
 }
 
 interface UnitFormState {
@@ -43,14 +44,14 @@ export function UnitFormDialog({ open, onOpenChange, unit, onSaved }: UnitFormDi
     setIsSaving(true)
     try {
       if (unit) {
-        await api.units.update(unit.id, { name, isActive: form.isActive })
+        await updateUnit(unit.id, { name, isActive: form.isActive })
         toast.success(t("updated"))
       } else {
-        await api.units.create({ name })
+        await createUnit({ name })
         toast.success(t("created"))
       }
       onOpenChange(false)
-      onSaved()
+      onSaved?.()
     } catch (e) {
       toast.error((e as Error).message || t("saveFailed"))
     } finally {

@@ -3,9 +3,9 @@
 import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { Ban, Minus, Pencil, Plus, StickyNote, Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import { CartItem, usePOSStore } from "@/store/pos.store"
 import { useAuth } from "@/components/common/auth-context"
 import { FEATURES, PERMISSIONS } from "@/lib/constants"
@@ -98,9 +98,9 @@ export function CartPanel() {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity - 1)} aria-label={t("decreaseQuantity")}>
+                      <TooltipIconButton label={t("decreaseQuantity")} variant="outline" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
                         <Minus className="h-5 w-5" />
-                      </Button>
+                      </TooltipIconButton>
                       <Input
                         type="number"
                         min={1}
@@ -111,21 +111,21 @@ export function CartPanel() {
                         }}
                         className="w-20 h-12 text-lg text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
-                      <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity + 1)} aria-label={t("increaseQuantity")}>
+                      <TooltipIconButton label={t("increaseQuantity")} variant="outline" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
                         <Plus className="h-5 w-5" />
-                      </Button>
+                      </TooltipIconButton>
                     </div>
                     <div className="w-24 text-right text-lg font-semibold">
                       {lineFinalTotal(item).toFixed(2)}
                     </div>
                     {(canPriceOverride || canLineDiscount) && (
-                      <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => openLineEdit(item)} title={t("editLine")} aria-label={t("editLine")}>
+                      <TooltipIconButton label={t("editLine")} className="h-10 w-10" onClick={() => openLineEdit(item)}>
                         <Pencil className="h-5 w-5" />
-                      </Button>
+                      </TooltipIconButton>
                     )}
-                    <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-destructive h-10 w-10" aria-label={t("remove")}>
+                    <TooltipIconButton label={t("remove")} className="text-destructive h-10 w-10" onClick={() => removeItem(item.id)}>
                       <Trash2 className="h-5 w-5" />
-                    </Button>
+                    </TooltipIconButton>
                   </div>
                 </div>
               )

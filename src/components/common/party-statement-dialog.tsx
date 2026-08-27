@@ -1,8 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
-import { api, PartyStatement, PartyStatementEntry, Supplier, Client } from "@/lib/api"
+import { PartyStatement, PartyStatementEntry, Supplier, Client } from "@/types/domain/domain.types"
+import { getClientStatement } from "@/api/clients"
+import { getSupplierStatement } from "@/api/suppliers"
+import { useQuery } from "@tanstack/react-query"
 import {
   Dialog,
   DialogContent,
@@ -29,28 +31,20 @@ interface PartyStatementDialogProps {
 
 export function PartyStatementDialog({ kind, party, open, onOpenChange }: PartyStatementDialogProps) {
   const t = useTranslations(kind === "supplier" ? "Suppliers" : "Clients")
-  const [cache, setCache] = useState<{ partyKey: string; data: PartyStatement | null } | null>(null)
+  const enabled = open && !!party
 
-  const partyKey = party ? `${kind}:${party.id}` : ""
-  const loading = open && !!party && cache?.partyKey !== partyKey
-  const statement = cache && cache.partyKey === partyKey ? cache.data : null
+  const { data: statement, isPending } = useQuery({
+    queryKey: [kind, "statement", party?.id ?? ""],
+    queryFn: () =>
+      kind === "supplier"
+        ? getSupplierStatement(party!.id)
+        : getClientStatement(party!.id),
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+  })
 
-  useEffect(() => {
-    if (!open || !party || cache?.partyKey === partyKey) return
-    let cancelled = false
-    const fetcher = kind === "supplier" ? api.suppliers.statement(party.id) : api.clients.statement(party.id)
-    fetcher
-      .then((res) => {
-        if (!cancelled) setCache({ partyKey, data: res })
-      })
-      .catch(() => {
-        if (!cancelled) setCache({ partyKey, data: null })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [open, party, kind, cache, partyKey])
-
+  const loading = enabled && isPending
   const entries: PartyStatementEntry[] = statement?.entries ?? []
 
   return (

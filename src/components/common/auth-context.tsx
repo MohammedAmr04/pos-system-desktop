@@ -1,7 +1,9 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
-import { api, AUTH_EXPIRED_EVENT } from "@/lib/api"
+import { AUTH_EXPIRED_EVENT } from "@/lib/api"
+import { login as loginAction } from "@/actions/auth.actions"
+import { getMe } from "@/api/auth"
 import {
   AuthSession,
   loadStoredSession,
@@ -40,8 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let cancelled = false
     // Re-validate the stored token against the backend; drop it when invalid.
-    api.auth
-      .me()
+    getMe()
       .then((bundle) => {
         if (cancelled) return
         const fresh: AuthSession = {
@@ -69,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [initial])
 
   const login = useCallback(async (username: string, password: string) => {
-    const res = await api.auth.login(username, password)
+    const res = await loginAction(username, password)
     const next: AuthSession = {
       token: res.token,
       user: res.access.user,
@@ -91,7 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = getStoredToken()
     if (!token) return null
     try {
-      const bundle = await api.auth.me()
+      const bundle = await getMe()
       const fresh: AuthSession = {
         token,
         user: bundle.user,

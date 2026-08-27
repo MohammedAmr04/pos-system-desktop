@@ -89,8 +89,8 @@ built frontend. The database is a single SQLite file stored in the `data/` folde
 | Database  | SQLite via Dapper (`Microsoft.Data.Sqlite`), SQL migration files |
 | Printing  | winspool.drv P/Invoke (RawPrinterHelper), System.Drawing receipt rendering |
 | Frontend  | Next.js 16 (static export), React 19, TypeScript, Tailwind CSS 4 |
-| UI        | shadcn/ui, @base-ui/react, @tanstack/react-table, lucide-react |
-| State     | Zustand |
+| UI        | shadcn/ui (base-ui port), @base-ui/react, lucide-react |
+| State     | Zustand (POS store), TanStack Query (server state), react-hook-form + zod (forms) |
 | i18n      | next-intl (Arabic-first, RTL) |
 
 ---
@@ -99,8 +99,7 @@ built frontend. The database is a single SQLite file stored in the `data/` folde
 
 ```
 backend-cs/                  # .NET Framework 4.8 backend
-  Controllers/               # Auth, Users, Roles, Permissions, TenantFeatures,
-                             # Products, Invoices, License, Printing, Reports, Health
+  Controllers/               # Auth, Products, Invoices, Purchases, License, Printing, Health, Reports
   Database/Migrations/       # 001_init .. 013_username_password (auto-applied on start)
   Models/                    # User, Role, Permission, TenantFeature, Product, Invoice
   Repositories/              # Dapper data access (Auth, Users, Roles, ...)
@@ -109,17 +108,147 @@ backend-cs/                  # .NET Framework 4.8 backend
   Attributes/                # RequirePermissionAttribute (permission + feature checks)
   Printers/                  # ESC/POS image + barcode output
   Builders/ReceiptBuilder.cs # Receipt image construction
-src/                         # Next.js frontend (client components only)
-  app/[locale]/              # Pages: /, /pos, /products, /invoices, /low-stock,
-                             #   /settings/{users,roles,permissions,features}
-  components/                # UI components, layouts, auth gate, login screen
-  features/                  # auth context, pos store, invoices, products, license
-  lib/api.ts                 # Typed API client
-  lib/constants.ts           # Permission and feature key catalogs
-messages/                    # next-intl translations (ar.json)
-docs/                        # Feature specs and release notes
-CHANGELOG.md                 # Version history
+src/                        # Next.js frontend (client components only)
+  app/[locale]/             # Pages: /, /pos, /products, /invoices, /low-stock,
+                             #   /purchases, /returns, /reports, /shifts, /expenses,
+                             #   /clients, /suppliers, /settings/{users,roles,permissions,features}
+  components/
+    ui/                     # shadcn/ui base components (Button, Dialog, Input, Table, etc.)
+    common/                  # Shared components (TooltipIconButton, TableBuilder, DataPagination, etc.)
+    layouts/                # Dashboard layout with sidebar
+  hooks/                    # TanStack Query hooks (use-*.ts), each exports *Keys object
+  actions/                  # Mutations (create/update/delete + queryClient.invalidateQueries)
+  types/domain/             # TypeScript domain types
+  lib/                      # API client, constants, RTL utilities, barcode helpers
+  store/                    # Zustand stores (POS cart store)
+messages/                   # next-intl translations (ar.json)
+docs/                       # Feature specs and release notes
+CHANGELOG.md                # Version history
 ```
+
+---
+
+## Frontend Conventions
+
+### Data Layer (TanStack Query)
+
+Every feature has a hook file (`src/hooks/use-*.ts`) that exports:
+- A `*Keys` object with all query key arrays
+- Typed query hooks (`useX`, `useXPage`, `useXById`, etc.)
+- Each hook returns `UseQueryResult<T>` with `data`, `isFetching`, `isError`, etc.
+
+```ts
+// Example: src/hooks/use-products.ts
+export const productsKeys = {
+  all: ["products"] as const,
+  list: () => [...productsKeys.all, "list"] as const,
+  detail: (id: string) => [...productsKeys.all, "detail", id] as const,
+  paged: (page: number, pageSize: number, filter: ProductFilter) =>
+    [...productsKeys.all, "paged", page, pageSize, filter] as const,
+}
+export function useProductsPage(page: number, pageSize: number, filter: ProductFilter) {
+  return useQuery({
+    queryKey: productsKeys.paged(page, pageSize, filter),
+    queryFn: () => listProducts(page, pageSize, filter),
+    enabled: page > 0,
+  })
+}
+```
+
+### Mutations
+
+All mutations live in `src/actions/*.ts`. Each action:
+1. Calls the API
+2. On success, calls `queryClient.invalidateQueries({ queryKey: *Keys.all })`
+
+```ts
+// Example: src/actions/products.actions.ts
+export async function createProduct(data: CreateProductInput) {
+  const result = await api.post("/api/products", data)
+  queryClient.invalidateQueries({ queryKey: productsKeys.all })
+  return result
+}
+```
+
+### Forms (react-hook-form + zod)
+
+Forms use `react-hook-form` with `zodResolver` and inline error messages:
+
+```tsx
+const schema = z.object({
+  name: z.string().trim().min(1, t("fieldRequired")),
+  buyPrice: z.string().trim().min(1, t("fieldRequired"))
+    .refine(v => Number.isFinite(parseFloat(v)) && parseFloat(v) >= 0, t("invalidNumber")),
+  // ...
+})
+type FormValues = z.infer<typeof schema>
+
+const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  resolver: zodResolver(schema),
+  defaultValues: { name: initialData?.name ?? "", ... },
+})
+// ...
+return (
+  <form onSubmit={handleSubmit(onSubmit)}>
+    <Input {...register("name")} />
+    {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+  </form>
+)
+```
+
+### RTL — Numbers and Text Direction
+
+- Numbers are always **LTR** even in an RTL interface. Use `dir="ltr"` on all currency/quantity displays:
+  ```tsx
+  <span dir="ltr">{amount.toFixed(2)}</span>
+  ```
+- Product barcodes, phone numbers, and any Latin-character strings also use `dir="ltr"`.
+- Sidebar uses `side="right"` (shadcn `Sidebar` component) for RTL physical positioning.
+
+### Icon Buttons — TooltipIconButton
+
+All icon-only buttons must use `TooltipIconButton` from `@/components/common/tooltip-icon-button` instead of bare `<Button size="icon">`. The `label` prop is mandatory (it becomes both the `aria-label` and the tooltip text — always pass a translated string from `t("key")`).
+
+```tsx
+// Wrong — no accessible label
+<Button size="icon" onClick={handleEdit}><Pencil /></Button>
+
+// Correct
+<TooltipIconButton label={t("edit")} onClick={handleEdit}>
+  <Pencil className="h-4 w-4" />
+</TooltipIconButton>
+```
+
+### react-hooks — No setState in Effects
+
+ESLint rule `set-state-in-effect` (react-hooks v6) forbids synchronous `setState` inside `useEffect`. Compliant patterns:
+
+1. **Event-driven fetchQuery**: do async work + `setState` in event handlers, not effects
+2. **Derived state via `useMemo`**: compute from props/state, never mirror via effect
+3. **Keyed remount**: `<Component key={id} />` with props as initial state — no sync effect needed
+4. **Render-phase adjustment**: check condition during render body, call setter directly (guard with `lastHydratedId` ref to avoid loops)
+
+```tsx
+// Wrong — sync setState in effect
+useEffect(() => { setCount(data.count) }, [data.count])
+
+// Correct — derived state via useMemo
+const count = useMemo(() => data?.count ?? 0, [data?.count])
+```
+
+### Cache Key Conventions
+
+All TanStack Query cache keys follow a consistent pattern exported as `*Keys`:
+
+| Hook file | Keys object | Example |
+|-----------|------------|---------|
+| `use-products.ts` | `productsKeys` | `productsKeys.paged(1, 20, { q: "foo" })` |
+| `use-invoices.ts` | `invoicesKeys` | `invoicesKeys.detail(id)` |
+| `use-purchases.ts` | `purchasesKeys` | `purchasesKeys.paged(1, 10, { status: "posted" })` |
+| `use-reports.ts` | `reportsKeys` | `reportsKeys.sales(from, to)` |
+| `use-shifts.ts` | `shiftsKeys` | `shiftsKeys.active()` |
+
+Always invalidate `*.all` after mutations: `queryClient.invalidateQueries({ queryKey: productsKeys.all })`.
 
 ---
 
@@ -194,7 +323,8 @@ The backend serves the static frontend, so there is no separate web server.
 |---------|-------------|
 | `npm run dev` | Start Next.js dev server |
 | `npm run build` | Static export build (outputs to `out/`) |
-| `npm run lint` | Run ESLint |
+| `npm run lint` | Run ESLint (0 errors required) |
+| `npm test` | Run vitest unit tests |
 | `dotnet build backend-cs/pos-cs.csproj --configuration Release` | Build the backend |
 
 ---
@@ -237,7 +367,14 @@ All endpoints live under `http://localhost:3001/api`.
 | Products  | `GET /products`, `GET /products/{id}`, `POST /products`, `PUT /products/{id}`, `DELETE /products/{id}`, `GET /products/paged`, `GET /products/search`, `GET /products/count` |
 | Units     | `POST/PUT/DELETE /products/{id}/units[/{unitId}]`, `POST/DELETE /products/{id}/units/{unitId}/barcodes[/{barcodeId}]`, `PUT .../barcodes/{barcodeId}/default` |
 | Invoices  | `GET /invoices`, `POST /invoices`, `GET /invoices/{id}`, `GET /invoices/paged`, `GET /invoices/filter` |
-| Reports   | `GET /reports/low-stock` |
+| Purchases | `GET /purchases`, `POST /purchases`, `GET /purchases/{id}`, `GET /purchases/paged` |
+| Returns   | `POST /returns/sale`, `POST /returns/purchase`, `GET /returns/sale`, `GET /returns/purchase` |
+| Clients   | `GET/POST /clients`, `GET/PUT/DELETE /clients/{id}`, `GET /clients/{id}/statement` |
+| Suppliers | `GET/POST /suppliers`, `GET/PUT/DELETE /suppliers/{id}`, `GET /suppliers/{id}/statement` |
+| Reports   | `GET /reports/low-stock`, `GET /reports/sales?from=&to=`, `GET /reports/purchases?from=&to=`, `GET /reports/profit?from=&to=`, `GET /reports/returns?from=&to=`, `GET /reports/expenses?from=&to=`, `GET /reports/inventory`, `GET /reports/cash?from=&to=` |
+| Shifts    | `GET /shifts`, `POST /shifts/open`, `PUT /shifts/{id}/close` |
+| Expenses  | `GET/POST /expenses`, `DELETE /expenses/{id}`, `GET /expenses/categories` |
+| Payments  | `GET /payments`, `POST /payments`, `GET /payments/client/{id}`, `GET /payments/supplier/{id}` |
 | Printing  | `POST /printing/print`, `POST /printing/print-barcode` |
 | License   | `GET /license`, `POST /license/unlock` |
 | Health    | `GET /health` |
@@ -252,6 +389,11 @@ All endpoints live under `http://localhost:3001/api`.
 The UI is **Arabic-first with RTL** layout. Translations live in `messages/`
 (`ar.json`) and use next-intl. Only the `ar` locale is built for production;
 additional locales can be added by adding a new message file and a static param.
+
+Key namespaces: `App`, `Dashboard`, `POS`, `Products`, `Invoices`, `Purchases`,
+`Returns`, `Reports`, `Shifts`, `Expenses`, `Payments`, `Categories`, `Brands`,
+`UnitsMaster`, `Clients`, `Suppliers`, `Roles`, `Permissions`, `Features`,
+`Users`, `Sidebar`, `Auth`, `Access`, `Common`, `LowStock`, `Printing`, `License`.
 
 ---
 

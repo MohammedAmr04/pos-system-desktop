@@ -1,6 +1,7 @@
 "use client"
 
-import { Supplier, api } from "@/lib/api"
+import { Supplier } from "@/types/domain/domain.types"
+import { createSupplier, updateSupplier } from "@/actions/suppliers.actions"
 import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -21,7 +22,7 @@ interface SupplierFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   supplier: Supplier | null
-  onSaved: () => void
+  onSaved?: () => void
 }
 
 interface SupplierFormState {
@@ -49,7 +50,7 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Su
     setIsSaving(true)
     try {
       if (supplier) {
-        await api.suppliers.update(supplier.id, {
+        await updateSupplier(supplier.id, {
           name,
           phone: form.phone.trim() || null,
           address: form.address.trim() || null,
@@ -58,7 +59,7 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Su
         })
         toast.success(t("updated"))
       } else {
-        await api.suppliers.create({
+        await createSupplier({
           name,
           phone: form.phone.trim() || null,
           address: form.address.trim() || null,
@@ -67,7 +68,7 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Su
         toast.success(t("created"))
       }
       onOpenChange(false)
-      onSaved()
+      onSaved?.()
     } catch (e) {
       toast.error((e as Error).message || t("saveFailed"))
     } finally {

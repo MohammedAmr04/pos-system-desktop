@@ -1,10 +1,18 @@
 "use client"
 
 import { EditorLine } from "../editor-client"
-import { Product } from "@/lib/api"
+import { Product } from "@/types/domain/domain.types"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
+import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Plus, Trash2 } from "lucide-react"
 import {
   Table,
@@ -67,36 +75,42 @@ export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpda
             return (
               <TableRow key={line.key}>
                 <TableCell>
-                  <select
-                    aria-label={t("product")}
+                  <Select
                     value={line.productId}
-                    onChange={(e) => handleProductChange(line, e.target.value)}
+                    onValueChange={(v) => v != null && handleProductChange(line, v)}
                     disabled={disabled}
-                    className="w-full min-w-[140px] rounded-lg border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring dark:bg-input/30"
                   >
-                    <option value="">{t("product")}</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger aria-label={t("product")} className="w-full min-w-[140px]">
+                      <SelectValue placeholder={t("product")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">{t("product")}</SelectItem>
+                      {products.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </TableCell>
                 <TableCell>
-                  <select
-                    aria-label={t("unit")}
+                  <Select
                     value={line.productUnitId}
-                    onChange={(e) => handleUnitChange(line, e.target.value)}
+                    onValueChange={(v) => v != null && handleUnitChange(line, v)}
                     disabled={disabled || !product}
-                    className="w-full min-w-[100px] rounded-lg border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring dark:bg-input/30"
                   >
-                    {!product && <option value="">—</option>}
-                    {(product?.units ?? []).map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.unitName}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger aria-label={t("unit")} className="w-full min-w-[100px]">
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {!product && <SelectItem value="">—</SelectItem>}
+                      {(product?.units ?? []).map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.unitName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </TableCell>
                 <TableCell>
                   <Input
@@ -149,9 +163,9 @@ export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpda
                   />
                 </TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="icon" aria-label={t("removeLine")} onClick={() => onRemove(line.key)} disabled={disabled}>
+                  <TooltipIconButton label={t("removeLine")} onClick={() => onRemove(line.key)} disabled={disabled}>
                     <Trash2 className="h-4 w-4" />
-                  </Button>
+                  </TooltipIconButton>
                 </TableCell>
               </TableRow>
             )

@@ -1,21 +1,31 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import { usePOSStore } from "@/store/pos.store"
 import { useAuth } from "@/components/common/auth-context"
 import { FEATURES, PERMISSIONS } from "@/lib/constants"
 import { cartTotals, lineDiscountAmount, lineSubtotal, round2 } from "./utils/pricing"
 import { createInvoice, saveDraftInvoice } from "@/actions/invoices.actions"
-import { Client, api } from "@/lib/api"
-
-const selectClass =
-  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+import { postInvoice } from "@/actions/invoices.lifecycle.actions"
+import { invoicesKeys } from "@/hooks/use-invoices"
+import { shiftsKeys, useActiveShift } from "@/hooks/use-shifts"
+import { useActiveClients } from "@/hooks/use-clients"
+import { Client } from "@/types/domain/domain.types"
 
 export function CheckoutPanel() {
   const t = useTranslations("POS")
@@ -38,28 +48,18 @@ export function CheckoutPanel() {
 
   const [isCheckingOut, setIsCheckingOut] = useState(false)
   const [amountPaid, setAmountPaid] = useState(0)
-  const [clients, setClients] = useState<Client[]>([])
-  const [clientsLoaded, setClientsLoaded] = useState(false)
   const paidTouched = useRef(false)
   const discountInputRef = useRef<HTMLInputElement>(null)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    if (clientsLoaded) return
-    let cancelled = false
-    api.clients.getActive()
-      .then((res: Client[]) => {
-        if (!cancelled) setClients(res)
-      })
-      .catch(() => {
-        if (!cancelled) setClients([])
-      })
-      .finally(() => {
-        if (!cancelled) setClientsLoaded(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [clientsLoaded])
+  const { data: activeShift } = useActiveShift()
+  const { data: allClients = [] } = useActiveClients()
+  const clients: Client[] = allClients
+
+  const refreshAfterSale = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: invoicesKeys.all })
+    if (activeShift) await queryClient.invalidateQueries({ queryKey: shiftsKeys.all })
+  }, [queryClient, activeShift])
 
   const { subtotal, itemsDiscount, eligibleSubtotal, effectiveDiscount, total } =
     cartTotals(cartItems, discount, discountType)
@@ -117,7 +117,7 @@ export function CheckoutPanel() {
           status: 'posted',
           draftId,
         })
-        await api.invoices.post(draftId)
+        await postInvoice(draftId)
       } else {
         await createInvoice(cartItems, effectiveDiscount, print, discountType || undefined, discount || undefined, priceMode, {
           clientId,
@@ -125,6 +125,7 @@ export function CheckoutPanel() {
           status: 'posted',
         })
       }
+      await refreshAfterSale()
       toast.success(t("checkoutSuccess"))
       paidTouched.current = false
       clearCart()
@@ -133,7 +134,7 @@ export function CheckoutPanel() {
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, validateDiscount, t, clearCart, canPrintReceipt])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, validateDiscount, t, clearCart, canPrintReceipt, refreshAfterSale])
 
   const handleSaveDraft = useCallback(async () => {
     if (cartItems.length === 0) return
@@ -149,6 +150,7 @@ export function CheckoutPanel() {
         status: 'draft',
         draftId,
       })
+      await refreshAfterSale()
       toast.success(t("draftSaved"))
       paidTouched.current = false
       clearCart()
@@ -157,7 +159,7 @@ export function CheckoutPanel() {
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, t, clearCart])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, t, clearCart, refreshAfterSale])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -197,29 +199,35 @@ export function CheckoutPanel() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label htmlFor="pos-client" className="text-sm font-medium">{t("client")}</label>
-              <select
-                id="pos-client"
-                className={selectClass}
+              <Select
                 value={clientId ?? ""}
-                onChange={(e) => setClient(e.target.value || null)}
+                onValueChange={(v) => setClient(v || null)}
               >
-                <option value="">{t("walkIn")}</option>
-                {clients.filter((c) => c.isActive).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+                <SelectTrigger id="pos-client" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">{t("walkIn")}</SelectItem>
+                  {clients.filter((c) => c.isActive).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <label htmlFor="pos-payment" className="text-sm font-medium">{t("paymentMethod")}</label>
-              <select
-                id="pos-payment"
-                className={selectClass}
+              <Select
                 value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as 'cash' | 'credit')}
+                onValueChange={(v) => v && setPaymentMethod(v as 'cash' | 'credit')}
               >
-                <option value="cash">{t("cash")}</option>
-                <option value="credit">{t("credit")}</option>
-              </select>
+                <SelectTrigger id="pos-payment" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">{t("cash")}</SelectItem>
+                  <SelectItem value="credit">{t("credit")}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           {draftId && (
@@ -253,15 +261,13 @@ export function CheckoutPanel() {
                     onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
                   />
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
+                <TooltipIconButton
+                  label={discountType === 'fixed' ? t("discountTypePercentage") : t("discountTypeFixed")}
                   className="h-12 w-12 text-xl font-semibold"
                   onClick={toggleDiscountType}
-                  title={discountType === 'fixed' ? t("discountTypePercentage") : t("discountTypeFixed")}
                 >
                   {discountType === 'fixed' ? t("currency") : '%'}
-                </Button>
+                </TooltipIconButton>
                 <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-60">
                   ^␣
                 </kbd>

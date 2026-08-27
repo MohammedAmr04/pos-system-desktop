@@ -1,6 +1,7 @@
 "use client"
 
-import { Client, api } from "@/lib/api"
+import { Client } from "@/types/domain/domain.types"
+import { createClient, updateClient } from "@/actions/clients.actions"
 import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -21,7 +22,7 @@ interface ClientFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   client: Client | null
-  onSaved: () => void
+  onSaved?: () => void
 }
 
 interface ClientFormState {
@@ -49,7 +50,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSaved }: Client
     setIsSaving(true)
     try {
       if (client) {
-        await api.clients.update(client.id, {
+        await updateClient(client.id, {
           name,
           phone: form.phone.trim() || null,
           address: form.address.trim() || null,
@@ -58,7 +59,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSaved }: Client
         })
         toast.success(t("updated"))
       } else {
-        await api.clients.create({
+        await createClient({
           name,
           phone: form.phone.trim() || null,
           address: form.address.trim() || null,
@@ -67,7 +68,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSaved }: Client
         toast.success(t("created"))
       }
       onOpenChange(false)
-      onSaved()
+      onSaved?.()
     } catch (e) {
       toast.error((e as Error).message || t("saveFailed"))
     } finally {

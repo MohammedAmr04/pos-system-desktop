@@ -1,6 +1,7 @@
 "use client"
 
-import { Brand, api } from "@/lib/api"
+import { Brand } from "@/types/domain/domain.types"
+import { createBrand, updateBrand } from "@/actions/brands.actions"
 import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -21,7 +22,7 @@ interface BrandFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   brand: Brand | null
-  onSaved: () => void
+  onSaved?: () => void
 }
 
 interface BrandFormState {
@@ -43,14 +44,14 @@ export function BrandFormDialog({ open, onOpenChange, brand, onSaved }: BrandFor
     setIsSaving(true)
     try {
       if (brand) {
-        await api.brands.update(brand.id, { name, isActive: form.isActive })
+        await updateBrand(brand.id, { name, isActive: form.isActive })
         toast.success(t("updated"))
       } else {
-        await api.brands.create({ name })
+        await createBrand({ name })
         toast.success(t("created"))
       }
       onOpenChange(false)
-      onSaved()
+      onSaved?.()
     } catch (e) {
       toast.error((e as Error).message || t("saveFailed"))
     } finally {

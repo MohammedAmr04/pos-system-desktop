@@ -1,6 +1,6 @@
 "use client"
 
-import { PurchaseInvoice } from "@/lib/api"
+import { PurchaseInvoice } from "@/types/domain/domain.types"
 import { useTranslations } from "next-intl"
 import {
   Dialog,

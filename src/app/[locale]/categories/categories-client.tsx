@@ -1,59 +1,43 @@
 "use client"
 
-import { Category } from "@/lib/api"
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
+import { toast } from "sonner"
+import { FolderCheck, FolderMinus, Pencil, Plus } from "lucide-react"
+
+import { Category } from "@/types/domain/domain.types"
+import { useCategoriesPage } from "@/hooks/use-categories"
+import { updateCategory } from "@/actions/categories.actions"
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
 import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { api } from "@/lib/api"
-import { Loader2, Plus, Pencil, FolderCheck, FolderMinus } from "lucide-react"
-import { useTranslations } from "next-intl"
-import { toast } from "sonner"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { TableColumn, TableBuilder } from "@/components/common/table-builder"
+import { DataPagination } from "@/components/common/data-pagination"
+import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import { CategoryFormDialog } from "./_components/category-form-dialog"
 
-interface CategoriesClientProps {
-  items: Category[]
-  total: number
-  page: number
-  pageSize: number
-  loading: boolean
-  query: string
-  onQueryChange: (query: string) => void
-  onPageChange: (page: number) => void
-  onRefresh?: () => void
-}
+const PAGE_SIZE = 20
 
-export function CategoriesClient({
-  items,
-  total,
-  page,
-  pageSize,
-  loading,
-  query,
-  onQueryChange,
-  onPageChange,
-  onRefresh,
-}: CategoriesClientProps) {
+export function CategoriesClient() {
   const t = useTranslations("Categories")
   const tc = useTranslations("Common")
   const { hasPermission } = useAuth()
   const canCreate = hasPermission(PERMISSIONS.CATEGORIES_CREATE)
   const canUpdate = hasPermission(PERMISSIONS.CATEGORIES_UPDATE)
-  const [searchInput, setSearchInput] = useState(query)
-  const debouncedQueryChange = useDebouncedCallback(onQueryChange, 300)
+
+  const [page, setPage] = useState(1)
+  const [query, setQuery] = useState("")
+  const [searchInput, setSearchInput] = useState("")
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [formSession, setFormSession] = useState(0)
+
+  const debouncedQueryChange = useDebouncedCallback((value: string) => {
+    setQuery(value)
+    setPage(1)
+  }, 300)
 
   useEffect(() => {
     const value = searchInput.trim()
@@ -61,7 +45,9 @@ export function CategoriesClient({
     debouncedQueryChange(value)
   }, [debouncedQueryChange, query, searchInput])
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const { data, isPending } = useCategoriesPage(page, PAGE_SIZE, { q: query })
+  const items = data?.items ?? []
+  const total = data?.total ?? 0
 
   const openCreate = () => {
     setEditingCategory(null)
@@ -77,13 +63,61 @@ export function CategoriesClient({
 
   const handleToggleActive = async (category: Category) => {
     try {
-      await api.categories.update(category.id, { isActive: !category.isActive })
+      await updateCategory(category.id, { isActive: !category.isActive })
       toast.success(category.isActive ? t("deactivated") : t("activated"))
-      if (onRefresh) onRefresh()
     } catch (e) {
       toast.error((e as Error).message || t("saveFailed"))
     }
   }
+
+  const columns: TableColumn<Category>[] = [
+    {
+      key: "name",
+      header: t("name"),
+      cell: (category) => <span className="font-medium">{category.name}</span>,
+    },
+    {
+      key: "description",
+      header: t("desc"),
+      cell: (category) => (
+        <span className="text-muted-foreground">{category.description ?? "—"}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: t("status"),
+      cell: (category) => (
+        <span
+          className={
+            category.isActive
+              ? "inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600"
+              : "inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+          }
+        >
+          {category.isActive ? t("active") : t("inactive")}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: t("actions"),
+      headClassName: "w-24",
+      cell: (category) =>
+        canUpdate && (
+          <div className="flex items-center gap-1">
+            <TooltipIconButton
+              label={category.isActive ? t("deactivate") : t("activate")}
+              onClick={() => handleToggleActive(category)}
+            >
+              {category.isActive ? <FolderMinus className="h-4 w-4" /> : <FolderCheck className="h-4 w-4" />}
+            </TooltipIconButton>
+            <TooltipIconButton label={t("editCategory")} onClick={() => openEdit(category)}>
+              <Pencil className="h-4 w-4" />
+            </TooltipIconButton>
+          </div>
+        ),
+    },
+  ]
 
   return (
     <>
@@ -103,88 +137,21 @@ export function CategoriesClient({
         className="max-w-sm mb-4"
       />
 
-      <div className="rounded-md border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("name")}</TableHead>
-              <TableHead>{t("desc")}</TableHead>
-              <TableHead>{t("status")}</TableHead>
-              <TableHead>{t("actions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
-                  <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-                </TableCell>
-              </TableRow>
-            ) : items.length ? (
-              items.map((category) => (
-                <TableRow key={category.id}>
-                  <TableCell className="font-medium">{category.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{category.description ?? "—"}</TableCell>
-                  <TableCell>
-                    <span
-                      className={
-                        category.isActive
-                          ? "inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600"
-                          : "inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
-                      }
-                    >
-                      {category.isActive ? t("active") : t("inactive")}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {canUpdate && (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={category.isActive ? t("deactivated") : t("activated")}
-                          onClick={() => handleToggleActive(category)}
-                        >
-                          {category.isActive ? <FolderMinus className="h-4 w-4" /> : <FolderCheck className="h-4 w-4" />}
-                        </Button>
-                        <Button variant="ghost" size="icon" aria-label={t("editCategory")} onClick={() => openEdit(category)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
-                  {query ? t("noResults") : t("empty")}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <TableBuilder
+        columns={columns}
+        data={items}
+        rowKey={(category) => category.id}
+        loading={isPending}
+        emptyMessage={query ? t("noResults") : t("empty")}
+      />
 
-      <div className="flex items-center justify-between py-4">
-        <span className="text-sm text-muted-foreground">{`${total}`}</span>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => onPageChange(page - 1)} disabled={page <= 1}>
-            {tc("previous")}
-          </Button>
-          <span className="text-sm text-muted-foreground whitespace-nowrap">{`${page} / ${pageCount}`}</span>
-          <Button variant="outline" size="sm" onClick={() => onPageChange(page + 1)} disabled={page >= pageCount}>
-            {tc("next")}
-          </Button>
-        </div>
-      </div>
+      <DataPagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
 
       <CategoryFormDialog
         key={formSession}
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         category={editingCategory}
-        onSaved={() => onRefresh?.()}
       />
     </>
   )

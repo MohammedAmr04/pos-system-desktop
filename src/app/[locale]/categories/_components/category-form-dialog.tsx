@@ -1,6 +1,7 @@
 "use client"
 
-import { Category, api } from "@/lib/api"
+import { Category } from "@/types/domain/domain.types"
+import { createCategory, updateCategory } from "@/actions/categories.actions"
 import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -21,7 +22,7 @@ interface CategoryFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   category: Category | null
-  onSaved: () => void
+  onSaved?: () => void
 }
 
 interface CategoryFormState {
@@ -45,18 +46,18 @@ export function CategoryFormDialog({ open, onOpenChange, category, onSaved }: Ca
     setIsSaving(true)
     try {
       if (category) {
-        await api.categories.update(category.id, {
+        await updateCategory(category.id, {
           name,
           description: form.description.trim() || null,
           isActive: form.isActive,
         })
         toast.success(t("updated"))
       } else {
-        await api.categories.create({ name, description: form.description.trim() || null })
+        await createCategory({ name, description: form.description.trim() || null })
         toast.success(t("created"))
       }
       onOpenChange(false)
-      onSaved()
+      onSaved?.()
     } catch (e) {
       toast.error((e as Error).message || t("saveFailed"))
     } finally {

@@ -1,12 +1,16 @@
 "use client"
 
-import { Supplier, api } from "@/lib/api"
-import { useEffect, useState } from "react"
+import { Supplier } from "@/types/domain/domain.types"
+import { useAllSuppliers } from "@/hooks/use-suppliers"
 import { useTranslations } from "next-intl"
 import { Input } from "@/components/ui/input"
-
-const selectClass =
-  "flex h-9 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface PurchaseHeaderFieldsProps {
   disabled: boolean
@@ -28,42 +32,30 @@ interface PurchaseHeaderFieldsProps {
 
 export function PurchaseHeaderFields(props: PurchaseHeaderFieldsProps) {
   const t = useTranslations("Purchases")
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
-
-  useEffect(() => {
-    let cancelled = false
-    api.suppliers
-      .list()
-      .then((list) => {
-        if (!cancelled) setSuppliers(list)
-      })
-      .catch(() => {
-        if (!cancelled) setSuppliers([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const { data: suppliers = [] } = useAllSuppliers()
 
   return (
     <div className="rounded-lg border bg-card p-4 space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("supplier")}</label>
-          <select
-            className={selectClass}
+          <Select
             value={props.supplierId}
-            onChange={(e) => props.onSupplierChange(e.target.value)}
+            onValueChange={(v) => v != null && props.onSupplierChange(v)}
             disabled={props.disabled}
-            aria-label={t("supplier")}
           >
-            <option value="none">{t("selectSupplier")}</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger aria-label={t("supplier")} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">{t("selectSupplier")}</SelectItem>
+              {suppliers.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("supplierInvoiceNumber")}</label>
@@ -85,16 +77,19 @@ export function PurchaseHeaderFields(props: PurchaseHeaderFieldsProps) {
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("paymentMethod")}</label>
-          <select
-            className={selectClass}
+          <Select
             value={props.paymentMethod}
-            onChange={(e) => props.onPaymentMethodChange(e.target.value as "cash" | "credit")}
+            onValueChange={(v) => v != null && props.onPaymentMethodChange(v as "cash" | "credit")}
             disabled={props.disabled}
-            aria-label={t("paymentMethod")}
           >
-            <option value="cash">{t("cash")}</option>
-            <option value="credit">{t("credit")}</option>
-          </select>
+            <SelectTrigger aria-label={t("paymentMethod")} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cash">{t("cash")}</SelectItem>
+              <SelectItem value="credit">{t("credit")}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("discount")}</label>

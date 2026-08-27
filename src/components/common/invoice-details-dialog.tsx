@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useTranslations } from "next-intl"
-import { Invoice, InvoiceDetail } from "@/lib/api"
+import { Invoice, InvoiceDetail } from "@/types/domain/domain.types"
 
 interface InvoiceDetailsDialogProps {
   open: boolean

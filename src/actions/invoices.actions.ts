@@ -1,5 +1,7 @@
-import { api, Invoice, PriceMode } from "@/lib/api"
+import { request } from "@/lib/api"
+import { Invoice, InvoiceCreatePayload, PriceMode } from "@/types/domain/domain.types"
 import { CartItem } from "@/store/pos.store"
+import { printInvoiceDocument } from "@/actions/printing.actions"
 
 interface InvoiceOptions {
   clientId?: string | null
@@ -14,7 +16,7 @@ function buildPayload(
   discountValue?: number,
   priceMode: PriceMode = 'retail',
   opts?: InvoiceOptions
-) {
+): InvoiceCreatePayload {
   return {
     items: cartItems.map(item => ({
       productId: item.productId,
@@ -53,11 +55,11 @@ export async function createInvoice(
   opts?: InvoiceOptions
 ): Promise<Invoice> {
   const payload = buildPayload(cartItems, discount, discountType, discountValue, priceMode, opts)
-  const invoice = await api.invoices.create(payload)
+  const invoice = await request<Invoice>('/api/invoices', { method: 'POST', body: JSON.stringify(payload) })
 
   if (printInvoice) {
     try {
-      await api.printing.print(invoice)
+      await printInvoiceDocument(invoice)
     } catch {
       console.error("Silent printing failed, printer API might be offline")
     }
@@ -76,7 +78,7 @@ export async function saveDraftInvoice(
 ): Promise<Invoice> {
   const payload = buildPayload(cartItems, discount, discountType, discountValue, priceMode, opts)
   if (opts?.draftId) {
-    return api.invoices.updateDraft(opts.draftId, payload)
+    return request<Invoice>(`/api/invoices/${opts.draftId}`, { method: 'PUT', body: JSON.stringify(payload) })
   }
-  return api.invoices.create(payload)
+  return request<Invoice>('/api/invoices', { method: 'POST', body: JSON.stringify(payload) })
 }

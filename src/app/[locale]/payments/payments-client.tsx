@@ -1,38 +1,21 @@
 "use client"
 
-import { Payment } from "@/lib/api"
+import { useState } from "react"
 import { useTranslations } from "next-intl"
-import { Button } from "@/components/ui/button"
-import { Loader2 } from "lucide-react"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Payment } from "@/types/domain/domain.types"
+import { usePaymentsPage } from "@/hooks/use-payments"
+import { TableColumn, TableBuilder } from "@/components/common/table-builder"
+import { DataPagination } from "@/components/common/data-pagination"
 
-interface PaymentsClientProps {
-  items: Payment[]
-  total: number
-  page: number
-  pageSize: number
-  loading: boolean
-  onPageChange: (page: number) => void
-}
+const PAGE_SIZE = 20
 
-export function PaymentsClient({
-  items,
-  total,
-  page,
-  pageSize,
-  loading,
-  onPageChange,
-}: PaymentsClientProps) {
+export function PaymentsClient() {
   const t = useTranslations("Payments")
+  const [page, setPage] = useState(1)
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const { data, isPending } = usePaymentsPage(page, PAGE_SIZE)
+  const items = data?.items ?? []
+  const total = data?.total ?? 0
 
   const partyName = (payment: Payment) =>
     payment.client?.name || payment.supplier?.name || t("unknownParty")
@@ -43,73 +26,66 @@ export function PaymentsClient({
     return t("methodCash")
   }
 
+  const columns: TableColumn<Payment>[] = [
+    {
+      key: "date",
+      header: <span className="block text-center">{t("date")}</span>,
+      className: "text-center whitespace-nowrap",
+      cell: (payment) => new Date(payment.date).toLocaleDateString(),
+    },
+    {
+      key: "party",
+      header: <span className="block text-center">{t("party")}</span>,
+      className: "text-center",
+      cell: (payment) => (
+        <div>
+          <div>{partyName(payment)}</div>
+          <div className="text-xs text-muted-foreground">
+            {payment.clientId ? t("client") : t("supplier")}
+            {payment.invoiceNumber ? ` · ${payment.invoiceNumber}` : ""}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "method",
+      header: <span className="block text-center">{t("method")}</span>,
+      className: "text-center",
+      cell: (payment) => methodLabel(payment.paymentMethod),
+    },
+    {
+      key: "reference",
+      header: <span className="block text-center">{t("reference")}</span>,
+      className: "text-center",
+      cell: (payment) => payment.reference || "-",
+    },
+    {
+      key: "amount",
+      header: <span className="block text-center">{t("amount")}</span>,
+      className: "text-center font-medium",
+      cell: (payment) => <span dir="ltr">{payment.amount.toFixed(2)}</span>,
+    },
+  ]
+
   return (
     <>
       <p className="text-sm text-muted-foreground mb-4">{t("description")}</p>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-center">{t("date")}</TableHead>
-              <TableHead className="text-center">{t("party")}</TableHead>
-              <TableHead className="text-center">{t("method")}</TableHead>
-              <TableHead className="text-center">{t("reference")}</TableHead>
-              <TableHead className="text-center">{t("amount")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
-                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
-                </TableCell>
-              </TableRow>
-            ) : items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                  {t("noPayments")}
-                </TableCell>
-              </TableRow>
-            ) : (
-              items.map((payment) => (
-                <TableRow key={payment.id}>
-                  <TableCell className="text-center whitespace-nowrap">
-                    {new Date(payment.date).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div>{partyName(payment)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {payment.clientId ? t("client") : t("supplier")}
-                      {payment.invoiceNumber ? ` · ${payment.invoiceNumber}` : ""}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">{methodLabel(payment.paymentMethod)}</TableCell>
-                  <TableCell className="text-center">{payment.reference || "-"}</TableCell>
-                  <TableCell className="text-center font-medium">{payment.amount.toFixed(2)}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <TableBuilder
+        columns={columns}
+        data={items}
+        rowKey={(payment) => payment.id}
+        loading={isPending}
+        emptyMessage={t("noPayments")}
+      />
 
-      <div className="flex items-center justify-end space-x-2 py-4 rtl:space-x-reverse">
-        <Button variant="outline" size="sm" onClick={() => onPageChange(page - 1)} disabled={page <= 1}>
-          {t("previous")}
-        </Button>
-        <span className="text-sm text-muted-foreground">
-          {t("pageOf", { page, total: pageCount })}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onPageChange(page + 1)}
-          disabled={page >= pageCount}
-        >
-          {t("next")}
-        </Button>
-      </div>
+      <DataPagination
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={total}
+        onPageChange={setPage}
+        className="justify-center"
+      />
     </>
   )
 }

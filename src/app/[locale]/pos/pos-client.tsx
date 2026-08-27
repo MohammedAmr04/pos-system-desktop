@@ -1,20 +1,26 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { api, Product, ProductUnit } from "@/lib/api"
+import { useQueryClient } from "@tanstack/react-query"
+import { Product, ProductUnit, Shift } from "@/types/domain/domain.types"
 import { usePOSStore } from "@/store/pos.store"
 import type { CartItem } from "@/store/pos.store"
 import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS, FEATURES } from "@/lib/constants"
 import { AccessDenied } from "@/components/common/access-denied"
 import { Button } from "@/components/ui/button"
+import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import { Link } from "@/i18n/navigation"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { ArrowLeft } from "lucide-react"
-import type { Shift } from "@/lib/api"
 import { addProductBarcode } from "@/actions/products.actions"
 import { baseUnitOf, resolveBarcode } from "@/lib/barcode"
+import { listProducts } from "@/api/products"
+import { getInvoice } from "@/api/invoices"
+import { productsKeys, useAllProducts } from "@/hooks/use-products"
+import { invoicesKeys } from "@/hooks/use-invoices"
+import { useActiveShift } from "@/hooks/use-shifts"
 import { ProductSearchHandle, ProductSearchPopover } from "./_components/product-search-popover"
 import { CartPanel } from "./_components/cart-panel"
 import { CheckoutPanel } from "./_components/checkout-panel"
@@ -35,16 +41,15 @@ export function POSClient() {
   const loadDraft = usePOSStore((s) => s.loadDraft)
   const priceMode = usePOSStore((s) => s.priceMode)
   const setPriceMode = usePOSStore((s) => s.setPriceMode)
+  const queryClient = useQueryClient()
 
   const searchRef = useRef<ProductSearchHandle>(null)
-  const [products, setProducts] = useState<Product[]>([])
   const [unitPicker, setUnitPicker] = useState<UnitPickerState | null>(null)
   const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null)
-  const [activeShift, setActiveShift] = useState<Shift | null>(null)
 
-  useEffect(() => {
-    api.shifts.getActive().then(setActiveShift).catch(() => setActiveShift(null))
-  }, [])
+  const { data: activeShift } = useActiveShift()
+  const { data: productsData = [] } = useAllProducts()
+  const products: Product[] = productsData
 
   useEffect(() => {
     if (!canWholesale && priceMode === 'wholesale') {
@@ -52,21 +57,20 @@ export function POSClient() {
     }
   }, [canWholesale, priceMode, setPriceMode])
 
-  const refresh = useCallback(async () => {
-    const list = await api.products.list()
-    setProducts(list)
-    return list
-  }, [])
+  const refresh = useCallback(async (): Promise<Product[]> => {
+    return queryClient.fetchQuery({ queryKey: [...productsKeys.all, "list"], queryFn: listProducts })
+  }, [queryClient])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const draftParam = params.get('draft')
     if (!draftParam) return
     window.history.replaceState({}, '', window.location.pathname)
-    api.invoices
-      .get(draftParam)
+    let cancelled = false
+    queryClient
+      .fetchQuery({ queryKey: invoicesKeys.detail(draftParam), queryFn: () => getInvoice(draftParam) })
       .then((inv) => {
-        if ((inv.status ?? 'posted') !== 'draft') return
+        if (cancelled || (inv.status ?? 'posted') !== 'draft') return
         const items: CartItem[] = (inv.invoiceDetail ?? inv.InvoiceDetail ?? []).map((d) => {
           const unit = d.product?.units?.find((u) => u.id === d.productUnitId)
           return {
@@ -99,20 +103,10 @@ export function POSClient() {
         })
       })
       .catch(() => {})
-  }, [loadDraft])
-
-  useEffect(() => {
-    let cancelled = false
-    api.products
-      .list()
-      .then((list) => {
-        if (!cancelled) setProducts(list)
-      })
-      .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [loadDraft, queryClient])
 
   const applyAdd = useCallback((product: Product, unit: ProductUnit) => {
     const result = addItem(product, unit)
@@ -158,14 +152,14 @@ export function POSClient() {
       await addProductBarcode(product.id, unit.id, unknownBarcode)
       toast.success(t("barcodeLinked"))
       addItem(product, unit)
-      await refresh()
+      await queryClient.invalidateQueries({ queryKey: productsKeys.all })
     } catch (e) {
       toast.error((e as Error).message || t("linkFailed"))
     } finally {
       closeUnknownDialog()
       setUnitPicker(null)
     }
-  }, [unknownBarcode, refresh, addItem, closeUnknownDialog, t])
+  }, [unknownBarcode, queryClient, addItem, closeUnknownDialog, t])
 
   const handleLinkConfirm = (product: Product) => {
     const units = product.units?.length ? product.units : []
@@ -204,9 +198,9 @@ export function POSClient() {
         <div className="flex flex-1 flex-col gap-4">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <Button variant="outline" size="icon" aria-label={t("back")}>
+              <TooltipIconButton label={t("back")} variant="outline">
                 <ArrowLeft className="h-4 w-4" />
-              </Button>
+              </TooltipIconButton>
             </Link>
             {activeShift ? (
               <div className="flex shrink-0 items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-700">

@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
-import { api, Client, Supplier } from "@/lib/api"
+import { Client, Supplier } from "@/types/domain/domain.types"
+import { createPayment } from "@/actions/payments.actions"
 import {
   Dialog,
   DialogContent,
@@ -13,10 +14,14 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Loader2, Wallet } from "lucide-react"
-
-const selectClass =
-  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 
 interface RecordPaymentDialogProps {
   open: boolean
@@ -72,7 +77,7 @@ export function RecordPaymentDialog({
     }
     setSaving(true)
     try {
-      await api.payments.create({
+      await createPayment({
         amount: value,
         paymentMethod: method,
         clientId: kind === "client" ? party.id : null,
@@ -127,16 +132,19 @@ export function RecordPaymentDialog({
 
           <div className="space-y-2">
             <label htmlFor="payment-method" className="text-sm font-medium">{t("method")}</label>
-            <select
-              id="payment-method"
-              className={selectClass}
+            <Select
               value={method}
-              onChange={(e) => setMethod(e.target.value as typeof method)}
+              onValueChange={(v) => v && setMethod(v as typeof method)}
             >
-              <option value="cash">{t("methodCash")}</option>
-              <option value="card">{t("methodCard")}</option>
-              <option value="bank_transfer">{t("methodBankTransfer")}</option>
-            </select>
+              <SelectTrigger id="payment-method" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cash">{t("methodCash")}</SelectItem>
+                <SelectItem value="card">{t("methodCard")}</SelectItem>
+                <SelectItem value="bank_transfer">{t("methodBankTransfer")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

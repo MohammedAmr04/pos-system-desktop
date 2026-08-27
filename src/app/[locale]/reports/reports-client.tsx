@@ -6,15 +6,23 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { Loader2, TriangleAlert } from "lucide-react"
 import {
-  api,
-  type SalesReport,
-  type PurchasesReport,
-  type ProfitReport,
-  type InventoryValuationRow,
-  type ReturnsReport,
-  type ExpensesReport,
-  type CashReport,
-} from "@/lib/api"
+  useCashReport,
+  useExpensesReport,
+  useInventoryReport,
+  useProfitReport,
+  usePurchasesReport,
+  useReturnsReport,
+  useSalesReport,
+} from "@/hooks/use-reports"
+import {
+  CashReport,
+  ExpensesReport,
+  InventoryValuationRow,
+  ProfitReport,
+  PurchasesReport,
+  ReturnsReport,
+  SalesReport,
+} from "@/types/domain/domain.types"
 import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS, FEATURES } from "@/lib/constants"
 import { AccessDenied } from "@/components/common/access-denied"
@@ -50,45 +58,38 @@ export function ReportsClient() {
   const [tab, setTab] = useState<ReportKey>("sales")
   const [from, setFrom] = useState(monthStart())
   const [to, setTo] = useState(today())
-  const [loading, setLoading] = useState(false)
 
-  const [sales, setSales] = useState<SalesReport | null>(null)
-  const [purchases, setPurchases] = useState<PurchasesReport | null>(null)
-  const [profit, setProfit] = useState<ProfitReport | null>(null)
-  const [inventory, setInventory] = useState<InventoryValuationRow[] | null>(null)
-  const [returns, setReturns] = useState<ReturnsReport | null>(null)
-  const [expenses, setExpenses] = useState<ExpensesReport | null>(null)
-  const [cash, setCash] = useState<CashReport | null>(null)
+  const { data: sales, isFetching: salesFetching, isError: salesError } = useSalesReport(from, to, canView && tab === "sales") as { data: SalesReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: purchases, isFetching: purchasesFetching, isError: purchasesError } = usePurchasesReport(from, to, canView && tab === "purchases") as { data: PurchasesReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: profit, isFetching: profitFetching, isError: profitError } = useProfitReport(from, to, canView && tab === "profit") as { data: ProfitReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: inventory, isFetching: inventoryFetching, isError: inventoryError } = useInventoryReport(canView && tab === "inventory") as { data: InventoryValuationRow[] | undefined; isFetching: boolean; isError: boolean }
+  const { data: returns, isFetching: returnsFetching, isError: returnsError } = useReturnsReport(from, to, canView && tab === "returns") as { data: ReturnsReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: expenses, isFetching: expensesFetching, isError: expensesError } = useExpensesReport(from, to, canView && tab === "expenses") as { data: ExpensesReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: cash, isFetching: cashFetching, isError: cashError } = useCashReport(from, to, canView && tab === "cash") as { data: CashReport | undefined; isFetching: boolean; isError: boolean }
+
+  const activeError = tab === "sales" ? salesError
+    : tab === "purchases" ? purchasesError
+    : tab === "profit" ? profitError
+    : tab === "inventory" ? inventoryError
+    : tab === "returns" ? returnsError
+    : tab === "expenses" ? expensesError
+    : cashError
+
+  const loading = tab === "sales" ? salesFetching
+    : tab === "purchases" ? purchasesFetching
+    : tab === "profit" ? profitFetching
+    : tab === "inventory" ? inventoryFetching
+    : tab === "returns" ? returnsFetching
+    : tab === "expenses" ? expensesFetching
+    : cashFetching
 
   useEffect(() => {
-    if (!canView) return
-    let cancelled = false
-    setLoading(true)
-    const load =
-      tab === "sales" ? api.reports.sales(from, to).then(setSales)
-      : tab === "purchases" ? api.reports.purchases(from, to).then(setPurchases)
-      : tab === "profit" ? api.reports.profit(from, to).then(setProfit)
-      : tab === "inventory" ? api.reports.inventory().then(setInventory)
-      : tab === "returns" ? api.reports.returns(from, to).then(setReturns)
-      : tab === "expenses" ? api.reports.expenses(from, to).then(setExpenses)
-      : api.reports.cash(from, to).then(setCash)
-
-    load
-      .catch(() => {
-        if (!cancelled) toast.error(t("loadFailed"))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [tab, from, to, canView])
+    if (activeError) toast.error(t("loadFailed"))
+  }, [activeError, t])
 
   if (!canView) return <AccessDenied />
-
-  const money = (v: number | null | undefined) => (v ?? 0).toFixed(2)
   const fmtDay = (d: string) => (d || "").slice(0, 10)
+  const money = (v: number | null | undefined) => (v ?? 0).toFixed(2)
   const methodLabel = (m: string) =>
     m === "credit" ? t("method_credit") : m === "card" ? t("method_card") : t("method_cash")
 
@@ -144,31 +145,31 @@ export function ReportsClient() {
                 <SummaryCard label={t("netSales")} value={money(sales.netSales)} highlight />
               </div>
               <ReportTable headers={[t("day"), t("invoiceCount"), t("netSales"), t("discounts")]}>
-                {sales.byDay.map((r) => (
+                {sales.byDay.map((r: { day: string; invoiceCount: number; netSales: number; discounts: number }) => (
                   <TableRow key={r.day}>
                     <TableCell>{fmtDay(r.day)}</TableCell>
-                    <TableCell>{r.invoiceCount}</TableCell>
-                    <TableCell>{money(r.netSales)}</TableCell>
-                    <TableCell>{money(r.discounts)}</TableCell>
+                    <TableCell dir="ltr">{r.invoiceCount}</TableCell>
+                    <TableCell dir="ltr">{money(r.netSales)}</TableCell>
+                    <TableCell dir="ltr">{money(r.discounts)}</TableCell>
                   </TableRow>
                 ))}
               </ReportTable>
               <div className="grid gap-4 lg:grid-cols-2">
                 <ReportTable headers={[t("paymentMethod"), t("invoiceCount"), t("total")]}>
-                  {sales.byPaymentMethod.map((r) => (
+                  {sales.byPaymentMethod.map((r: { paymentMethod: string; invoiceCount: number; total: number }) => (
                     <TableRow key={r.paymentMethod}>
                       <TableCell>{methodLabel(r.paymentMethod)}</TableCell>
-                      <TableCell>{r.invoiceCount}</TableCell>
-                      <TableCell>{money(r.total)}</TableCell>
+                      <TableCell dir="ltr">{r.invoiceCount}</TableCell>
+                      <TableCell dir="ltr">{money(r.total)}</TableCell>
                     </TableRow>
                   ))}
                 </ReportTable>
                 <ReportTable headers={[t("cashier"), t("invoiceCount"), t("total")]}>
-                  {sales.byCashier.map((r) => (
+                  {sales.byCashier.map((r: { userName: string; invoiceCount: number; total: number }) => (
                     <TableRow key={r.userName}>
                       <TableCell>{r.userName}</TableCell>
-                      <TableCell>{r.invoiceCount}</TableCell>
-                      <TableCell>{money(r.total)}</TableCell>
+                      <TableCell dir="ltr">{r.invoiceCount}</TableCell>
+                      <TableCell dir="ltr">{money(r.total)}</TableCell>
                     </TableRow>
                   ))}
                 </ReportTable>
@@ -177,12 +178,12 @@ export function ReportsClient() {
                 headers={[t("product"), t("quantity"), t("revenue"), t("cost")]}
                 empty={tc("noResults")}
               >
-                {sales.topProducts.map((r) => (
+                {sales.topProducts.map((r: { productId: string; productName: string; quantity: number; revenue: number; cost: number }) => (
                   <TableRow key={r.productId}>
                     <TableCell>{r.productName}</TableCell>
-                    <TableCell>{r.quantity}</TableCell>
-                    <TableCell>{money(r.revenue)}</TableCell>
-                    <TableCell>{money(r.cost)}</TableCell>
+                    <TableCell dir="ltr">{r.quantity}</TableCell>
+                    <TableCell dir="ltr">{money(r.revenue)}</TableCell>
+                    <TableCell dir="ltr">{money(r.cost)}</TableCell>
                   </TableRow>
                 ))}
               </ReportTable>
@@ -196,20 +197,20 @@ export function ReportsClient() {
                 <SummaryCard label={t("total")} value={money(purchases.total)} highlight />
               </div>
               <ReportTable headers={[t("day"), t("invoiceCount"), t("total")]}>
-                {purchases.byDay.map((r) => (
+                {purchases.byDay.map((r: { day: string; invoiceCount: number; total: number }) => (
                   <TableRow key={r.day}>
                     <TableCell>{fmtDay(r.day)}</TableCell>
-                    <TableCell>{r.invoiceCount}</TableCell>
-                    <TableCell>{money(r.total)}</TableCell>
+                    <TableCell dir="ltr">{r.invoiceCount}</TableCell>
+                    <TableCell dir="ltr">{money(r.total)}</TableCell>
                   </TableRow>
                 ))}
               </ReportTable>
               <ReportTable headers={[t("supplier"), t("invoiceCount"), t("total")]}>
-                {purchases.bySupplier.map((r) => (
+                {purchases.bySupplier.map((r: { supplierName: string; invoiceCount: number; total: number }) => (
                   <TableRow key={r.supplierName}>
                     <TableCell>{r.supplierName}</TableCell>
-                    <TableCell>{r.invoiceCount}</TableCell>
-                    <TableCell>{money(r.total)}</TableCell>
+                    <TableCell dir="ltr">{r.invoiceCount}</TableCell>
+                    <TableCell dir="ltr">{money(r.total)}</TableCell>
                   </TableRow>
                 ))}
               </ReportTable>
@@ -228,12 +229,12 @@ export function ReportsClient() {
                 {t("profitHint", { refunds: money(profit.saleRefunds), restored: money(profit.restoredCosts) })}
               </p>
               <ReportTable headers={[t("day"), t("revenue"), t("cost"), t("profit")]}>
-                {profit.byDay.map((r) => (
+                {profit.byDay.map((r: { day: string; revenue: number; cost: number; profit: number }) => (
                   <TableRow key={r.day}>
                     <TableCell>{fmtDay(r.day)}</TableCell>
-                    <TableCell>{money(r.revenue)}</TableCell>
-                    <TableCell>{money(r.cost)}</TableCell>
-                    <TableCell className="font-medium">{money(r.profit)}</TableCell>
+                    <TableCell dir="ltr">{money(r.revenue)}</TableCell>
+                    <TableCell dir="ltr">{money(r.cost)}</TableCell>
+                    <TableCell className="font-medium" dir="ltr">{money(r.profit)}</TableCell>
                   </TableRow>
                 ))}
               </ReportTable>
@@ -245,18 +246,18 @@ export function ReportsClient() {
               headers={[t("product"), t("category"), t("stockQty"), t("unitCost"), t("value")]}
               empty={tc("noResults")}
             >
-              {inventory.map((r) => (
+              {inventory.map((r: InventoryValuationRow) => (
                 <TableRow key={r.productId}>
                   <TableCell>{r.productName}</TableCell>
                   <TableCell>{r.categoryName || "—"}</TableCell>
-                  <TableCell>{r.stockQuantity}</TableCell>
-                  <TableCell>{money(r.unitCost)}</TableCell>
-                  <TableCell className="font-medium">{money(r.value)}</TableCell>
+                  <TableCell dir="ltr">{r.stockQuantity}</TableCell>
+                  <TableCell dir="ltr">{money(r.unitCost)}</TableCell>
+                  <TableCell className="font-medium" dir="ltr">{money(r.value)}</TableCell>
                 </TableRow>
               ))}
               <TableRow className="font-semibold">
                 <TableCell colSpan={4}>{t("totalValue")}</TableCell>
-                <TableCell>{money(inventory.reduce((s, r) => s + (r.value ?? 0), 0))}</TableCell>
+                <TableCell dir="ltr">{money(inventory.reduce((s, r) => s + (r.value ?? 0), 0))}</TableCell>
               </TableRow>
             </ReportTable>
           )}
@@ -270,11 +271,11 @@ export function ReportsClient() {
                 <SummaryCard label={t("purchaseRefundTotal")} value={money(returns.purchaseRefundTotal)} />
               </div>
               <ReportTable headers={[t("day"), t("count"), t("total")]}>
-                {returns.saleReturnsByDay.map((r) => (
+                {returns.saleReturnsByDay.map((r: { day: string; count: number; total: number }) => (
                   <TableRow key={r.day}>
                     <TableCell>{fmtDay(r.day)}</TableCell>
-                    <TableCell>{r.count}</TableCell>
-                    <TableCell>{money(r.total)}</TableCell>
+                    <TableCell dir="ltr">{r.count}</TableCell>
+                    <TableCell dir="ltr">{money(r.total)}</TableCell>
                   </TableRow>
                 ))}
               </ReportTable>
@@ -288,11 +289,11 @@ export function ReportsClient() {
                 <SummaryCard label={t("totalCash")} value={money(expenses.totalCash)} highlight />
               </div>
               <ReportTable headers={[t("category"), t("count"), t("total")]}>
-                {expenses.byCategory.map((r) => (
+                {expenses.byCategory.map((r: { categoryName: string; count: number; total: number }) => (
                   <TableRow key={r.categoryName}>
                     <TableCell>{r.categoryName}</TableCell>
-                    <TableCell>{r.count}</TableCell>
-                    <TableCell>{money(r.total)}</TableCell>
+                    <TableCell dir="ltr">{r.count}</TableCell>
+                    <TableCell dir="ltr">{money(r.total)}</TableCell>
                   </TableRow>
                 ))}
               </ReportTable>
@@ -324,15 +325,15 @@ export function ReportsClient() {
                 ]}
                 empty={tc("noResults")}
               >
-                {cash.shifts.map((r) => (
+                {cash.shifts.map((r: { number: number; openedAt: string; closedAt: string; openingCash: number; expectedCash: number; countedCash: number; difference: number }) => (
                   <TableRow key={r.number}>
                     <TableCell>{r.number}</TableCell>
                     <TableCell>{fmtDay(r.openedAt)}</TableCell>
                     <TableCell>{fmtDay(r.closedAt)}</TableCell>
-                    <TableCell>{money(r.openingCash)}</TableCell>
-                    <TableCell>{money(r.expectedCash)}</TableCell>
-                    <TableCell>{money(r.countedCash)}</TableCell>
-                    <TableCell className={r.difference < 0 ? "text-red-600" : r.difference > 0 ? "text-emerald-600" : ""}>
+                    <TableCell dir="ltr">{money(r.openingCash)}</TableCell>
+                    <TableCell dir="ltr">{money(r.expectedCash)}</TableCell>
+                    <TableCell dir="ltr">{money(r.countedCash)}</TableCell>
+                    <TableCell className={r.difference < 0 ? "text-red-600" : r.difference > 0 ? "text-emerald-600" : ""} dir="ltr">
                       {money(r.difference)}
                     </TableCell>
                   </TableRow>
@@ -362,7 +363,7 @@ function SummaryCard({
   return (
     <div className={`rounded-lg border bg-card p-4 ${highlight ? "border-primary/40" : ""}`}>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-xl font-bold ${toneClass}`}>{value}</p>
+      <p className={`mt-1 text-xl font-bold ${toneClass}`} dir="ltr">{value}</p>
     </div>
   )
 }

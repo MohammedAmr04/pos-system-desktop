@@ -1,9 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { api, PurchaseInvoice, PurchaseReturn } from "@/lib/api"
-import { useAuth } from "@/components/common/auth-context"
-import { PERMISSIONS } from "@/lib/constants"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -18,104 +16,87 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { Loader2, Search } from "lucide-react"
+import { PurchaseInvoice, PurchaseReturn } from "@/types/domain/domain.types"
+import { purchaseReturnsKeys, usePurchaseReturnsPage } from "@/hooks/use-returns"
+import { getPurchase, listPurchasesPaged } from "@/api/purchases"
+import { purchasesKeys } from "@/hooks/use-purchases"
 import { CreatePurchaseReturnDialog } from "./create-purchase-return-dialog"
 
 const PAGE_SIZE = 20
 
 interface Props {
-  onOpenPurchase?: (purchaseId: string) => void
   initialPurchaseId?: string | null
 }
 
-export function PurchasesReturnsSection({ onOpenPurchase, initialPurchaseId }: Props) {
+export function PurchasesReturnsSection({ initialPurchaseId }: Props) {
   const t = useTranslations("Returns")
   const tp = useTranslations("POS")
   const tc = useTranslations("Common")
-  const { hasPermission } = useAuth()
-  const canView = hasPermission(PERMISSIONS.INVOICES_VIEW)
-  const canCreate = hasPermission(PERMISSIONS.PURCHASES_RETURN)
+  const queryClient = useQueryClient()
 
-  const [returns, setReturns] = useState<PurchaseReturn[]>([])
-  const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [reloadKey, setReloadKey] = useState(0)
-  const [loading, setLoading] = useState(true)
   const [searchInput, setSearchInput] = useState("")
-  const [candidates, setCandidates] = useState<PurchaseInvoice[]>([])
   const [searching, setSearching] = useState(false)
+  const [candidates, setCandidates] = useState<PurchaseInvoice[] | null>(null)
   const [dialogPurchase, setDialogPurchase] = useState<PurchaseInvoice | null>(null)
 
+  const { data, isPending: loading } = usePurchaseReturnsPage(page, PAGE_SIZE)
+  const returns: PurchaseReturn[] = data?.items ?? []
+  const total = data?.total ?? 0
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: purchaseReturnsKeys.all })
+
+  const openPurchase = useCallback(
+    async (id: string) => {
+      try {
+        const inv = await queryClient.fetchQuery({
+          queryKey: purchasesKeys.detail(id),
+          queryFn: () => getPurchase(id),
+        })
+        if ((inv.status ?? "posted") !== "posted") {
+          toast.error(t("onlyPosted"))
+          return
+        }
+        setDialogPurchase(inv)
+      } catch {
+        toast.error(t("loadFailed"))
+      }
+    },
+    [queryClient, t]
+  )
+
+  // Deep link: open the return dialog for a specific purchase.
+  const deepLinkRef = useRef<string | null>(initialPurchaseId ?? null)
   useEffect(() => {
-    if (!canView) return
-    let cancelled = false
-    api.purchaseReturns
-      .listPaged(page, PAGE_SIZE)
-      .then((res) => {
-        if (cancelled) return
-        setReturns(res.items)
-        setTotal(res.total)
-      })
-      .catch(() => {
-        if (cancelled) return
-        setReturns([])
-        setTotal(0)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [page, reloadKey, canView])
+    const id = deepLinkRef.current
+    if (!id) return
+    void openPurchase(id)
+  }, [openPurchase])
 
-  useEffect(() => {
-    if (!canView || !canCreate) return
-    if (!initialPurchaseId) return
-    api.purchases.get(initialPurchaseId).then((inv) => {
-      if ((inv.status ?? "posted") === "posted") setDialogPurchase(inv)
-      else toast.error(t("onlyPosted"))
-    }).catch(() => toast.error(t("loadFailed")))
-  }, [initialPurchaseId, canView, canCreate])
-
-  const handlePageChange = (p: number) => {
-    setLoading(true)
-    setPage(p)
-  }
-
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
+  // Candidate search over posted purchases.
   const handleSearch = async () => {
     const q = searchInput.trim()
-    if (!q) return
+    if (!q || searching) return
     setSearching(true)
     try {
-      const res = await api.purchases.listPaged(1, 10, { q, status: "posted" })
-      if (res.items.length === 0) {
+      const res = await queryClient.fetchQuery({
+        queryKey: purchasesKeys.paged(1, 10, { q, status: "posted" }),
+        queryFn: () => listPurchasesPaged(1, 10, { q, status: "posted" }),
+      })
+      const items = res.items ?? []
+      if (items.length === 0) {
         toast.error(t("noPostedPurchasesFound"))
-        setCandidates([])
-      } else if (res.items.length === 1) {
-        openPurchase(res.items[0].id)
-        setCandidates([])
+        setCandidates(null)
+      } else if (items.length === 1) {
+        setCandidates(null)
+        await openPurchase(items[0].id)
       } else {
-        setCandidates(res.items)
+        setCandidates(items)
       }
     } catch {
-      toast.error(t("noPostedPurchasesFound"))
+      toast.error(t("loadFailed"))
     } finally {
       setSearching(false)
-    }
-  }
-
-  const openPurchase = async (id: string) => {
-    try {
-      const inv = await api.purchases.get(id)
-      if ((inv.status ?? "posted") !== "posted") {
-        toast.error(t("onlyPosted"))
-        return
-      }
-      setDialogPurchase(inv)
-    } catch {
-      toast.error(t("noPostedPurchasesFound"))
     }
   }
 
@@ -133,26 +114,24 @@ export function PurchasesReturnsSection({ onOpenPurchase, initialPurchaseId }: P
 
   return (
     <div className="space-y-4">
-      {canCreate && (
-        <Card>
-          <CardContent className="flex flex-wrap items-center gap-3 pt-4">
-            <Input
-              className="max-w-xs"
-              placeholder={t("searchPurchasePlaceholder")}
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              inputMode="numeric"
-            />
-            <Button onClick={handleSearch} disabled={searching}>
-              {searching ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Search className="ml-2 h-4 w-4" />}
-              {t("loadPurchase")}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-3 pt-4">
+          <Input
+            className="max-w-xs"
+            placeholder={t("searchPurchasePlaceholder")}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            inputMode="numeric"
+          />
+          <Button onClick={handleSearch} disabled={searching}>
+            {searching ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Search className="ml-2 h-4 w-4" />}
+            {t("loadPurchase")}
+          </Button>
+        </CardContent>
+      </Card>
 
-      {candidates.length > 1 && (
+      {candidates && candidates.length > 1 && (
         <Card>
           <CardContent className="pt-4">
             <p className="mb-2 text-sm font-medium">{t("pickPurchase")}</p>
@@ -217,10 +196,10 @@ export function PurchasesReturnsSection({ onOpenPurchase, initialPurchaseId }: P
           {t("returnsCount", { count: total })}
         </span>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => handlePageChange(page - 1)} disabled={page <= 1}>
+          <Button variant="outline" size="sm" onClick={() => setPage(page - 1)} disabled={page <= 1}>
             {tc("previous")}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => handlePageChange(page + 1)} disabled={page >= pageCount}>
+          <Button variant="outline" size="sm" onClick={() => setPage(page + 1)} disabled={page * PAGE_SIZE >= total}>
             {tc("next")}
           </Button>
         </div>
@@ -234,8 +213,7 @@ export function PurchasesReturnsSection({ onOpenPurchase, initialPurchaseId }: P
           onClose={() => setDialogPurchase(null)}
           onCreated={() => {
             setDialogPurchase(null)
-            setLoading(true)
-            setReloadKey((k) => k + 1)
+            void refresh()
           }}
         />
       )}

@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import {
   Dialog,
   DialogContent,
@@ -14,7 +15,9 @@ import { Input } from "@/components/ui/input"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
-import { api, Invoice, SaleReturn } from "@/lib/api"
+import { Invoice, SaleReturn } from "@/types/domain/domain.types"
+import { saleReturnsKeys, useSaleReturnsPage } from "@/hooks/use-returns"
+import { createSaleReturn } from "@/actions/sale-returns.actions"
 
 interface CreateReturnDialogProps {
   open: boolean
@@ -27,82 +30,61 @@ export function CreateReturnDialog({ open, invoice, onClose, onCreated }: Create
   const t = useTranslations("Returns")
   const ti = useTranslations("Invoices")
   const tp = useTranslations("POS")
+  const queryClient = useQueryClient()
 
-  const [lines, setLines] = useState<
-    {
-      detailId: string
-      name: string
-      unitName: string
-      unitPrice: number
-      soldQty: number
-      returnedQty: number
-      qty: number
-    }[]
-  >([])
+  const [qtys, setQtys] = useState<Record<string, number>>({})
   const [notes, setNotes] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    if (!open) return
-    let cancelled = false
+  const { data: past } = useSaleReturnsPage(1, 100, invoice.id)
 
-    async function load() {
-      const details = invoice.invoiceDetail ?? invoice.InvoiceDetail ?? []
-      const past = await api.saleReturns.listPaged(1, 100, invoice.id).catch(() => ({ items: [], total: 0 }))
-      const returnedByDetail = new Map<string, number>()
-      for (const ret of past.items) {
-        for (const d of ret.details ?? []) {
-          returnedByDetail.set(d.invoiceDetailId, (returnedByDetail.get(d.invoiceDetailId) ?? 0) + d.quantity)
-        }
+  const details = invoice.invoiceDetail ?? invoice.InvoiceDetail ?? []
+
+  const returnedByDetail = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const ret of past?.items ?? []) {
+      for (const d of ret.details ?? []) {
+        map.set(d.invoiceDetailId, (map.get(d.invoiceDetailId) ?? 0) + d.quantity)
       }
-      if (cancelled) return
-      setLines(
-        details.map((d) => {
-          const sold = d.quantity
-          const returned = returnedByDetail.get(d.id) ?? 0
-          return {
-            detailId: d.id,
-            name: d.product?.name ?? "—",
-            unitName: d.unitName ?? "",
-            unitPrice: d.unitPrice ?? d.salePrice,
-            soldQty: sold,
-            returnedQty: returned,
-            qty: 0,
-          }
-        })
-      )
     }
+    return map
+  }, [past])
 
-    void load()
-    return () => {
-      cancelled = true
-    }
-  }, [open, invoice])
+  const lines = useMemo(
+    () =>
+      details.map((d) => ({
+        detailId: d.id,
+        name: d.product?.name ?? "—",
+        unitName: d.unitName ?? "",
+        unitPrice: d.unitPrice ?? d.salePrice,
+        soldQty: d.quantity,
+        returnedQty: returnedByDetail.get(d.id) ?? 0,
+      })),
+    [details, returnedByDetail]
+  )
 
-  const refundTotal = useMemo(() => lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0), [lines])
+  const refundTotal = lines.reduce((sum, l) => sum + (qtys[l.detailId] ?? 0) * l.unitPrice, 0)
 
   const setQty = (detailId: string, value: number) => {
-    setLines((prev) =>
-      prev.map((l) =>
-        l.detailId === detailId
-          ? { ...l, qty: Math.max(0, Math.min(value, Math.max(l.soldQty - l.returnedQty, 0))) }
-          : l
-      )
-    )
+    const line = lines.find((l) => l.detailId === detailId)
+    const max = line ? Math.max(line.soldQty - line.returnedQty, 0) : 0
+    setQtys((prev) => ({ ...prev, [detailId]: Math.max(0, Math.min(value, max)) }))
   }
 
   const handleSubmit = async () => {
     const items = lines
-      .filter((l) => l.qty > 0)
-      .map((l) => ({ invoiceDetailId: l.detailId, quantity: l.qty }))
+      .filter((l) => (qtys[l.detailId] ?? 0) > 0)
+      .map((l) => ({ invoiceDetailId: l.detailId, quantity: qtys[l.detailId] }))
     if (items.length === 0) {
       toast.error(t("noItemsSelected"))
       return
     }
     setSubmitting(true)
     try {
-      const created = await api.saleReturns.create(invoice.id, { items, notes: notes.trim() || undefined })
+      const created = await createSaleReturn(invoice.id, { items, notes: notes.trim() || undefined })
       toast.success(t("created", { number: created.number }))
+      await queryClient.invalidateQueries({ queryKey: saleReturnsKeys.all })
+      await queryClient.invalidateQueries({ queryKey: ["invoices"] })
       onCreated?.(created)
       onClose()
     } catch (e) {
@@ -124,6 +106,7 @@ export function CreateReturnDialog({ open, invoice, onClose, onCreated }: Create
 
         <div className="space-y-3">
           {lines.map((l) => {
+            const qty = qtys[l.detailId] ?? 0
             const available = Math.max(l.soldQty - l.returnedQty, 0)
             return (
               <div key={l.detailId} className="flex items-center gap-3 rounded-md border p-3">
@@ -141,14 +124,14 @@ export function CreateReturnDialog({ open, invoice, onClose, onCreated }: Create
                   disabled={available === 0}
                   className="w-24 text-center"
                   aria-label={tp("quantity")}
-                  value={l.qty === 0 ? "" : l.qty}
+                  value={qty === 0 ? "" : qty}
                   placeholder="0"
                   onChange={(e) => setQty(l.detailId, Number(e.target.value))}
                 />
               </div>
             )
           })}
-          {lines.every((l) => Math.max(l.soldQty - l.returnedQty, 0) === 0) && (
+          {lines.length > 0 && lines.every((l) => Math.max(l.soldQty - l.returnedQty, 0) === 0) && (
             <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-600">
               {t("fullyReturned")}
             </p>

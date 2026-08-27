@@ -1,4 +1,7 @@
-import { api } from "@/lib/api"
+import { queryClient } from "@/lib/query-client"
+import { request } from "@/lib/api"
+import { ProductBarcode, ProductUnit } from "@/types/domain/domain.types"
+import { productsKeys } from "@/hooks/use-products"
 
 export async function createProduct(data: {
   barcode?: string | null
@@ -15,7 +18,8 @@ export async function createProduct(data: {
   lowStockThreshold?: number
   notes?: string | null
 }) {
-  await api.products.create(data)
+  await request('/api/products', { method: 'POST', body: JSON.stringify(data) })
+  await queryClient.invalidateQueries({ queryKey: productsKeys.all })
 }
 
 export async function updateProduct(
@@ -36,18 +40,25 @@ export async function updateProduct(
     notes?: string | null
   }
 ) {
-  await api.products.update(id, data)
+  await request(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  await queryClient.invalidateQueries({ queryKey: productsKeys.all })
 }
 
 export async function deleteProduct(id: string) {
-  await api.products.delete(id)
+  await request<{ success: boolean }>(`/api/products/${id}`, { method: 'DELETE' })
+  await queryClient.invalidateQueries({ queryKey: productsKeys.all })
 }
 
 export async function addProductUnit(
   productId: string,
   data: { unitId?: string | null; unitName: string; quantityFactor: number; retailPrice: number; wholesalePrice?: number | null }
 ) {
-  return api.products.units.add(productId, data)
+  const result = await request<ProductUnit>(`/api/products/${productId}/units`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  await queryClient.invalidateQueries({ queryKey: productsKeys.all })
+  return result
 }
 
 export async function updateProductUnit(
@@ -55,21 +66,40 @@ export async function updateProductUnit(
   unitId: string,
   data: { unitId?: string | null; unitName?: string; quantityFactor?: number; retailPrice?: number; wholesalePrice?: number | null }
 ) {
-  return api.products.units.update(productId, unitId, data)
+  const result = await request<ProductUnit>(`/api/products/${productId}/units/${unitId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+  await queryClient.invalidateQueries({ queryKey: productsKeys.all })
+  return result
 }
 
 export async function deleteProductUnit(productId: string, unitId: string) {
-  await api.products.units.remove(productId, unitId)
+  await request<{ success: boolean }>(`/api/products/${productId}/units/${unitId}`, {
+    method: 'DELETE',
+  })
+  await queryClient.invalidateQueries({ queryKey: productsKeys.all })
 }
 
 export async function addProductBarcode(productId: string, unitId: string, barcode: string) {
-  return api.products.units.barcodes.add(productId, unitId, barcode)
+  const result = await request<ProductBarcode>(`/api/products/${productId}/units/${unitId}/barcodes`, {
+    method: 'POST',
+    body: JSON.stringify({ barcode }),
+  })
+  await queryClient.invalidateQueries({ queryKey: productsKeys.all })
+  return result
 }
 
 export async function removeProductBarcode(productId: string, unitId: string, barcodeId: string) {
-  await api.products.units.barcodes.remove(productId, unitId, barcodeId)
+  await request<{ success: boolean }>(`/api/products/${productId}/units/${unitId}/barcodes/${barcodeId}`, {
+    method: 'DELETE',
+  })
+  await queryClient.invalidateQueries({ queryKey: productsKeys.all })
 }
 
 export async function setDefaultProductBarcode(productId: string, unitId: string, barcodeId: string) {
-  await api.products.units.barcodes.setDefault(productId, unitId, barcodeId)
+  await request<{ success: boolean }>(`/api/products/${productId}/units/${unitId}/barcodes/${barcodeId}/default`, {
+    method: 'PUT',
+  })
+  await queryClient.invalidateQueries({ queryKey: productsKeys.all })
 }
