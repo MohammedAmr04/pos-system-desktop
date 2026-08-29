@@ -132,6 +132,7 @@ export interface AccessBundle {
     id: string
     name: string
     isActive: boolean
+    mustChangePassword: boolean
     tenantId: string
   }
   roles: string[]

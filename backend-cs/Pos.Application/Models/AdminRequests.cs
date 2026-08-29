@@ -53,6 +53,12 @@ namespace PosCs.Application.Models
         public string Password { get; set; }
     }
 
+    public sealed class ChangePasswordRequest
+    {
+        public string CurrentPassword { get; set; }
+        public string NewPassword { get; set; }
+    }
+
     public sealed class UnlockRequest
     {
         public string MachineId { get; set; }

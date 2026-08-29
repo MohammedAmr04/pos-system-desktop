@@ -1,12 +1,34 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using PosCs.Application.Models;
 using PosCs.Application.Ports;
 using PosCs.Domain.Exceptions;
 
 namespace PosCs.Application.Services
 {
+    /// <summary>Password complexity rules.</summary>
+    public static class PasswordPolicy
+    {
+        public const int MinimumLength = 8;
+        public const int MaximumLength = 64;
+
+        public static void Validate(string password)
+        {
+            if (string.IsNullOrWhiteSpace(password) || password.Length < MinimumLength || password.Length > MaximumLength)
+                throw new DomainValidationException($"Password must be {MinimumLength}-{MaximumLength} characters");
+            if (!Regex.IsMatch(password, @"[a-z]"))
+                throw new DomainValidationException("Password must contain at least one lowercase letter");
+            if (!Regex.IsMatch(password, @"[A-Z]"))
+                throw new DomainValidationException("Password must contain at least one uppercase letter");
+            if (!Regex.IsMatch(password, @"[0-9]"))
+                throw new DomainValidationException("Password must contain at least one digit");
+            if (!Regex.IsMatch(password, @"[^a-zA-Z0-9]"))
+                throw new DomainValidationException("Password must contain at least one symbol");
+        }
+    }
+
     /// <summary>User management use cases (tenant-scoped).</summary>
     public class UsersService
     {
@@ -48,8 +70,7 @@ namespace PosCs.Application.Services
                 throw new DomainValidationException("Name required");
             if (string.IsNullOrWhiteSpace(dto.Username))
                 throw new DomainValidationException("Username required");
-            if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 4 || dto.Password.Length > 64)
-                throw new DomainValidationException("Password must be 4-64 characters");
+            PasswordPolicy.Validate(dto.Password);
             if (dto.RoleIds == null || dto.RoleIds.Count == 0)
                 throw new DomainValidationException("At least one role required");
 
@@ -104,8 +125,7 @@ namespace PosCs.Application.Services
 
             if (!string.IsNullOrWhiteSpace(dto.Password))
             {
-                if (dto.Password.Length < 4 || dto.Password.Length > 64)
-                    throw new DomainValidationException("Password must be 4-64 characters");
+                PasswordPolicy.Validate(dto.Password);
                 _users.UpdatePassword(id, _hasher.Hash(dto.Password));
             }
 
@@ -123,6 +143,22 @@ namespace PosCs.Application.Services
                 IsActive = isActive,
                 RoleIds = _users.GetRoleIdsForUser(id)
             };
+        }
+
+        public void ChangePassword(string userId, string currentPassword, string newPassword)
+        {
+            if (string.IsNullOrWhiteSpace(newPassword))
+                throw new DomainValidationException("New password required");
+
+            var user = _users.GetById(userId);
+            if (user == null)
+                throw new NotFoundException("User not found");
+
+            if (!_hasher.Verify(user.PasswordHash, currentPassword))
+                throw new DomainValidationException("Current password is incorrect");
+
+            PasswordPolicy.Validate(newPassword);
+            _users.ChangePassword(userId, _hasher.Hash(newPassword));
         }
 
         private void ValidateRolesExist(List<string> roleIds)

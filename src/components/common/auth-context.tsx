@@ -16,9 +16,11 @@ interface AuthContextValue {
   session: AuthSession | null
   isReady: boolean
   isAuthenticated: boolean
+  mustChangePassword: boolean
   login: (username: string, password: string) => Promise<AuthSession>
   logout: () => void
   refreshAccess: () => Promise<AuthSession | null>
+  completePasswordChange: () => Promise<void>
   hasPermission: (permissionKey: string) => boolean
   hasFeature: (featureKey: string) => boolean
   hasAccess: (permissionKey: string, featureKey?: string) => boolean
@@ -41,7 +43,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!initial) return
 
     let cancelled = false
-    // Re-validate the stored token against the backend; drop it when invalid.
     getMe()
       .then((bundle) => {
         if (cancelled) return
@@ -108,6 +109,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const completePasswordChange = useCallback(async () => {
+    const refreshed = await refreshAccess()
+    if (refreshed?.user.mustChangePassword) {
+      throw new Error("Password change was not confirmed by the server")
+    }
+  }, [refreshAccess])
+
   const hasPermission = useCallback(
     (permissionKey: string) => session?.permissions?.includes(permissionKey) ?? false,
     [session]
@@ -127,19 +135,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [hasPermission, hasFeature]
   )
 
+  const mustChangePassword = session?.user?.mustChangePassword ?? false
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       isReady,
       isAuthenticated: session !== null,
+      mustChangePassword,
       login,
       logout,
       refreshAccess,
+      completePasswordChange,
       hasPermission,
       hasFeature,
       hasAccess,
     }),
-    [session, isReady, login, logout, refreshAccess, hasPermission, hasFeature, hasAccess]
+    [session, isReady, mustChangePassword, login, logout, refreshAccess, completePasswordChange, hasPermission, hasFeature, hasAccess]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

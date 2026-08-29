@@ -11,6 +11,7 @@ namespace PosCs.Application.Ports
         User Create(string tenantId, string name, string username, string passwordHash);
         bool Update(string userId, string name, string username, bool isActive);
         bool UpdatePassword(string userId, string passwordHash);
+        bool ChangePassword(string userId, string passwordHash);
     }
 
     public interface IRolesRepository

@@ -7,3 +7,10 @@ export function login(username: string, password: string) {
     body: JSON.stringify({ username, password }),
   })
 }
+
+export function changePassword(currentPassword: string, newPassword: string) {
+  return request<{ success: boolean }>('/api/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+}

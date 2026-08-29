@@ -33,22 +33,29 @@ The following critical issues from `PRODUCTION-READINESS-REVIEW.md` have been ad
 
 ---
 
-## 2. Critical — Must Do Before Production Pilot
+## 2. What Was Implemented Next
+
+| Task | Result | Files |
+|---|---|---|
+| Default admin password forced change | Completed and verified. | `backend-cs/Database/Migrations/032_force_password_change.sql`, `backend-cs/Pos.Domain/Entities/User.cs`, `backend-cs/Pos.Application/Services/UsersService.cs`, `backend-cs/Pos.Infrastructure/Persistence/UsersRepository.cs`, `backend-cs/Controllers/AuthController.cs`, `src/components/common/password-change-screen.tsx`, `src/components/common/auth-context.tsx`, `src/components/common/auth-gate.tsx`, `src/actions/auth.actions.ts`, `messages/ar.json` |
+
+### Verification after forced password change
+
+| Check | Result |
+|---|---|
+| `dotnet build backend-cs/pos-cs.csproj --configuration Release` | ✅ 0 warnings, 0 errors |
+| `dotnet test backend-cs/Pos.Tests/Pos.Tests.csproj --configuration Release` | ✅ 124 passed |
+| `npx tsc --noEmit` | ✅ passed |
+| `npm run lint` | ⚠️ 299 warnings (pre-existing), 0 errors |
+| `npm test` | ✅ 15 passed |
+
+---
+
+## 3. Critical — Must Do Before Production Pilot
 
 These items still block a safe production deployment:
 
-### 2.1 Default admin password `admin / 1234`
-
-- **Problem:** Fresh installs still ship with a trivial default password.
-- **Why it matters:** Anyone can log in to a new installation until the password is manually changed.
-- **Recommended fix:**
-  1. Add a `mustChangePassword` column to `User`.
-  2. Seed the admin user with `mustChangePassword = 1`.
-  3. On login, if `mustChangePassword` is true, redirect to a forced password-change screen before allowing access.
-  4. Enforce password complexity (minimum 8 characters, mixed case, digits, symbols).
-- **Alternative quick fix (not recommended long-term):** Change the seeded hash to a stronger default and print it on first server start.
-
-### 2.2 Rotate the license secret
+### 3.1 Rotate the license secret
 
 - **Problem:** The old hardcoded secret `POS-LICENSE-ACTIVATION-2026-v1` is still in git history.
 - **Why it matters:** Anyone who inspected the repo or an old binary knows the previous secret.
@@ -81,7 +88,7 @@ These items still block a safe production deployment:
 
 ---
 
-## 3. High Priority — Before General Availability
+## 4. High Priority — Before General Availability
 
 ### 3.1 Harden login
 
@@ -122,7 +129,7 @@ Add an OWIN middleware that sets:
 
 ---
 
-## 4. Medium Priority — Operational Readiness
+## 5. Medium Priority — Operational Readiness
 
 | Task | Why | Suggested Approach |
 |---|---|---|
@@ -135,7 +142,7 @@ Add an OWIN middleware that sets:
 
 ---
 
-## 5. Suggested Order of Work
+## 6. Suggested Order of Work
 
 ### This week (critical path)
 
@@ -160,7 +167,7 @@ Add an OWIN middleware that sets:
 
 ---
 
-## 6. How to Verify Each Future Change
+## 7. How to Verify Each Future Change
 
 Always run this sequence before committing:
 
@@ -185,6 +192,6 @@ dotnet list package --vulnerable
 
 ---
 
-## 7. Bottom Line
+## 8. Bottom Line
 
 The first pass removed the most dangerous security holes (fail-open license, hardcoded secret, unauthenticated endpoints, permissive CORS, FIFO profit bug). The remaining work is mostly about **hardening defaults, patching dependencies, and improving operational discipline**. The highest-value next task is **forced admin password change on first login**.

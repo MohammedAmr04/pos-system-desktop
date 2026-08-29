@@ -15,6 +15,7 @@ namespace PosCs.Controllers
     public class AuthController : ApiController
     {
         private readonly AuthService _auth = CompositionRoot.AuthService;
+        private readonly UsersService _users = CompositionRoot.UsersService;
 
         private static object ToAccessPayload(AccessBundle bundle)
         {
@@ -25,6 +26,7 @@ namespace PosCs.Controllers
                     id = bundle.User.Id,
                     name = bundle.User.Name,
                     isActive = bundle.User.IsActive,
+                    mustChangePassword = bundle.User.MustChangePassword,
                     tenantId = bundle.TenantId
                 },
                 roles = bundle.Roles,
@@ -81,6 +83,32 @@ namespace PosCs.Controllers
             {
                 Console.Error.WriteLine($"[API ERR] /auth/me failed: {ex}");
                 return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to load access");
+            }
+        }
+
+        [Route("change-password")]
+        [HttpPost]
+        [RequirePermission]
+        public HttpResponseMessage ChangePassword([FromBody] ChangePasswordRequest dto)
+        {
+            try
+            {
+                if (dto == null)
+                    return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Invalid request");
+
+                var userId = Request.GetOwinContextUserId();
+                if (string.IsNullOrEmpty(userId))
+                    return Request.CreateErrorResponse(HttpStatusCode.Unauthorized, "Authentication required");
+
+                _users.ChangePassword(userId, dto.CurrentPassword, dto.NewPassword);
+                Console.WriteLine($"[API] Password changed for user {userId}");
+                return Request.CreateResponse(HttpStatusCode.OK, new { success = true });
+            }
+            catch (Exception ex)
+            {
+                if (ApiErrors.IsHandled(ex)) return ApiErrors.From(Request, ex, null);
+                Console.Error.WriteLine($"[API ERR] Change password failed: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to change password");
             }
         }
 

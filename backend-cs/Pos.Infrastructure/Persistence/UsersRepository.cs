@@ -62,5 +62,16 @@ namespace PosCs.Infrastructure.Persistence
                     new { userId, passwordHash, now = DateTime.UtcNow }) > 0;
             }
         }
+
+        public bool ChangePassword(string userId, string passwordHash)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+            {
+                return conn.Execute(@"
+                    UPDATE User SET passwordHash = @passwordHash, mustChangePassword = 0, updatedAt = @now
+                    WHERE id = @userId",
+                    new { userId, passwordHash, now = DateTime.UtcNow }) > 0;
+            }
+        }
     }
 }

@@ -4,6 +4,7 @@ export interface AuthSession {
     id: string
     name: string
     isActive: boolean
+    mustChangePassword: boolean
     tenantId: string
   }
   roles: string[]
