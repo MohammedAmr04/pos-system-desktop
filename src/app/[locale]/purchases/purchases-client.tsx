@@ -137,7 +137,7 @@ export function PurchasesClient() {
       key: "status",
       header: t("status"),
       cell: (inv) => (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-1">
           {statusBadge(inv.status)}
           {(inv.returnStatus === 'partial' || inv.returnStatus === 'full') && (
             <span className="inline-flex items-center rounded-full bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-600">

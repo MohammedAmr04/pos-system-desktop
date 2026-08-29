@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { Edit, EyeOff, Plus, Printer, Trash } from "lucide-react"
+import { Edit, Eye, EyeOff, Plus, Printer, Trash } from "lucide-react"
 
 import { Product } from "@/types/domain/domain.types"
 import { useProductsPage } from "@/hooks/use-products"
@@ -134,12 +134,12 @@ export function ProductsClient() {
           )}
           {canUpdate && (
             <TooltipIconButton
-              label={p.isHiddenFromPOS ? t("shownOnPOS") : t("hiddenFromPOS")}
+              label={!p.isHiddenFromPOS ? t("shownOnPOS") : t("hiddenFromPOS")}
               variant="ghost"
               size="icon"
               onClick={() => handleToggleHidden(p)}
             >
-              <EyeOff className="h-4 w-4" />
+              {p.isHiddenFromPOS ?<EyeOff className="h-4 w-4" />:<Eye className="size-4"/>}
             </TooltipIconButton>
           )}
           {canUpdate && (

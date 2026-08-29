@@ -267,7 +267,7 @@ export function EditorClient() {
         </div>
         {canModify && (
           <div className="flex items-center gap-2">
-            <Button variant="outline" disabled={saving} onClick={() => handleSave("draft")}>
+            <Button variant="outline" disabled={saving} onClick={() => handleSave(editId && status === "posted" ? "posted" : "draft")}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               {editId && status === "posted" ? t("saveChanges") : t("saveDraft")}
             </Button>
