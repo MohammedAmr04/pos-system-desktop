@@ -87,7 +87,7 @@ namespace PosCs.Infrastructure.Persistence
                 var report = new PurchasesReport();
 
                 var totals = conn.QueryFirstOrDefault<TotalsRow>(
-                    @"SELECT COUNT(1) AS InvoiceCount, COALESCE(SUM(totalAmount), 0) AS Total
+                    @"SELECT COUNT(1) AS InvoiceCount, COALESCE(SUM(total), 0) AS Total
                       FROM PurchaseInvoice
                       WHERE status = 'posted' AND createdAt BETWEEN @from AND @to", range);
                 report.InvoiceCount = (int)totals.InvoiceCount;
@@ -95,7 +95,7 @@ namespace PosCs.Infrastructure.Persistence
 
                 report.ByDay = conn.Query<PurchasesByDayRow>(
                     @"SELECT date(createdAt) AS Day, COUNT(1) AS InvoiceCount,
-                             COALESCE(SUM(totalAmount), 0) AS Total
+                             COALESCE(SUM(total), 0) AS Total
                       FROM PurchaseInvoice
                       WHERE status = 'posted' AND createdAt BETWEEN @from AND @to
                       GROUP BY date(createdAt) ORDER BY Day", range).ToList();
@@ -103,7 +103,7 @@ namespace PosCs.Infrastructure.Persistence
                 report.BySupplier = conn.Query<PurchasesBySupplierRow>(
                     @"SELECT COALESCE(s.name, pi.supplierId) AS SupplierName,
                              COUNT(1) AS InvoiceCount,
-                             COALESCE(SUM(pi.totalAmount), 0) AS Total
+                             COALESCE(SUM(pi.total), 0) AS Total
                       FROM PurchaseInvoice pi
                       LEFT JOIN Supplier s ON s.id = pi.supplierId
                       WHERE pi.status = 'posted' AND pi.createdAt BETWEEN @from AND @to
