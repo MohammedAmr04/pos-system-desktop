@@ -7,6 +7,7 @@ using PosCs.Application.Models;
 using PosCs.Application.Ports;
 using PosCs.Domain.Entities;
 using PosCs.Domain.Exceptions;
+using PosCs.Domain.Rules;
 
 namespace PosCs.Infrastructure.Persistence
 {
@@ -193,43 +194,42 @@ namespace PosCs.Infrastructure.Persistence
 
                 foreach (var row in rows)
                 {
-                    // Drawer convention: client-side rows are stored signed by effect
-                    // (+collection / −refund); supplier-side manual payments are stored
-                    // positive but move money OUT, so they flip sign here.
-                    var signed = row.ClientId != null ? row.Amount : -row.Amount;
+                    // The drawer bucket is decided by the business transaction the payment
+                    // belongs to (sale / purchase / client payment / supplier payment), NOT by
+                    // Payment.clientId being set — walk-in sales store clientId = NULL.
+                    var split = ShiftCashRules.FromPayment(
+                        row.SaleInvoiceId != null, row.PurchaseInvoiceId != null, row.ClientId != null, row.Amount);
                     string label;
 
-                    if (row.ClientId != null && row.SaleInvoiceId != null && row.Amount >= 0)
+                    switch (split.Bucket)
                     {
-                        report.CashSales += row.Amount;
-                        label = $"Cash sale {row.Reference}";
-                    }
-                    else if (row.ClientId != null && row.SaleInvoiceId != null)
-                    {
-                        report.SaleRefunds += -row.Amount;
-                        label = $"Sale refund {row.Reference}";
-                    }
-                    else if (row.ClientId != null)
-                    {
-                        report.OtherCashIn += row.Amount;
-                        label = $"Client payment ({row.Reference ?? "cash"})";
-                    }
-                    else if (row.PurchaseInvoiceId != null)
-                    {
-                        report.SupplierRefundsIn += -signed;
-                        label = $"Purchase refund {row.Reference}";
-                    }
-                    else
-                    {
-                        report.SupplierPaymentsOut += -signed;
-                        label = $"Supplier payment ({row.Reference ?? "cash"})";
+                        case ShiftCashRules.Bucket.CashSale:
+                            report.CashSales += split.Delta;
+                            label = $"Cash sale {row.Reference}";
+                            break;
+                        case ShiftCashRules.Bucket.SaleRefund:
+                            report.SaleRefunds += split.Delta;
+                            label = $"Sale refund {row.Reference}";
+                            break;
+                        case ShiftCashRules.Bucket.OtherCashIn:
+                            report.OtherCashIn += split.Delta;
+                            label = $"Client payment ({row.Reference ?? "cash"})";
+                            break;
+                        case ShiftCashRules.Bucket.SupplierRefundIn:
+                            report.SupplierRefundsIn += split.Delta;
+                            label = $"Purchase refund {row.Reference}";
+                            break;
+                        default:
+                            report.SupplierPaymentsOut += split.Delta;
+                            label = $"Supplier payment ({row.Reference ?? "cash"})";
+                            break;
                     }
 
                     report.Entries.Add(new ShiftReportEntry
                     {
                         Date = DateTime.Parse(row.Date),
                         Description = label,
-                        Amount = signed
+                        Amount = split.DrawerEffect
                     });
                 }
 
@@ -280,17 +280,21 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        /// <summary>Signed sum of a shift's cash drawer movements. Client-side rows are stored
-        /// with their drawer sign already (+in / −refund); supplier-side rows store positive for
-        /// money out and negative for refunds in, so their stored sign flips here. Cash expenses
-        /// (Phase 10) are drawer outflows and subtract directly.</summary>
+        /// <summary>Signed sum of a shift's cash drawer movements: each row's signed drawer effect
+        /// (sale +, refund −, supplier money out −, refund in +) exactly as the shift report
+        /// classifies it. Cash expenses (Phase 10) are drawer outflows and subtract directly.</summary>
         private static double SumShiftCash(SqliteConnection conn, SqliteTransaction tx, string shiftId)
         {
             var rows = conn.Query<ShiftCashRow>(
-                "SELECT clientId AS ClientId, amount AS Amount FROM Payment WHERE shiftId = @shiftId AND paymentMethod = 'cash'",
+                @"SELECT p.clientId AS ClientId, p.amount AS Amount, i.id AS SaleInvoiceId, pi.id AS PurchaseInvoiceId
+                  FROM Payment p
+                  LEFT JOIN Invoice i ON i.id = p.invoiceId
+                  LEFT JOIN PurchaseInvoice pi ON pi.id = p.invoiceId
+                  WHERE p.shiftId = @shiftId AND p.paymentMethod = 'cash'",
                 new { shiftId }, transaction: tx).ToList();
 
-            var payments = rows.Sum(r => r.ClientId != null ? r.Amount : -r.Amount);
+            var payments = rows.Sum(r => ShiftCashRules.FromPayment(
+                r.SaleInvoiceId != null, r.PurchaseInvoiceId != null, r.ClientId != null, r.Amount).DrawerEffect);
             var expenses = conn.ExecuteScalar<double>(
                 "SELECT COALESCE(SUM(amount), 0) FROM Expense WHERE shiftId = @shiftId AND paymentMethod = 'cash'",
                 new { shiftId }, transaction: tx);
@@ -322,6 +326,8 @@ namespace PosCs.Infrastructure.Persistence
         {
             public string ClientId { get; set; }
             public double Amount { get; set; }
+            public string SaleInvoiceId { get; set; }
+            public string PurchaseInvoiceId { get; set; }
         }
 
         private sealed class ReportRow
