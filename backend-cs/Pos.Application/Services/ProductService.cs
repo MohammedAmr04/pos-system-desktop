@@ -99,8 +99,8 @@ namespace PosCs.Application.Services
             var product = _repo.CreateWithBaseUnit(new Product
             {
                 Name = request.Name,
-                BuyPrice = request.BuyPrice,
-                StockQuantity = request.StockQuantity,
+                BuyPrice = 0,
+                StockQuantity = 0,
                 Notes = request.Notes,
                 AllowDiscount = request.AllowDiscount,
                 LowStockThreshold = request.LowStockThreshold,
@@ -131,8 +131,6 @@ namespace PosCs.Application.Services
                 throw new NotFoundException("Product not found");
 
             existing.Name = request.Name ?? existing.Name;
-            existing.BuyPrice = request.BuyPrice;
-            existing.StockQuantity = request.StockQuantity;
             existing.Notes = request.Notes ?? existing.Notes;
             if (request.AllowDiscount.HasValue)
                 existing.AllowDiscount = request.AllowDiscount.Value;

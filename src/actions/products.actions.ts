@@ -1,15 +1,13 @@
 import { queryClient } from "@/lib/query-client"
 import { request } from "@/lib/api"
-import { ProductBarcode, ProductUnit } from "@/types/domain/domain.types"
+import { Product, ProductBarcode, ProductUnit } from "@/types/domain/domain.types"
 import { productsKeys } from "@/hooks/use-products"
 
 export async function createProduct(data: {
   barcode?: string | null
   name: string
-  buyPrice: number
   retailPrice: number
   wholesalePrice?: number | null
-  stockQuantity: number
   unitName?: string | null
   unitId?: string | null
   categoryId?: string | null
@@ -19,8 +17,9 @@ export async function createProduct(data: {
   isHiddenFromPOS?: boolean
   notes?: string | null
 }) {
-  await request('/api/products', { method: 'POST', body: JSON.stringify(data) })
+  const result = await request<Product>('/api/products', { method: 'POST', body: JSON.stringify(data) })
   await queryClient.invalidateQueries({ queryKey: productsKeys.all })
+  return result
 }
 
 export async function updateProduct(
@@ -28,10 +27,8 @@ export async function updateProduct(
   data: {
     barcode?: string | null
     name: string
-    buyPrice: number
     retailPrice: number
     wholesalePrice?: number | null
-    stockQuantity: number
     unitName?: string | null
     unitId?: string | null
     categoryId?: string | null

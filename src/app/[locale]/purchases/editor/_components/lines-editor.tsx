@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import { Input } from "@/components/ui/input"
+import { SearchableProductSelect } from "@/components/common/searchable-product-select"
 import {
   Select,
   SelectContent,
@@ -13,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Plus, Trash2 } from "lucide-react"
+import { PackagePlus, Plus, Trash2 } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -30,9 +31,10 @@ interface LinesEditorProps {
   onAdd: () => void
   onRemove: (key: string) => void
   onUpdate: (key: string, patch: Partial<EditorLine>) => void
+  onAddNewProduct?: () => void
 }
 
-export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpdate }: LinesEditorProps) {
+export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpdate, onAddNewProduct }: LinesEditorProps) {
   const t = useTranslations("Purchases")
 
   const handleProductChange = (line: EditorLine, productId: string) => {
@@ -41,7 +43,7 @@ export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpda
     onUpdate(line.key, {
       productId,
       productUnitId: firstUnit?.id ?? "",
-      unitCost: line.unitCost || String(firstUnit ? product?.buyPrice ?? "" : ""),
+      unitCost: line.unitCost || (product?.buyPrice ? String(product.buyPrice) : ""),
     })
   }
 
@@ -53,9 +55,16 @@ export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpda
     <div className="rounded-lg border bg-card">
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <span className="font-medium">{t("lines")}</span>
-        <Button variant="outline" size="sm" onClick={onAdd} disabled={disabled}>
-          <Plus className="mr-1 h-4 w-4" /> {t("addLine")}
-        </Button>
+        <div className="flex items-center gap-2">
+          {onAddNewProduct && (
+            <Button variant="outline" size="sm" onClick={onAddNewProduct} disabled={disabled}>
+              <PackagePlus className="mr-1 h-4 w-4" /> {t("addNewProduct")}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onAdd} disabled={disabled}>
+            <Plus className="mr-1 h-4 w-4" /> {t("addLine")}
+          </Button>
+        </div>
       </div>
       <Table>
         <TableHeader>
@@ -75,27 +84,12 @@ export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpda
             return (
               <TableRow key={line.key}>
                 <TableCell>
-                  <Select
+                  <SearchableProductSelect
+                    products={products}
                     value={line.productId}
-                    onValueChange={(v) => v != null && handleProductChange(line, v)}
+                    onValueChange={(v) => handleProductChange(line, v)}
                     disabled={disabled}
-                    items={{
-                      "": t("product"),
-                      ...Object.fromEntries(products.map((p) => [p.id, p.name])),
-                    }}
-                  >
-                    <SelectTrigger aria-label={t("product")} className="w-full min-w-[140px]">
-                      <SelectValue placeholder={t("product")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">{t("product")}</SelectItem>
-                      {products.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                 </TableCell>
                 <TableCell>
                   <Select

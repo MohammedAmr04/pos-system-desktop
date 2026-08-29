@@ -15,6 +15,8 @@ import { usePurchase } from "@/hooks/use-purchases"
 import { createPurchase, updatePurchase } from "@/actions/purchases.actions"
 import { PurchaseHeaderFields } from "./_components/purchase-header-fields"
 import { LinesEditor } from "./_components/lines-editor"
+import { ProductForm, PRODUCT_FORM_ID } from "@/components/common/product-form"
+import { ResponsiveSheet } from "@/components/common/responsive-sheet"
 
 export interface EditorLine {
   key: string
@@ -64,6 +66,7 @@ export function EditorClient() {
   const [lines, setLines] = useState<EditorLine[]>([emptyLine()])
   const [lastHydratedId, setLastHydratedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [productSheetOpen, setProductSheetOpen] = useState(false)
 
   const { data: products = [] } = useAllProducts()
   const { data: existing, isError: loadFailed } = usePurchase(editId ?? "", !!editId)
@@ -163,6 +166,26 @@ export function EditorClient() {
   const updateLine = (key: string, patch: Partial<EditorLine>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)))
 
+  const canCreateProduct = hasPermission(PERMISSIONS.PRODUCTS_CREATE)
+
+  const handleNewProduct = (product?: Product) => {
+    setProductSheetOpen(false)
+    if (!product) return
+    const known = products.find((p) => p.id === product.id) ?? product
+    const unit = known.units?.[0]
+    const patch = {
+      productId: product.id,
+      productUnitId: unit?.id ?? "",
+      unitCost: product.buyPrice ? String(product.buyPrice) : "",
+    }
+    const empty = lines.find((l) => !l.productId)
+    if (empty) {
+      updateLine(empty.key, patch)
+    } else {
+      setLines((prev) => [...prev, { ...emptyLine(), ...patch }])
+    }
+  }
+
   if (loading) {
     return <Loader2 className="mx-auto mt-10 h-6 w-6 animate-spin" />
   }
@@ -216,7 +239,24 @@ export function EditorClient() {
         onAdd={addLine}
         onRemove={removeLine}
         onUpdate={updateLine}
+        onAddNewProduct={canCreateProduct ? () => setProductSheetOpen(true) : undefined}
       />
+
+      {canCreateProduct && (
+        <ResponsiveSheet
+          open={productSheetOpen}
+          onOpenChange={setProductSheetOpen}
+          title={t("addNewProduct")}
+          description={t("addNewProductDescription")}
+          footer={
+            <Button type="submit" form={PRODUCT_FORM_ID}>
+              {t("save")}
+            </Button>
+          }
+        >
+          <ProductForm onSuccess={handleNewProduct} />
+        </ResponsiveSheet>
+      )}
 
       <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
         <div className="space-y-1 text-sm">

@@ -82,9 +82,7 @@ export function ProductsClient() {
     try {
       await updateProduct(product.id, {
         name: product.name,
-        buyPrice: product.buyPrice,
         retailPrice: product.salePrice,
-        stockQuantity: product.stockQuantity,
         allowDiscount: product.allowDiscount,
         lowStockThreshold: product.lowStockThreshold,
         isHiddenFromPOS: !product.isHiddenFromPOS,

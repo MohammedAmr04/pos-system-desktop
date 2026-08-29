@@ -23,7 +23,7 @@ import { useTranslations } from "next-intl"
 interface ProductFormProps {
   initialData?: Product | null
   defaultBarcode?: string
-  onSuccess: () => void
+  onSuccess?: (product?: Product) => void
 }
 
 export const PRODUCT_FORM_ID = "product-form"
@@ -55,10 +55,8 @@ function makeProductSchema(t: (key: string) => string) {
     categoryId: z.string(),
     brandId: z.string(),
     unitId: z.string(),
-    buyPrice: money(required, invalid).refine((v) => parseFloat(v) >= 0, invalid),
     retailPrice: money(required, invalid).refine((v) => parseFloat(v) >= 0, invalid),
     wholesalePrice: optionalMoney(invalid),
-    stockQuantity: money(required, invalid).refine((v) => parseFloat(v) >= 0, invalid),
     lowStockThreshold: nonNegativeInt(invalid),
     allowDiscount: z.boolean(),
     isHiddenFromPOS: z.boolean(),
@@ -107,13 +105,11 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
       categoryId: initialData?.categoryId ?? "",
       brandId: initialData?.brandId ?? "",
       unitId: defaultUnitId,
-      buyPrice: initialData?.buyPrice != null ? String(initialData.buyPrice) : "",
       retailPrice:
         (baseUnit?.retailPrice ?? initialData?.salePrice) != null
           ? String(baseUnit?.retailPrice ?? initialData?.salePrice)
           : "",
       wholesalePrice: baseUnit?.wholesalePrice != null ? String(baseUnit.wholesalePrice) : "",
-      stockQuantity: initialData?.stockQuantity != null ? String(initialData.stockQuantity) : "",
       lowStockThreshold: String(initialData?.lowStockThreshold ?? 0),
       allowDiscount: initialData?.allowDiscount ?? true,
       isHiddenFromPOS: initialData?.isHiddenFromPOS ?? false,
@@ -129,14 +125,12 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
         await updateProduct(initialData.id, {
           name: values.name,
           barcode: values.barcode.trim() || undefined,
-          buyPrice: parseFloat(values.buyPrice),
           retailPrice: parseFloat(values.retailPrice),
           wholesalePrice: wholesaleRaw ? parseFloat(wholesaleRaw) : null,
           unitId: values.unitId || undefined,
           unitName: selectedUnit ? selectedUnit.name : undefined,
           categoryId: values.categoryId || "",
           brandId: values.brandId || "",
-          stockQuantity: parseFloat(values.stockQuantity),
           notes: values.notes || null,
           allowDiscount: values.allowDiscount,
           isHiddenFromPOS: values.isHiddenFromPOS,
@@ -144,24 +138,22 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
         })
         toast.success(t("productUpdated"))
       } else {
-        await createProduct({
+        const product = await createProduct({
           name: values.name,
           barcode: values.barcode.trim() || undefined,
-          buyPrice: parseFloat(values.buyPrice),
           retailPrice: parseFloat(values.retailPrice),
           wholesalePrice: wholesaleRaw ? parseFloat(wholesaleRaw) : null,
           unitId: values.unitId || undefined,
           unitName: selectedUnit ? selectedUnit.name : defaultUnitName,
           categoryId: values.categoryId || "",
           brandId: values.brandId || "",
-          stockQuantity: parseFloat(values.stockQuantity),
           notes: values.notes || null,
           allowDiscount: values.allowDiscount,
           isHiddenFromPOS: values.isHiddenFromPOS,
           lowStockThreshold: parseInt(values.lowStockThreshold, 10) || 0,
         })
         toast.success(t("productCreated"))
-        onSuccess()
+        onSuccess?.(product)
         reset()
       }
     } catch (e) {
@@ -270,11 +262,13 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">{t("buyPrice")} *</label>
-          <Input {...register("buyPrice")} type="number" step="1" dir="ltr" />
-          <FieldError message={errors.buyPrice?.message} />
-        </div>
+        {initialData && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">{t("buyPrice")}</label>
+            <Input value={String(initialData.buyPrice)} disabled readOnly dir="ltr" />
+            <p className="text-xs text-muted-foreground">{t("buyPriceHint")}</p>
+          </div>
+        )}
         <div className="space-y-2">
           <label className="text-sm font-medium">{t("retailPrice")} *</label>
           <Input {...register("retailPrice")} type="number" step="1" dir="ltr" />
@@ -287,11 +281,13 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
           <Input {...register("wholesalePrice")} type="number" step="1" placeholder={t("optional")} dir="ltr" />
           <FieldError message={errors.wholesalePrice?.message} />
         </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">{t("stockQuantity")} *</label>
-          <Input {...register("stockQuantity")} type="number" step="1" dir="ltr" />
-          <FieldError message={errors.stockQuantity?.message} />
-        </div>
+        {initialData && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">{t("stockQuantity")}</label>
+            <Input value={String(initialData.stockQuantity)} disabled readOnly dir="ltr" />
+            <p className="text-xs text-muted-foreground">{t("stockHint")}</p>
+          </div>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">

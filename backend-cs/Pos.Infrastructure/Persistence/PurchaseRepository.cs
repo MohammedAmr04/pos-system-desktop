@@ -189,6 +189,7 @@ namespace PosCs.Infrastructure.Persistence
                                 StockLedger.Apply(conn, tx, item.ProductId, baseQuantity,
                                     StockLedger.Purchase, invoice.Id, invoice.InvoiceNumber.ToString(), requireStock: false);
                                 CreateCostLayer(conn, tx, item.ProductId, invoice.Id, item.UnitCost, baseQuantity);
+                                SyncBuyPrice(conn, tx, item.ProductId);
 
                                 if (item.NewRetailPrice.HasValue)
                                     conn.Execute("UPDATE ProductUnit SET retailPrice = @p WHERE id = @id",
@@ -236,6 +237,11 @@ namespace PosCs.Infrastructure.Persistence
 
                         conn.Execute("UPDATE PurchaseInvoice SET status = 'cancelled', updatedAt = @updatedAt WHERE id = @id",
                             new { id, updatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") }, transaction: tx);
+
+                        foreach (var pid in conn.Query<string>(
+                            "SELECT DISTINCT productId FROM PurchaseInvoiceItem WHERE purchaseInvoiceId = @id",
+                            new { id }, transaction: tx))
+                            SyncBuyPrice(conn, tx, pid);
 
                         tx.Commit();
                     }
@@ -300,6 +306,24 @@ namespace PosCs.Infrastructure.Persistence
                     unitCost,
                     createdAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
                 }, transaction: tx);
+        }
+
+        /// <summary>Mirrors Product.buyPrice to the latest posted purchase cost for the product
+        /// (FIFO-friendly reference field used by the product form, profit protection and the
+        /// inventory valuation fallback). Recomputed inside the caller's transaction after any
+        /// posting, edit or cancellation so it always reflects the newest remaining posted line.</summary>
+        private static void SyncBuyPrice(SqliteConnection conn, SqliteTransaction tx, string productId)
+        {
+            conn.Execute(@"
+                UPDATE Product SET buyPrice = COALESCE((
+                    SELECT i.unitCost FROM PurchaseInvoiceItem i
+                    JOIN PurchaseInvoice p ON p.id = i.purchaseInvoiceId
+                    WHERE i.productId = @productId AND p.status = 'posted'
+                    ORDER BY p.invoiceNumber DESC, i.rowid DESC
+                    LIMIT 1
+                ), 0)
+                WHERE id = @productId",
+                new { productId }, transaction: tx);
         }
 
         /// <summary>Reverses a purchase's layers: reduces received+remaining by the original
