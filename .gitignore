@@ -41,6 +41,13 @@ yarn-error.log*
 .env*
 !.env.example
 
+# license signing secret
+license.secret
+
+# unrelated local files
+.md
+vitamins.pdf
+
 # vercel
 .vercel
 

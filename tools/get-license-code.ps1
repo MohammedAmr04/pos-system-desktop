@@ -1,8 +1,40 @@
 param(
-    [string]$MachineId
+    [string]$MachineId,
+    [string]$Secret
 )
 
 $ErrorActionPreference = "Stop"
+
+function Get-LicenseSecret {
+    param([string]$ExplicitSecret)
+
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitSecret)) {
+        return $ExplicitSecret.Trim()
+    }
+
+    $envSecret = $env:POS_LICENSE_SECRET
+    if (-not [string]::IsNullOrWhiteSpace($envSecret)) {
+        return $envSecret.Trim()
+    }
+
+    $scriptDir = Split-Path -Parent $MyInvocation.ScriptName
+    $searchPaths = @(
+        (Join-Path $scriptDir "license.secret"),
+        (Join-Path (Get-Location) "license.secret"),
+        (Join-Path $PSScriptRoot "license.secret")
+    )
+
+    foreach ($path in $searchPaths) {
+        if (Test-Path -LiteralPath $path) {
+            $fileSecret = (Get-Content -LiteralPath $path -Raw).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($fileSecret)) {
+                return $fileSecret
+            }
+        }
+    }
+
+    throw "License secret is not configured. Set POS_LICENSE_SECRET environment variable, provide -Secret, or create license.secret next to the script."
+}
 
 function Compute-MachineId {
     # Same algorithm as MachineIdProvider.cs in the backend.
@@ -37,9 +69,7 @@ function Compute-MachineId {
     }
 }
 
-function Compute-UnlockCode([string]$machineId) {
-    # Same algorithm as LicenseCode.cs in the backend.
-    $secret = "POS-LICENSE-ACTIVATION-2026-v1"
+function Compute-UnlockCode([string]$machineId, [string]$secret) {
     $hmac = New-Object System.Security.Cryptography.HMACSHA256
     try {
         $hmac.Key = [Text.Encoding]::UTF8.GetBytes($secret)
@@ -51,13 +81,13 @@ function Compute-UnlockCode([string]$machineId) {
     }
 }
 
-# If the caller provided a machine id, compute its code only.
-# Otherwise compute the machine id of THIS computer first.
+$resolvedSecret = Get-LicenseSecret -ExplicitSecret $Secret
+
 if (-not $MachineId) {
     $MachineId = Compute-MachineId
 }
 
-$code = Compute-UnlockCode -machineId $MachineId
+$code = Compute-UnlockCode -machineId $MachineId -secret $resolvedSecret
 
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Cyan

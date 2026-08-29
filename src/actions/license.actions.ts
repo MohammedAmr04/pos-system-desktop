@@ -7,8 +7,9 @@ export type { LicenseStatus }
 export async function checkLicense(): Promise<LicenseStatus> {
   try {
     return await checkLicenseStatus()
-  } catch {
-    return { status: "ok" }
+  } catch (e) {
+    console.error("License check failed", e)
+    return { status: "locked" }
   }
 }
 
@@ -18,7 +19,9 @@ export async function checkLicense(): Promise<LicenseStatus> {
 export async function unlockLicense(code: string): Promise<{ success: boolean; message?: string }> {
   try {
     const status = await checkLicenseStatus()
-    if (!status.machineId) return { success: false, message: "no machine id" }
+    if (!status.machineId) {
+      return { success: false, message: "no machine id" }
+    }
     await request<{ success: boolean; machineId: string }>('/api/license/unlock', {
       method: 'POST',
       body: JSON.stringify({ machineId: status.machineId, code: code.trim() }),

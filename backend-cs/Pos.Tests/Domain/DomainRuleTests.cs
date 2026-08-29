@@ -228,8 +228,20 @@ namespace PosCs.Tests.Domain
         }
     }
 
-    public class LicenseCodeTests
+    public class LicenseCodeTests : IDisposable
     {
+        private const string TestSecret = "test-license-secret-do-not-use-in-production";
+
+        public LicenseCodeTests()
+        {
+            Environment.SetEnvironmentVariable("POS_LICENSE_SECRET", TestSecret);
+        }
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable("POS_LICENSE_SECRET", null);
+        }
+
         [Fact]
         public void ComputeUnlockCode_IsDeterministicFourDigits()
         {
@@ -253,6 +265,13 @@ namespace PosCs.Tests.Domain
         public void IsValidUnlockCode_RejectsBadInput(string code)
         {
             Assert.False(LicenseCode.IsValidUnlockCode("machine-123", code));
+        }
+
+        [Fact]
+        public void ComputeUnlockCode_Throws_WhenSecretIsMissing()
+        {
+            Environment.SetEnvironmentVariable("POS_LICENSE_SECRET", null);
+            Assert.Throws<InvalidOperationException>(() => LicenseCode.ComputeUnlockCode("machine-123"));
         }
     }
 

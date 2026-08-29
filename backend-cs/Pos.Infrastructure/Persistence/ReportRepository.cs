@@ -50,14 +50,14 @@ namespace PosCs.Infrastructure.Persistence
                              COALESCE(p.name, d.productId) AS ProductName,
                              COALESCE(SUM(d.quantity * d.quantityFactor), 0) AS Quantity,
                              COALESCE(SUM(d.finalTotal), 0) AS Revenue,
-                             COALESCE(SUM(d.buyPrice * d.quantity * d.quantityFactor), 0) AS Cost
-                      FROM InvoiceDetail d
-                      JOIN Invoice i ON i.id = d.invoiceId
-                      LEFT JOIN Product p ON p.id = d.productId
-                      WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
-                      GROUP BY d.productId, p.name
-                      ORDER BY Revenue DESC
-                      LIMIT 10", range).ToList();
+                             COALESCE(SUM(d.totalCost), 0) AS Cost
+                       FROM InvoiceDetail d
+                       JOIN Invoice i ON i.id = d.invoiceId
+                       LEFT JOIN Product p ON p.id = d.productId
+                       WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                       GROUP BY d.productId, p.name
+                       ORDER BY Revenue DESC
+                       LIMIT 10", range).ToList();
                 foreach (var row in report.TopProducts)
                 {
                     row.Quantity = Math.Round(row.Quantity, 3);
@@ -123,10 +123,10 @@ namespace PosCs.Infrastructure.Persistence
 
                 var sales = conn.QueryFirstOrDefault<TotalsRow>(
                     @"SELECT COALESCE(SUM(d.finalTotal), 0) AS Revenue,
-                             COALESCE(SUM(d.buyPrice * d.quantity * d.quantityFactor), 0) AS Cost
-                      FROM InvoiceDetail d
-                      JOIN Invoice i ON i.id = d.invoiceId
-                      WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to", range);
+                             COALESCE(SUM(d.totalCost), 0) AS Cost
+                       FROM InvoiceDetail d
+                       JOIN Invoice i ON i.id = d.invoiceId
+                       WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to", range);
                 report.GrossSales = Math.Round((double)sales.Revenue, 2);
                 report.Cogs = Math.Round((double)sales.Cost, 2);
 
@@ -148,12 +148,12 @@ namespace PosCs.Infrastructure.Persistence
                 report.ByDay = conn.Query<ProfitByDayRow>(
                     @"SELECT date(i.createdAt) AS Day,
                              COALESCE(SUM(d.finalTotal), 0) AS Revenue,
-                             COALESCE(SUM(d.buyPrice * d.quantity * d.quantityFactor), 0) AS Cost,
-                             COALESCE(SUM(d.finalTotal - d.buyPrice * d.quantity * d.quantityFactor), 0) AS Profit
-                      FROM InvoiceDetail d
-                      JOIN Invoice i ON i.id = d.invoiceId
-                      WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
-                      GROUP BY date(i.createdAt) ORDER BY Day", range).ToList();
+                             COALESCE(SUM(d.totalCost), 0) AS Cost,
+                             COALESCE(SUM(d.finalTotal - COALESCE(d.totalCost, 0)), 0) AS Profit
+                       FROM InvoiceDetail d
+                       JOIN Invoice i ON i.id = d.invoiceId
+                       WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                       GROUP BY date(i.createdAt) ORDER BY Day", range).ToList();
                 foreach (var row in report.ByDay)
                 {
                     row.Revenue = Math.Round(row.Revenue, 2);

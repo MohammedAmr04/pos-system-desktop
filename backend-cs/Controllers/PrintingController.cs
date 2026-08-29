@@ -59,10 +59,12 @@ namespace PosCs.Controllers
 
         [Route("receipt")]
         [HttpPost]
+        [RequirePermission("printing.receipt", "receipt_printing")]
         public HttpResponseMessage ReceiptText([FromBody] ReceiptTextRequest dto) { /* legacy stub */ return Request.CreateResponse(HttpStatusCode.OK); }
 
         [Route("barcode")]
         [HttpPost]
+        [RequirePermission("printing.barcode", "barcode_printing")]
         public HttpResponseMessage BarcodeText([FromBody] BarcodeTextRequest dto) { /* legacy stub */ return Request.CreateResponse(HttpStatusCode.OK); }
 
         private static object ToBody(PrintOutcome outcome)

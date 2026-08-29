@@ -47,31 +47,36 @@ namespace PosCs
             };
             config.Formatters.Remove(config.Formatters.XmlFormatter);
 
-            // Restrict CORS to local development origins only (the SPA is served
-            // same-origin in production, so API CORS is only needed for `next dev`).
-            app.UseCors(new CorsOptions
+            // CORS is only enabled when POS_ENABLE_CORS is set. The production
+            // self-hosted build serves the SPA same-origin, so cross-origin
+            // requests should be blocked by default.
+            var enableCors = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("POS_ENABLE_CORS"));
+            if (enableCors)
             {
-                PolicyProvider = new CorsPolicyProvider
+                app.UseCors(new CorsOptions
                 {
-                    PolicyResolver = req =>
+                    PolicyProvider = new CorsPolicyProvider
                     {
-                        var policy = new CorsPolicy
+                        PolicyResolver = req =>
                         {
-                            AllowAnyMethod = true,
-                            AllowAnyHeader = true,
-                            SupportsCredentials = true
-                        };
-                        var origin = req.Headers.Get("Origin");
-                        if (!string.IsNullOrEmpty(origin) &&
-                            (origin.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase) ||
-                             origin.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase)))
-                        {
-                            policy.Origins.Add(origin);
+                            var policy = new CorsPolicy
+                            {
+                                AllowAnyMethod = true,
+                                AllowAnyHeader = true,
+                                SupportsCredentials = true
+                            };
+                            var origin = req.Headers.Get("Origin");
+                            if (!string.IsNullOrEmpty(origin) &&
+                                (origin.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase) ||
+                                 origin.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                policy.Origins.Add(origin);
+                            }
+                            return Task.FromResult(policy);
                         }
-                        return Task.FromResult(policy);
                     }
-                }
-            });
+                });
+            }
 
             // Authenticate bearer tokens before any controller runs.
             app.Use<ApiAuthMiddleware>();
