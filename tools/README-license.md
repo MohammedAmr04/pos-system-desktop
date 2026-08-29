@@ -54,3 +54,17 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 
 > الحدث إضافي: لو حبيت تحسب كود جهاز قديم إنتا عارف الـ Machine ID بتاعه،
 > شغّل: `powershell -ExecutionPolicy Bypass -File ".\tools\get-license-code.ps1" -MachineId "abc123..."`
+
+## تغيير المفتاح السري (Secret Rotation)
+
+لو حبيت تغيّر المفتاح السري (مثلًا بعد ما كنّا حاطينه Hardcoded في الكود):
+
+```powershell
+# إنشاء مفتاح سري جديد في ملف license.secret
+powershell -ExecutionPolicy Bypass -File ".\tools\generate-license-secret.ps1" -Path "license.secret"
+```
+
+- حطّ الملف `license.secret` جنب `pos-server.exe` على السيرفر.
+- ما ترفعش الملف ده على Git أبدًا (مضمّن في `.gitignore`).
+- لازم تستخدم نفس الملف في سكريبت حساب الكود (`get-license-code.ps1`) عشان يطلع نفس الكود اللي السيرفر هيقبله.
+- سكريبت التغليف `package-release.ps1` بيولّد مفتاح سري جديد أو بيستخدم `license.secret` الموجود عند التغليف.

@@ -2,7 +2,8 @@
 title POS Desktop Application - Version 8
 cd /d "%~dp0"
 
-set "SERVER_PATH=backend\pos-server.exe"
+set "SERVER_PATH=pos-server.exe"
+if not exist "%SERVER_PATH%" set "SERVER_PATH=backend\pos-server.exe"
 if not exist "%SERVER_PATH%" set "SERVER_PATH=backend-cs\bin\Release\net48\pos-server.exe"
 
 if not exist "%SERVER_PATH%" (
