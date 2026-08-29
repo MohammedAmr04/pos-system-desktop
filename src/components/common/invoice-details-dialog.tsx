@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Wallet } from "lucide-react"
 import { Invoice, InvoiceDetail } from "@/types/domain/domain.types"
 import { RecordPaymentDialog } from "@/components/common/record-payment-dialog"
+import { useSaleReturnsPage } from "@/hooks/use-returns"
 
 interface InvoiceDetailsDialogProps {
   open: boolean
@@ -35,7 +36,18 @@ export function InvoiceDetailsDialog({
   invoice,
 }: InvoiceDetailsDialogProps) {
   const t = useTranslations("Invoices")
+  const tr = useTranslations("Returns")
   const [recordPaymentOpen, setRecordPaymentOpen] = useState(false)
+
+  const isReturned = !!invoice && !!invoice.returnStatus && invoice.returnStatus !== "none"
+  const { data: returnsData } = useSaleReturnsPage(
+    1,
+    100,
+    isReturned ? invoice.id : undefined,
+    { enabled: open && isReturned }
+  )
+  const returns = returnsData?.items ?? []
+
   if (!invoice) return null
 
   const canRecordPayment = (invoice.status ?? 'posted') === 'posted' && invoice.paymentMethod === 'credit' && !!invoice.client
@@ -121,7 +133,44 @@ export function InvoiceDetailsDialog({
               })}
             </TableBody>
           </Table>
-          
+
+          {isReturned && returns.length > 0 && (
+            <div className="mt-6">
+              <h4 className="mb-2 text-sm font-semibold">{tr("returnedItems")}</h4>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-center">{tr("returnNumber")}</TableHead>
+                    <TableHead className="text-center">{t("item")}</TableHead>
+                    <TableHead className="text-center">{t("qty")}</TableHead>
+                    <TableHead className="text-center">{t("price")}</TableHead>
+                    <TableHead className="text-center">{t("itemTotal")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {returns.flatMap((ret) =>
+                    (ret.details ?? []).map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="text-center">#{ret.number}</TableCell>
+                        <TableCell className="text-center">
+                          <div>{d.product?.name || t("unknownProduct")}</div>
+                          {d.unitName && (
+                            <div className="text-xs text-muted-foreground">({d.unitName})</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {d.quantity}{d.unitName ? ` ${d.unitName}` : ""}
+                        </TableCell>
+                        <TableCell className="text-center">{d.unitPrice.toFixed(2)}</TableCell>
+                        <TableCell className="text-center">{d.lineTotal.toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
           <div className="space-y-2 border-t pt-4 mt-4">
             <div className="flex justify-between text-muted-foreground">
               <span>{t("subtotal")}</span>

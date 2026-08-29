@@ -15,12 +15,14 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { Loader2, Search } from "lucide-react"
+import { Eye, Loader2, Search } from "lucide-react"
 import { Invoice, SaleReturn } from "@/types/domain/domain.types"
 import { saleReturnsKeys, useSaleReturnsPage } from "@/hooks/use-returns"
 import { getInvoice, listInvoicesPaged } from "@/api/invoices"
 import { invoicesKeys } from "@/hooks/use-invoices"
+import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import { CreateReturnDialog } from "./create-return-dialog"
+import { ReturnDetailsDialog } from "./return-details-dialog"
 
 const PAGE_SIZE = 20
 
@@ -35,6 +37,7 @@ export function SalesReturnsSection() {
   const [searching, setSearching] = useState(false)
   const [candidates, setCandidates] = useState<Invoice[] | null>(null)
   const [dialogInvoice, setDialogInvoice] = useState<Invoice | null>(null)
+  const [detailsRet, setDetailsRet] = useState<SaleReturn | null>(null)
 
   const { data, isPending: loading } = useSaleReturnsPage(page, PAGE_SIZE)
   const returns: SaleReturn[] = data?.items ?? []
@@ -98,6 +101,7 @@ export function SalesReturnsSection() {
     t("refundAmount"),
     t("method"),
     t("notes"),
+    "",
   ]
 
   return (
@@ -166,6 +170,11 @@ export function SalesReturnsSection() {
                   <TableCell className="font-medium">{ret.totalAmount.toFixed(2)}</TableCell>
                   <TableCell>{methodLabel(ret.paymentMethod)}</TableCell>
                   <TableCell className="text-muted-foreground">{ret.notes || "—"}</TableCell>
+                  <TableCell>
+                    <TooltipIconButton label={t("viewReturn")} onClick={() => setDetailsRet(ret)}>
+                      <Eye className="h-4 w-4" />
+                    </TooltipIconButton>
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
@@ -205,6 +214,14 @@ export function SalesReturnsSection() {
           }}
         />
       )}
+
+      <ReturnDetailsDialog
+        ret={detailsRet}
+        open={!!detailsRet}
+        onOpenChange={(open) => {
+          if (!open) setDetailsRet(null)
+        }}
+      />
     </div>
   )
 }

@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { usePurchaseReturnsPage } from "@/hooks/use-returns"
 
 interface PurchaseDetailsDialogProps {
   purchase: PurchaseInvoice | null
@@ -26,6 +27,17 @@ interface PurchaseDetailsDialogProps {
 
 export function PurchaseDetailsDialog({ purchase, open, onOpenChange }: PurchaseDetailsDialogProps) {
   const t = useTranslations("Purchases")
+  const tr = useTranslations("Returns")
+
+  const isReturned = !!purchase && !!purchase.returnStatus
+  const { data: returnsData } = usePurchaseReturnsPage(
+    1,
+    100,
+    isReturned ? purchase.id : undefined,
+    { enabled: open && isReturned }
+  )
+  const returns = returnsData?.items ?? []
+
   if (!purchase) return null
 
   const items = purchase.items ?? []
@@ -84,6 +96,38 @@ export function PurchaseDetailsDialog({ purchase, open, onOpenChange }: Purchase
               ))}
             </TableBody>
           </Table>
+
+          {isReturned && returns.length > 0 && (
+            <div className="mt-6">
+              <h4 className="mb-2 text-sm font-semibold">{tr("returnedItems")}</h4>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{tr("returnNumber")}</TableHead>
+                    <TableHead>{t("product")}</TableHead>
+                    <TableHead>{t("unit")}</TableHead>
+                    <TableHead>{t("quantity")}</TableHead>
+                    <TableHead>{t("unitCost")}</TableHead>
+                    <TableHead>{t("lineTotal")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {returns.flatMap((ret) =>
+                    (ret.details ?? []).map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell>#{ret.number}</TableCell>
+                        <TableCell>{d.product?.name ?? d.productId}</TableCell>
+                        <TableCell>{d.unitName}</TableCell>
+                        <TableCell dir="ltr">{d.quantity}</TableCell>
+                        <TableCell dir="ltr">{d.unitCost.toFixed(2)}</TableCell>
+                        <TableCell dir="ltr">{d.lineTotal.toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
 
         <div className="border-t pt-3 space-y-1 text-sm">

@@ -183,7 +183,7 @@ namespace PosCs.Infrastructure.Persistence
                     parameters).ToList();
 
                 foreach (var ret in items)
-                    AttachDetails(conn, ret);
+                    ret.Details = AttachDetails(conn, ret);
 
                 return new SaleReturnPageResult { Items = items, Total = total };
             }

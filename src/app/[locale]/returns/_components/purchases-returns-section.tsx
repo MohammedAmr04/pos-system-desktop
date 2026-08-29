@@ -15,12 +15,14 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { Loader2, Search } from "lucide-react"
+import { Eye, Loader2, Search } from "lucide-react"
 import { PurchaseInvoice, PurchaseReturn } from "@/types/domain/domain.types"
 import { purchaseReturnsKeys, usePurchaseReturnsPage } from "@/hooks/use-returns"
 import { getPurchase, listPurchasesPaged } from "@/api/purchases"
 import { purchasesKeys } from "@/hooks/use-purchases"
+import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import { CreatePurchaseReturnDialog } from "./create-purchase-return-dialog"
+import { PurchaseReturnDetailsDialog } from "./purchase-return-details-dialog"
 
 const PAGE_SIZE = 20
 
@@ -39,6 +41,7 @@ export function PurchasesReturnsSection({ initialPurchaseId }: Props) {
   const [searching, setSearching] = useState(false)
   const [candidates, setCandidates] = useState<PurchaseInvoice[] | null>(null)
   const [dialogPurchase, setDialogPurchase] = useState<PurchaseInvoice | null>(null)
+  const [detailsRet, setDetailsRet] = useState<PurchaseReturn | null>(null)
 
   const { data, isPending: loading } = usePurchaseReturnsPage(page, PAGE_SIZE)
   const returns: PurchaseReturn[] = data?.items ?? []
@@ -110,6 +113,7 @@ export function PurchasesReturnsSection({ initialPurchaseId }: Props) {
     t("refundAmount"),
     t("method"),
     t("notes"),
+    "",
   ]
 
   return (
@@ -178,6 +182,11 @@ export function PurchasesReturnsSection({ initialPurchaseId }: Props) {
                   <TableCell className="font-medium">{ret.totalAmount.toFixed(2)}</TableCell>
                   <TableCell>{methodLabel(ret.paymentMethod)}</TableCell>
                   <TableCell className="text-muted-foreground">{ret.notes || "—"}</TableCell>
+                  <TableCell>
+                    <TooltipIconButton label={t("viewReturn")} onClick={() => setDetailsRet(ret)}>
+                      <Eye className="h-4 w-4" />
+                    </TooltipIconButton>
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
@@ -217,6 +226,14 @@ export function PurchasesReturnsSection({ initialPurchaseId }: Props) {
           }}
         />
       )}
+
+      <PurchaseReturnDetailsDialog
+        ret={detailsRet}
+        open={!!detailsRet}
+        onOpenChange={(open) => {
+          if (!open) setDetailsRet(null)
+        }}
+      />
     </div>
   )
 }

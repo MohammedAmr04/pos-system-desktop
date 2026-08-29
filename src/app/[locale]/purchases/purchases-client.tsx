@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { Eye, Pencil, CircleX, Upload, Undo2, Plus } from "lucide-react"
 
 import { PurchaseInvoice } from "@/types/domain/domain.types"
-import { purchasesKeys, usePurchasesPage } from "@/hooks/use-purchases"
+import { purchasesKeys, usePurchase, usePurchasesPage } from "@/hooks/use-purchases"
 import { postPurchase, cancelPurchase } from "@/actions/purchases.actions"
 import { useRouter } from "@/i18n/navigation"
 import { useAuth } from "@/components/common/auth-context"
@@ -43,7 +43,8 @@ export function PurchasesClient() {
   const [searchInput, setSearchInput] = useState("")
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState("all")
-  const [detailsFor, setDetailsFor] = useState<PurchaseInvoice | null>(null)
+  const [detailsId, setDetailsId] = useState<string | null>(null)
+  const { data: fullPurchase } = usePurchase(detailsId ?? "", !!detailsId)
 
   const debouncedQueryChange = useDebouncedCallback((value: string) => {
     setQuery(value)
@@ -156,7 +157,7 @@ export function PurchasesClient() {
             label={t("details")}
             variant="ghost"
             size="icon"
-            onClick={() => setDetailsFor(inv)}
+            onClick={() => setDetailsId(inv.id)}
           >
             <Eye className="h-4 w-4" />
           </TooltipIconButton>
@@ -253,10 +254,10 @@ export function PurchasesClient() {
       <DataPagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
 
       <PurchaseDetailsDialog
-        purchase={detailsFor}
-        open={!!detailsFor}
+        purchase={fullPurchase ?? null}
+        open={!!detailsId && !!fullPurchase}
         onOpenChange={(open) => {
-          if (!open) setDetailsFor(null)
+          if (!open) setDetailsId(null)
         }}
       />
     </>

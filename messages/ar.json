@@ -701,7 +701,9 @@
     "pickPurchase": "اختر فاتورة الشراء",
     "purchaseNumber": "رقم الشراء",
     "salesReturns": "مرتجعات البيع",
-    "purchaseReturns": "مرتجعات الشراء"
+    "purchaseReturns": "مرتجعات الشراء",
+    "viewReturn": "عرض المرتجع",
+    "returnedItems": "البنود المرتجعة"
   },
   "Shifts": {
     "title": "الورديات والصندوق",
