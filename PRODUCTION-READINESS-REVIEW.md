@@ -2,8 +2,9 @@
 
 > **Review date:** 2026-08-29  
 > **Scope:** Full-stack desktop POS (C# .NET Framework 4.8 backend + Next.js 16 static frontend)  
-> **Review basis:** `README.md`, `docs/FEATURES.md`, `docs/ROADMAP.md`, `docs/PERMISSIONS.md`, `docs/AUTHORIZATION-ANALYSIS.md`, `PRINTING-ANALYSIS.md`, `docs/REFACTOR-DELIVERABLES.md`, source code audit, and automated verification.  
-> **Working tree state:** Uncommitted changes present (see `git status`). This review reflects the code as it sits on disk, including those changes.
+> **Review basis:** `README.md`, `docs/FEATURES.md`, `docs/ROADMAP.md`, `docs/PERMISSIONS.md`, `docs/AUTHORIZATION-ANALYSIS.md`, `PRINTING-ANALYSIS.md`, `docs/REFACTOR-DELIVERABLES.md`, source code audit, and automated verification.
+>
+> **Update:** A first hardening pass has been applied. The most critical security issues (fail-open license, hardcoded license secret, unauthenticated legacy endpoints, permissive CORS, opt-in auth, FIFO profit-report bug, and `start.bat` race condition) are now fixed. See `NEXT-STEPS.md` for the remaining work.
 
 ---
 
