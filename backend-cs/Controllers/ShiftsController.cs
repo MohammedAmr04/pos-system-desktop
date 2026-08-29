@@ -123,5 +123,22 @@ namespace PosCs.Controllers
                 return InternalServerError(new Exception("Failed to build shift report"));
             }
         }
+
+        [Route("{id}/invoices")]
+        [HttpGet]
+        [RequirePermission("shifts.view")]
+        public IHttpActionResult GetInvoices(string id, [FromUri] int page = 1, [FromUri] int pageSize = 20)
+        {
+            try
+            {
+                return Ok(_service.GetShiftInvoices(id, page, pageSize));
+            }
+            catch (Exception ex)
+            {
+                if (ApiErrors.IsHandled(ex)) return Content(HttpStatusCode.BadRequest, new { message = ex.Message });
+                Console.WriteLine($"[API ERR] Failed to list shift invoices {id}: {ex}");
+                return InternalServerError(new Exception("Failed to list shift invoices"));
+            }
+        }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using PosCs.Application.Models;
 using PosCs.Application.Ports;
 using PosCs.Domain.Entities;
 using PosCs.Domain.Exceptions;
@@ -61,6 +62,13 @@ namespace PosCs.Application.Services
         public ShiftReport GetReport(string id)
         {
             return _shifts.GetReport(id);
+        }
+
+        public PagedResult<Invoice> GetShiftInvoices(string id, int page, int pageSize)
+        {
+            if (pageSize > 100) pageSize = 100;
+            if (page < 1) page = 1;
+            return _shifts.GetShiftInvoices(id, page, pageSize);
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Dapper;
 using Microsoft.Data.Sqlite;
+using PosCs.Application.Models;
 using PosCs.Application.Ports;
 using PosCs.Domain.Entities;
 using PosCs.Domain.Exceptions;
@@ -260,6 +261,25 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
+        public PagedResult<Invoice> GetShiftInvoices(string shiftId, int page, int pageSize)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+            {
+                var total = conn.ExecuteScalar<int>(
+                    "SELECT COUNT(1) FROM Invoice WHERE shiftId = @id",
+                    new { id = shiftId });
+
+                var items = conn.Query<Invoice>(
+                    "SELECT * FROM Invoice WHERE shiftId = @id ORDER BY createdAt DESC, rowid DESC LIMIT @pageSize OFFSET @offset",
+                    new { id = shiftId, pageSize, offset = (page - 1) * pageSize }).ToList();
+
+                foreach (var inv in items)
+                    AttachClient(conn, inv);
+
+                return new PagedResult<Invoice> { Items = items, Total = total };
+            }
+        }
+
         /// <summary>Signed sum of a shift's cash drawer movements. Client-side rows are stored
         /// with their drawer sign already (+in / −refund); supplier-side rows store positive for
         /// money out and negative for refunds in, so their stored sign flips here. Cash expenses
@@ -282,6 +302,12 @@ namespace PosCs.Infrastructure.Persistence
         {
             if (string.IsNullOrEmpty(userId)) return userId;
             return conn.ExecuteScalar<string>("SELECT username FROM User WHERE id = @id", new { id = userId }) ?? userId;
+        }
+
+        private static void AttachClient(SqliteConnection conn, Invoice inv)
+        {
+            if (string.IsNullOrEmpty(inv.ClientId)) return;
+            inv.Client = conn.QueryFirstOrDefault<Client>("SELECT * FROM Client WHERE id = @id", new { id = inv.ClientId });
         }
 
         private static Shift GetByIdCore(SqliteConnection conn, string id)

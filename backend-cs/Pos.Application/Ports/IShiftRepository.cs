@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PosCs.Application.Models;
 using PosCs.Domain.Entities;
 
 namespace PosCs.Application.Ports
@@ -23,6 +24,9 @@ namespace PosCs.Application.Ports
 
         /// <summary>Cash movement breakdown for one shift (end-of-shift report).</summary>
         ShiftReport GetReport(string shiftId);
+
+        /// <summary>Invoices created during one shift (shift detail page), newest first.</summary>
+        PagedResult<Invoice> GetShiftInvoices(string shiftId, int page, int pageSize);
     }
 
     public sealed class ShiftPageResult

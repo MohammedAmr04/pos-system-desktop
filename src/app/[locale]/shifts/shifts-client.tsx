@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl"
 import { Shift } from "@/types/domain/domain.types"
 import { shiftsKeys, useActiveShift, useShiftsPage } from "@/hooks/use-shifts"
 import { useAuth } from "@/components/common/auth-context"
+import { useRouter } from "@/i18n/navigation"
 import { PERMISSIONS } from "@/lib/constants"
 import { AccessDenied } from "@/components/common/access-denied"
 import { Button } from "@/components/ui/button"
@@ -15,7 +16,6 @@ import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import { Eye, PlayCircle, StopCircle } from "lucide-react"
 import { ShiftOpenDialog } from "./_components/shift-open-dialog"
 import { ShiftCloseDialog } from "./_components/shift-close-dialog"
-import { ShiftReportDialog } from "./_components/shift-report-dialog"
 
 const PAGE_SIZE = 20
 
@@ -23,6 +23,7 @@ export function ShiftsClient() {
   const t = useTranslations("Shifts")
   const tc = useTranslations("Common")
   const queryClient = useQueryClient()
+  const router = useRouter()
   const { hasPermission } = useAuth()
   const canView = hasPermission(PERMISSIONS.SHIFTS_VIEW)
   const canOpen = hasPermission(PERMISSIONS.SHIFTS_OPEN)
@@ -31,7 +32,6 @@ export function ShiftsClient() {
   const [page, setPage] = useState(1)
   const [openDialog, setOpenDialog] = useState(false)
   const [closeTarget, setCloseTarget] = useState<Shift | null>(null)
-  const [reportFor, setReportFor] = useState<Shift | null>(null)
 
   const { data: paged, isPending } = useShiftsPage(page, PAGE_SIZE)
   const shifts = paged?.items ?? []
@@ -120,7 +120,10 @@ export function ShiftsClient() {
       headClassName: "w-24",
       cell: (s) => (
         <div className="flex items-center gap-1">
-          <TooltipIconButton label={t("details")} onClick={() => setReportFor(s)}>
+          <TooltipIconButton
+            label={t("details")}
+            onClick={() => router.push(`/shifts/invoices?id=${s.id}`)}
+          >
             <Eye className="h-4 w-4" />
           </TooltipIconButton>
           {s.status === "open" && canClose && (
@@ -179,13 +182,6 @@ export function ShiftsClient() {
           if (!open) setCloseTarget(null)
         }}
         onClosed={refresh}
-      />
-
-      <ShiftReportDialog
-        shift={reportFor}
-        onOpenChange={(open) => {
-          if (!open) setReportFor(null)
-        }}
       />
     </div>
   )

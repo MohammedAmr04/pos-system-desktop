@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using PosCs.Application.Models;
 using PosCs.Application.Ports;
 using PosCs.Application.Services;
 using PosCs.Domain.Entities;
@@ -58,6 +59,13 @@ namespace PosCs.Tests.Application
 
         public ShiftReport GetReport(string shiftId) =>
             new ShiftReport { Shift = GetById(shiftId), OpeningCash = GetById(shiftId)?.OpeningCash ?? 0 };
+
+        public PagedResult<Invoice> GetShiftInvoices(string shiftId, int page, int pageSize) =>
+            new PagedResult<Invoice>
+            {
+                Items = new List<Invoice>(),
+                Total = 0
+            };
     }
 
     public class ShiftServiceTests
@@ -125,6 +133,17 @@ namespace PosCs.Tests.Application
 
             Assert.Throws<DomainValidationException>(() =>
                 service.Close(shift.Id, new CloseShiftRequest { CountedCash = 10 }));
+        }
+
+        [Fact]
+        public void Shift_Invoices_Clamp_Page_Size()
+        {
+            var repo = new FakeShiftRepository();
+            var service = new ShiftService(repo);
+
+            var result = service.GetShiftInvoices("sid", 0, 500);
+
+            Assert.Equal(0, result.Items.Count);
         }
     }
 }

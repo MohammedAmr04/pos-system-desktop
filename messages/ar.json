@@ -743,7 +743,9 @@
     "date": "التاريخ",
     "amount": "المبلغ",
     "details": "التفاصيل",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "invoicesOfShift": "فواتير الوردية رقم {number}",
+    "invoicesBack": "رجوع إلى الورديات"
   },
   "Expenses": {
     "title": "المصروفات",

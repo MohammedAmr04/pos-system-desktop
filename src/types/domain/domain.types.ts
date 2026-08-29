@@ -116,6 +116,11 @@ export interface PagedInvoices {
   totals: { revenue: number; discounts: number }
 }
 
+export interface PagedShiftInvoices {
+  items: Invoice[]
+  total: number
+}
+
 export interface PagedSaleReturns {
   items: SaleReturn[]
   total: number
