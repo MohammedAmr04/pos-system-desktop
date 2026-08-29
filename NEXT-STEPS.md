@@ -21,82 +21,86 @@ The following critical issues from `PRODUCTION-READINESS-REVIEW.md` have been ad
 | No env template / secret not in gitignore | Added `.env.example`, ignored `license.secret`, `.md`, `vitamins.pdf`. | `.env.example`, `.gitignore` |
 | License tests failed without secret | Tests now set a test secret and verify missing-secret behavior. | `backend-cs/Pos.Tests/Domain/DomainRuleTests.cs` |
 
-### Verification after fixes
-
-| Check | Result |
-|---|---|
-| `dotnet build backend-cs/pos-cs.csproj --configuration Release` | ✅ 0 warnings, 0 errors |
-| `dotnet test backend-cs/Pos.Tests/Pos.Tests.csproj --configuration Release` | ✅ 124 passed |
-| `npx tsc --noEmit` | ✅ passed |
-| `npm run lint` | ⚠️ 299 warnings (pre-existing), 0 errors |
-| `npm test` | ✅ 15 passed |
-
 ---
 
 ## 2. What Was Implemented Next
 
 | Task | Result | Files |
 |---|---|---|
-| Default admin password forced change | Completed and verified. | `backend-cs/Database/Migrations/032_force_password_change.sql`, `backend-cs/Pos.Domain/Entities/User.cs`, `backend-cs/Pos.Application/Services/UsersService.cs`, `backend-cs/Pos.Infrastructure/Persistence/UsersRepository.cs`, `backend-cs/Controllers/AuthController.cs`, `src/components/common/password-change-screen.tsx`, `src/components/common/auth-context.tsx`, `src/components/common/auth-gate.tsx`, `src/actions/auth.actions.ts`, `messages/ar.json` |
+| Forced admin password change on first login | Completed. `mustChangePassword` flag + password policy + forced-change screen + `POST /api/auth/change-password`. | `backend-cs/Database/Migrations/032_force_password_change.sql`, `backend-cs/Pos.Application/Services/UsersService.cs`, `backend-cs/Pos.Infrastructure/Persistence/UsersRepository.cs`, `backend-cs/Controllers/AuthController.cs`, `src/components/common/password-change-screen.tsx`, `src/components/common/auth-context.tsx`, `src/components/common/auth-gate.tsx`, `src/actions/auth.actions.ts`, `messages/ar.json` |
+| License secret rotation tooling | `tools/generate-license-secret.ps1` (crypto-random 32-byte secret). | `tools/generate-license-secret.ps1` |
+| Release packaging automation | `package-release.ps1` builds backend + static export, generates `license.secret`, zips release (with `tools/` and `Migrations/`). `start.bat` finds exe in release root. | `package-release.ps1`, `start.bat` |
+| Patch frontend dependency advisories | `npm audit fix` resolved 8/11 (8 high + 3 moderate → 3 high). Next intentionally stays pinned at `16.2.9`. | `package-lock.json` |
+| Patch backend dependency advisories | `SQLitePCLRaw.bundle_e_sqlite3` → 2.1.13 resolves CVE-2025-6965 (GHSA-2m69-gcr7-jv3q). `dotnet list package --vulnerable` now clean. | `backend-cs/Pos.Infrastructure/Pos.Infrastructure.csproj`, `backend-cs/pos-cs.csproj` |
+| Smoke test auth changes end-to-end | All checks pass on a fresh-copy DB (see §4). | — |
 
-### Verification after forced password change
+### Verification after this round
 
 | Check | Result |
 |---|---|
 | `dotnet build backend-cs/pos-cs.csproj --configuration Release` | ✅ 0 warnings, 0 errors |
 | `dotnet test backend-cs/Pos.Tests/Pos.Tests.csproj --configuration Release` | ✅ 124 passed |
+| `dotnet list backend-cs/pos-cs.csproj package --vulnerable` | ✅ 0 vulnerable packages |
 | `npx tsc --noEmit` | ✅ passed |
 | `npm run lint` | ⚠️ 299 warnings (pre-existing), 0 errors |
 | `npm test` | ✅ 15 passed |
+| `npx next build` (static export) | ✅ passed |
+| `npm audit` | ⚠️ 3 high remaining (all require next 16.3.x) |
+| End-to-end smoke test | ✅ all 9 checks passed (see below) |
 
 ---
 
-## 3. Critical — Must Do Before Production Pilot
+## 3. Remaining Critical — Must Decide Before Production Pilot
 
-These items still block a safe production deployment:
+Only one critical item is still open, and it is a **decision** rather than pure implementation:
 
-### 3.1 Rotate the license secret
+### 3.1 Upgrade Next.js to patch the last 3 high advisories
 
-- **Problem:** The old hardcoded secret `POS-LICENSE-ACTIVATION-2026-v1` is still in git history.
-- **Why it matters:** Anyone who inspected the repo or an old binary knows the previous secret.
-- **Recommended fix:**
-  1. Generate a new random secret (e.g., 32+ bytes from `RNGCryptoServiceProvider`, base64-encoded).
-  2. Store it in `license.secret` next to `pos-server.exe` during release packaging.
-  3. Never commit the new secret.
-  4. Update `tools/get-license-code.ps1` and vendor documentation.
+- **Problem:** `npm audit` still reports 3 high-severity advisories (`next`, `postcss`, `sharp`). The only fix available is `next@16.3.3`, which is **outside the pinned range** (`"next": "16.2.9"`).
+- **Reachability:** The app is a pure static export (no Server Actions, no middleware, no custom server; images are `unoptimized`). Most flagged Next.js advisories target runtime/SSR surfaces that this deployment does not use. `postcss`/`sharp` are build-time tools.
+- **Decision to make:**
+  - Option A (recommended when comfortable): bump to `next@16.3.3`, run the full verification suite + static-export smoke test, and re-pin.
+  - Option B: keep `16.2.9` and document the residual risk as accepted (defensible for a static, serverless export).
 
-### 2.3 Patch dependency vulnerabilities
+### 3.2 Enforce password change at the API layer (gap found in review)
 
-- **Problem:** `npm audit` reports 8 high-severity frontend advisories (Next.js, postcss, sharp, undici, etc.).
-- **Why it matters:** Some advisories may be reachable even with static export.
-- **Recommended fix:**
-  1. Run `npm audit fix` and test the build.
-  2. If Next.js needs a major patch, run `npm audit fix --force` and verify `npm run build` still produces a working static export.
-  3. Update `Microsoft.Data.Sqlite` / `SQLitePCLRaw` in the backend to resolve the high-severity native SQLite advisory.
-
-### 2.4 Verify default-deny auth does not break public/static assets
-
-- **Problem:** We changed `ApiAuthMiddleware` to reject unauthenticated `/api/*` requests.
-- **Why it matters:** We must confirm the SPA still loads, login still works, and `/health` is still public.
-- **Recommended verification:**
-  1. Start the backend.
-  2. Confirm `GET /health` returns 200 without a token.
-  3. Confirm `GET /api/license` returns 200 without a token.
-  4. Confirm `POST /api/auth/login` works without a token.
-  5. Confirm any other `POST /api/*` without a token returns 401.
-  6. Build the frontend and confirm the login page loads and authenticates.
+- **Problem:** The forced-change gate is enforced in the **frontend only**. A token issued before the password change still works against all API endpoints (`GET /api/products`, etc.).
+- **Why it matters:** A compromised admin token is usable even when the flag is set.
+- **Recommended fix:** In `ApiAuthMiddleware` (or at each controller), when `User.MustChangePassword == true` allow only `POST /api/auth/change-password` (and `/api/auth/me`) and return `403` for everything else.
 
 ---
 
-## 4. High Priority — Before General Availability
+## 4. Smoke Test Results (auth & default-deny)
 
-### 3.1 Harden login
+Executed against a fresh copy of the release build (new DB, migrations 001–032 applied):
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Server starts; `GET /health` (public) | ✅ 200 |
+| 2 | `GET /api/license` (public, no token) | ✅ 200 |
+| 3 | `GET /api/products` (no token) | ✅ 401 |
+| 4 | Login `admin / 1234` → `token` + `mustChangePassword=true` | ✅ |
+| 5 | `POST /api/auth/change-password` with weak password | ✅ 400 |
+| 6 | `POST /api/auth/change-password` with strong password | ✅ success |
+| 7 | Re-login with new password → `mustChangePassword=false` | ✅ |
+| 8 | Login with old password `1234` | ✅ 401 |
+| 9 | `GET /api/products` with fresh token | ✅ 200 |
+
+---
+
+## 5. High Priority — Before General Availability
+
+### 5.1 Harden login
 
 - Add per-IP rate limiting (e.g., max 10 attempts/minute per IP).
 - Persist login lockout state to the database (not just in-memory).
 - Increase username lockout window to at least 15 minutes.
 
-### 3.2 Add security headers
+### 5.2 Enforce `mustChangePassword` at the API layer
+
+- See §3.2. Gate all non-password endpoints on the flag.
+
+### 5.3 Add security headers
 
 Add an OWIN middleware that sets:
 - `Content-Security-Policy`
@@ -105,23 +109,23 @@ Add an OWIN middleware that sets:
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `Strict-Transport-Security` (if HTTPS is ever used)
 
-### 3.3 Move bearer token out of `localStorage`
+### 5.4 Move bearer token out of `localStorage`
 
 - Store the token in an `httpOnly`, `secure`, `SameSite=Strict` cookie.
 - Update `ApiAuthMiddleware` to also read the cookie as a fallback.
 - Remove `localStorage` token usage from `src/lib/auth-storage.ts`.
 
-### 3.4 Add input validation and request limits
+### 5.5 Add input validation and request limits
 
 - Add maximum-length validation on product names, notes, supplier addresses, etc. (e.g., name ≤ 200, notes ≤ 2000).
 - Configure OWIN request size limits.
 
-### 3.5 Fix remaining lint warnings
+### 5.6 Fix remaining lint warnings
 
 - 299 ESLint warnings create noise and hide real issues.
 - Decide which rules are non-negotiable, fix or disable the rest, and enforce 0 warnings in CI.
 
-### 3.6 Add integration tests for authorization
+### 5.7 Add integration tests for authorization
 
 - Verify `401` for missing/invalid tokens on protected endpoints.
 - Verify `403` for missing permissions/features.
@@ -129,7 +133,7 @@ Add an OWIN middleware that sets:
 
 ---
 
-## 5. Medium Priority — Operational Readiness
+## 6. Medium Priority — Operational Readiness
 
 | Task | Why | Suggested Approach |
 |---|---|---|
@@ -142,32 +146,32 @@ Add an OWIN middleware that sets:
 
 ---
 
-## 6. Suggested Order of Work
+## 7. Suggested Order of Work
 
 ### This week (critical path)
 
-1. **Default admin password forced change** — this is the biggest remaining critical blocker.
-2. **Rotate license secret** — generate a new secret and update release packaging.
-3. **Patch dependencies** — run `npm audit fix` and update backend SQLite packages.
-4. **Smoke test the auth changes** — verify login, public endpoints, and 401 behavior end-to-end.
+1. **Decide on the Next.js 16.3.3 upgrade** (§3.1) and apply the choice.
+2. **Enforce `mustChangePassword` at the API layer** (§5.2) — closes the auth gap found in the smoke test.
+3. **Cut a release with `package-release.ps1`** — builds backend + static export, generates a fresh `license.secret`, and zips the portable package.
+4. **Run the release on a clean Windows machine** using the generated package.
 
 ### Next week
 
-5. Add security headers middleware.
-6. Move auth token to `httpOnly` cookie.
-7. Add input validation and request limits.
-8. Add auth integration tests.
+5. Harden login (rate limiting + persistent lockout).
+6. Add security headers middleware.
+7. Move auth token to `httpOnly` cookie.
+8. Add input validation and request limits.
+9. Add auth integration tests.
 
 ### Before GA
 
-9. Fix/suppress lint warnings and enforce 0 warnings in CI.
-10. Add structured logging and backup documentation.
-11. Reconcile all docs.
-12. Run a full end-to-end test on a clean Windows machine using the release package.
+10. Fix/suppress lint warnings and enforce 0 warnings in CI.
+11. Add structured logging and backup documentation.
+12. Reconcile all docs.
 
 ---
 
-## 7. How to Verify Each Future Change
+## 8. How to Verify Each Future Change
 
 Always run this sequence before committing:
 
@@ -187,11 +191,13 @@ For security changes, also run:
 
 ```powershell
 npm audit
-dotnet list package --vulnerable
+dotnet list backend-cs/pos-cs.csproj package --vulnerable
 ```
+
+For auth flow changes, re-run the end-to-end smoke test (start the packaged server on a fresh copy, verify login → forced change → re-login, §4).
 
 ---
 
-## 8. Bottom Line
+## 9. Bottom Line
 
-The first pass removed the most dangerous security holes (fail-open license, hardcoded secret, unauthenticated endpoints, permissive CORS, FIFO profit bug). The remaining work is mostly about **hardening defaults, patching dependencies, and improving operational discipline**. The highest-value next task is **forced admin password change on first login**.
+The first pass removed the most dangerous security holes (fail-open license, hardcoded secret, unauthenticated endpoints, permissive CORS, FIFO profit bug). This pass delivered the two biggest remaining critical items (forced admin password change, dependency hardening) plus release tooling and an end-to-end auth smoke test. What remains is largely **decisions** (Next.js major bump) and **hardening discipline** (API-layer gate, headers, token storage, rate limiting, lint).

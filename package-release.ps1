@@ -36,11 +36,11 @@ finally {
     Pop-Location
 }
 
-# Build frontend static export
+# Build frontend static export and copy into backend wwwroot
 Write-Host "[BUILD] Building frontend static export..."
 Push-Location $root
 try {
-    npx next build
+    & (Join-Path $root "build-static.ps1")
     if ($LASTEXITCODE -ne 0) {
         throw "Frontend build failed."
     }
