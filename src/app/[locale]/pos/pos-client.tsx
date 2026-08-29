@@ -99,6 +99,8 @@ export function POSClient() {
           clientId: inv.clientId ?? null,
           paymentMethod: inv.paymentMethod ?? 'cash',
           discount: inv.discount,
+          discountType: (inv.discountType === 'percentage' ? 'percentage' : 'fixed'),
+          priceMode: inv.priceMode ?? 'retail',
           items,
         })
       })

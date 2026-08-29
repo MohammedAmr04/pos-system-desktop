@@ -166,6 +166,14 @@ namespace PosCs.Application.Services
                     baseUnit.RetailPrice = request.RetailPrice.Value;
                 if (request.WholesalePrice.HasValue)
                     baseUnit.WholesalePrice = request.WholesalePrice.Value;
+
+                // Always sync unitName from the master Unit table so ProductUnit never drifts.
+                if (baseUnit.UnitId != null)
+                {
+                    var master = _masterUnits.GetById(baseUnit.UnitId);
+                    if (master != null)
+                        baseUnit.UnitName = master.Name;
+                }
             }
 
             _repo.UpdateWithBaseUnit(existing, baseUnit, request.Barcode?.Trim());

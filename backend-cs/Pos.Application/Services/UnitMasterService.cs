@@ -12,10 +12,12 @@ namespace PosCs.Application.Services
     public class UnitMasterService
     {
         private readonly IUnitRepository _repo;
+        private readonly IProductUnitRepository _productUnits;
 
-        public UnitMasterService(IUnitRepository repo)
+        public UnitMasterService(IUnitRepository repo, IProductUnitRepository productUnits)
         {
             _repo = repo;
+            _productUnits = productUnits;
         }
 
         public List<Unit> GetAll()
@@ -78,10 +80,19 @@ namespace PosCs.Application.Services
                 existing.Name = name;
             }
 
+            if (request.IsActive.HasValue && !request.IsActive.Value && existing.IsActive
+                && _repo.CountProductUnits(id) > 0)
+                throw new DomainValidationException("Cannot deactivate a unit that is used by products.");
+
             if (request.IsActive.HasValue)
                 existing.IsActive = request.IsActive.Value;
 
-            return _repo.Update(existing);
+            var updated = _repo.Update(existing);
+
+            if (!string.IsNullOrWhiteSpace(request.Name))
+                _productUnits.SyncUnitName(id, existing.Name);
+
+            return updated;
         }
 
         public void Delete(string id)

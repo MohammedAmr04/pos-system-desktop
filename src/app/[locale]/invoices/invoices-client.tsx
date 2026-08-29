@@ -137,6 +137,34 @@ export function InvoicesClient() {
       },
     },
     {
+      key: "client",
+      header: <span className="block text-center">{t("client")}</span>,
+      className: "text-center",
+      cell: (inv) => inv.client?.name || t("walkIn"),
+    },
+    {
+      key: "paymentMethod",
+      header: <span className="block text-center">{t("payment")}</span>,
+      className: "text-center",
+      cell: (inv) => {
+        const m = inv.paymentMethod
+        const label =
+          m === 'credit' ? t("credit")
+            : m === 'card' ? tp("methodCard")
+              : m === 'bank_transfer' ? tp("methodBankTransfer")
+                : tp("methodCash")
+        const cls =
+          m === 'credit'
+            ? "bg-sky-500/10 text-sky-600"
+            : "bg-slate-500/10 text-slate-600"
+        return (
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+            {label}
+          </span>
+        )
+      },
+    },
+    {
       key: "totalAmount",
       header: t("total"),
       cell: (inv) => inv.totalAmount.toFixed(2),

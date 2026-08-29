@@ -48,6 +48,7 @@ namespace PosCs.Tests.Application
 
         public Product GetById(string id) => null;
         public List<Product> GetAll() => Stored;
+        public List<Product> GetForPOS() => Stored;
         public List<Product> Search(string query, int limit) => Stored;
         public PosCs.Application.Models.PagedResult<Product> GetPaged(int page, int pageSize, string query) =>
             new PosCs.Application.Models.PagedResult<Product> { Items = Stored, Total = Stored.Count };

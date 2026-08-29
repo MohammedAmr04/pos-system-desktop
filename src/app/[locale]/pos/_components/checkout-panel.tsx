@@ -98,6 +98,10 @@ export function CheckoutPanel() {
 
   const handleCheckout = useCallback(async (print: boolean) => {
     if (cartItems.length === 0) return
+    if (!activeShift) {
+      toast.error(t("requiresOpenShift"))
+      return
+    }
     if (paymentMethod === 'credit' && !clientId) {
       toast.error(t("creditRequiresClient"))
       return
@@ -134,10 +138,14 @@ export function CheckoutPanel() {
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, validateDiscount, t, clearCart, canPrintReceipt, refreshAfterSale])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, validateDiscount, t, clearCart, canPrintReceipt, refreshAfterSale, activeShift])
 
   const handleSaveDraft = useCallback(async () => {
     if (cartItems.length === 0) return
+    if (!activeShift) {
+      toast.error(t("requiresOpenShift"))
+      return
+    }
     if (paymentMethod === 'credit' && !clientId) {
       toast.error(t("creditRequiresClient"))
       return
@@ -159,7 +167,7 @@ export function CheckoutPanel() {
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, t, clearCart, refreshAfterSale])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, t, clearCart, refreshAfterSale, activeShift])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -222,8 +230,13 @@ export function CheckoutPanel() {
               <label htmlFor="pos-payment" className="text-sm font-medium">{t("paymentMethod")}</label>
               <Select
                 value={paymentMethod}
-                onValueChange={(v) => v && setPaymentMethod(v as 'cash' | 'credit')}
-                items={{ cash: t("cash"), credit: t("credit") }}
+                onValueChange={(v) => v && setPaymentMethod(v as 'cash' | 'credit' | 'card' | 'bank_transfer')}
+                items={{
+                  cash: t("cash"),
+                  credit: t("credit"),
+                  card: t("card"),
+                  bank_transfer: t("bankTransfer"),
+                }}
               >
                 <SelectTrigger id="pos-payment" className="w-full">
                   <SelectValue />
@@ -231,6 +244,8 @@ export function CheckoutPanel() {
                 <SelectContent>
                   <SelectItem value="cash">{t("cash")}</SelectItem>
                   <SelectItem value="credit">{t("credit")}</SelectItem>
+                  <SelectItem value="card">{t("card")}</SelectItem>
+                  <SelectItem value="bank_transfer">{t("bankTransfer")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

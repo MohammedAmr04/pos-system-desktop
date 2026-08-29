@@ -34,7 +34,15 @@ built frontend. The database is a single SQLite file stored in the `data/` folde
 - **Product Units section** — add/edit/delete selling units with quantity factor,
   retail and wholesale prices, and unit-scoped barcodes (multiple barcodes per
   unit, one default).
+- **Categories & Brands** — shared master data; products reference a Category
+  and Brand (both optional); management screens with activate/deactivate
+  (never deleted, FK preserved).
+- **Unit Master** — shared unit definitions (Piece, Kilogram, etc.) linked to
+  ProductUnit; used units cannot be deleted.
 - Auto-generated 12-digit barcode when none is provided.
+- **Hide from POS** — products can be marked `isHiddenFromPOS = true` to
+  exclude them from POS search and cart; the backend `GET /api/products/pos`
+  and search route both filter them out automatically.
 - Low Stock Report screen using each product's own threshold.
 
 ### Invoices
@@ -43,6 +51,72 @@ built frontend. The database is a single SQLite file stored in the `data/` folde
   (today / week / month / all), revenue and discount summary cards.
 - Invoice details show real invoice number, unit names, struck-through override
   prices, discounts and price-edit notes.
+- Invoice lifecycle: **Draft** (editable, no stock/revenue effects) → **Posted**
+  (full pipeline: FIFO cost, stock deduction, client balance) → **Cancelled**
+  (safe reversal, nothing deleted).
+
+### Purchases
+- Purchase invoice management with full lifecycle: Draft → Posted → Cancelled.
+- Draft purchases are editable with no side-effects; Posted purchases record
+  stock movement via the Stock Movement ledger and update supplier balance.
+- Lines support unit-scoped barcodes, quantity factors, and per-unit cost/sell
+  prices.
+- Editing a Posted purchase does a transactional reversal + re-application.
+- Supplier is optional for cash purchases, required for credit.
+
+### Clients & Suppliers
+- **Clients** — customer master data with account statements showing
+  invoices, payments, and returns with running balance.
+- **Suppliers** — vendor master data with account statements showing
+  purchase invoices, payments, and returns with running balance.
+- Deactivated parties are never deleted; existing references are preserved.
+
+### Payments
+- Independent payment transactions linked to an Invoice, Client, or Supplier.
+- Payment methods: Cash, Visa, Other.
+- Payment status (Paid / Partially Paid / Unpaid) is **derived** from totals —
+  never stored as a mutable field.
+- Record payment dialog reachable from invoice, client, and supplier screens.
+
+### Returns
+- **Sales Returns** — create from a posted invoice (full or partial);
+  validates returnable quantity (sold − already returned); restores stock via
+  base-unit conversion and original FIFO cost allocation; original invoice
+  transitions to Partially / Fully Returned.
+- **Purchase Returns** — create from a posted purchase invoice; reverses stock,
+  cost layers, and supplier balance.
+
+### Shifts
+- Open/close cash shift sessions with opening cash amount.
+- **Expected Cash** computed on close = opening + cash sales + other cash in
+  − cash returns − cash expenses.
+- POS selling requires an open shift; shift indicator visible in POS.
+- Cash sales, payments, and expenses are all linked to the active shift.
+
+### Expenses
+- Expense transactions with categories (Income / Outcome subclass).
+- Each expense is linked to the active shift and immediately affects
+  the shift's Expected Cash.
+- Expense categories are manageable via the settings screen.
+
+### Reports
+All reports use date-range filters (today / week / month / custom) and
+server-side aggregation:
+- **Sales** — by date/product/category/brand/unit/cashier/payment method.
+- **Purchases** — by date/supplier/product.
+- **Inventory** — current stock levels, movement, and valuation.
+- **Profit** — Revenue − FIFO COGS with gross margin per product/category.
+- **Returns** — sales and purchase returns with values.
+- **Expenses** — by category and date range.
+- **Cash** — shift-based cash reconciliation report.
+- **Low Stock** — products below their individual threshold.
+
+### Printer Settings
+- Configurable receipt printer name, paper width, copies, auto-cut, cash
+  drawer trigger, receipt header/footer text, and store info (name, address,
+  phone, tax ID).
+- Settings persisted in DB via the Printing API and injected into
+  `ReceiptPrinter` and `BarcodeLabelPrinter` at runtime.
 
 ### Printing
 - ESC/POS thermal receipt printing with native **Arabic shaping and BiDi**
@@ -292,22 +366,17 @@ base URL defaults to `http://localhost:3001` and can be overridden with
 
 The backend serves the static frontend, so there is no separate web server.
 
-1. Build the frontend static export:
+`npm run build` runs `next build` (output → `out/`) and automatically copies
+the result into `backend-cs/bin/Release/net48/wwwroot` (preserving `logo.jpeg`).
+
+1. Build everything:
 
    ```powershell
    npm run build
-   ```
-
-2. Copy the contents of `out/` (e.g. the `ar/` folder and assets) into
-   `backend-cs/wwwroot/`.
-
-3. Build the backend:
-
-   ```powershell
    dotnet build backend-cs/pos-cs.csproj --configuration Release
    ```
 
-4. Package `pos-server.exe`, `Migrations/`, `wwwroot/` and `start.bat` together.
+2. Package `pos-server.exe`, `Migrations/`, `wwwroot/` and `start.bat` together.
    `start.bat` launches the server and opens `http://localhost:3001`.
 
 > **Upgrade note:** when updating an existing installation, replace the
@@ -322,7 +391,7 @@ The backend serves the static frontend, so there is no separate web server.
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start Next.js dev server |
-| `npm run build` | Static export build (outputs to `out/`) |
+| `npm run build` | Static export build → `out/` + auto-copy to `backend-cs/bin/Release/net48/wwwroot` |
 | `npm run lint` | Run ESLint (0 errors required) |
 | `npm test` | Run vitest unit tests |
 | `dotnet build backend-cs/pos-cs.csproj --configuration Release` | Build the backend |
@@ -350,6 +419,20 @@ to avoid serving a partially upgraded database.
 | `011_seed_roles` | Admin / Manager / Cashier roles + role-permission assignments |
 | `012_seed_tenant` | Default tenant + 9 feature flags + admin user |
 | `013_username_password` | Replace `pinHash` with `username` + PBKDF2 `passwordHash` |
+| `014_categories` | Category table |
+| `015_brands` | Brand table |
+| `016_units` | Unit master table; ProductUnit.unitId FK |
+| `017_suppliers_clients` | Supplier, Client, SupplierBalance, ClientBalance |
+| `018_stock_movements` | StockMovement ledger (productId, quantity, type, reference, timestamp) |
+| `019_purchases` | PurchaseInvoice, PurchaseInvoiceItem, PurchaseInvoiceStatus |
+| `020_cost_layers` | CostLayer, SaleCostAllocation; InvoiceDetail.totalCost, quantityFactor |
+| `021_payments` | Payment (amount, method, date, invoice/client/supplier reference) |
+| `022_sales_lifecycle` | Invoice.status, clientId, paymentMethod, userId; backfill existing to posted |
+| `023_sales_returns` | SalesReturn, SalesReturnItem, OriginalInvoiceId |
+| `024_purchase_returns` | PurchaseReturn, PurchaseReturnItem, OriginalPurchaseInvoiceId |
+| `025_shifts` | Shift (openedBy, openingCash, openedAt, closedAt, closingCash, expectedCash, status) |
+| `026_expenses` | Expense, ExpenseCategory, shiftId FK |
+| `027_printer_settings` | PrinterSettings (printer name, paper width, copies, auto-cut, header/footer, store info) |
 
 ---
 
@@ -357,27 +440,32 @@ to avoid serving a partially upgraded database.
 
 All endpoints live under `http://localhost:3001/api`.
 
-| Area      | Endpoints |
-|-----------|-----------|
-| Auth      | `POST /auth/login`, `GET /auth/me` |
-| Users     | `GET/POST /users`, `PUT /users/{id}` |
-| Roles     | `GET/POST /roles`, `GET/PUT/DELETE /roles/{id}`, `GET/PUT /roles/{id}/permissions` |
+| Area        | Endpoints |
+|-------------|-----------|
+| Auth        | `POST /auth/login`, `GET /auth/me` |
+| Users       | `GET/POST /users`, `PUT /users/{id}` |
+| Roles       | `GET/POST /roles`, `GET/PUT/DELETE /roles/{id}`, `GET/PUT /roles/{id}/permissions` |
 | Permissions | `GET /permissions` |
-| Features  | `GET/PUT /tenant/features` |
-| Products  | `GET /products`, `GET /products/{id}`, `POST /products`, `PUT /products/{id}`, `DELETE /products/{id}`, `GET /products/paged`, `GET /products/search`, `GET /products/count` |
-| Units     | `POST/PUT/DELETE /products/{id}/units[/{unitId}]`, `POST/DELETE /products/{id}/units/{unitId}/barcodes[/{barcodeId}]`, `PUT .../barcodes/{barcodeId}/default` |
-| Invoices  | `GET /invoices`, `POST /invoices`, `GET /invoices/{id}`, `GET /invoices/paged`, `GET /invoices/filter` |
-| Purchases | `GET /purchases`, `POST /purchases`, `GET /purchases/{id}`, `GET /purchases/paged` |
-| Returns   | `POST /returns/sale`, `POST /returns/purchase`, `GET /returns/sale`, `GET /returns/purchase` |
-| Clients   | `GET/POST /clients`, `GET/PUT/DELETE /clients/{id}`, `GET /clients/{id}/statement` |
-| Suppliers | `GET/POST /suppliers`, `GET/PUT/DELETE /suppliers/{id}`, `GET /suppliers/{id}/statement` |
-| Reports   | `GET /reports/low-stock`, `GET /reports/sales?from=&to=`, `GET /reports/purchases?from=&to=`, `GET /reports/profit?from=&to=`, `GET /reports/returns?from=&to=`, `GET /reports/expenses?from=&to=`, `GET /reports/inventory`, `GET /reports/cash?from=&to=` |
-| Shifts    | `GET /shifts`, `POST /shifts/open`, `PUT /shifts/{id}/close` |
-| Expenses  | `GET/POST /expenses`, `DELETE /expenses/{id}`, `GET /expenses/categories` |
-| Payments  | `GET /payments`, `POST /payments`, `GET /payments/client/{id}`, `GET /payments/supplier/{id}` |
-| Printing  | `POST /printing/print`, `POST /printing/print-barcode` |
-| License   | `GET /license`, `POST /license/unlock` |
-| Health    | `GET /health` |
+| Features    | `GET/PUT /tenant/features` |
+| Products    | `GET /products`, `GET /products/{id}`, `POST /products`, `PUT /products/{id}`, `DELETE /products/{id}`, `GET /products/paged`, `GET /products/search`, `GET /products/count`, `GET /products/pos` |
+| Categories  | `GET/POST /categories`, `GET/PUT/DELETE /categories/{id}` |
+| Brands      | `GET/POST /brands`, `GET/PUT/DELETE /brands/{id}` |
+| Units       | `GET/POST /units`, `GET/PUT/DELETE /units/{id}` |
+| Units (product) | `POST/PUT/DELETE /products/{id}/units[/{unitId}]`, `POST/DELETE /products/{id}/units/{unitId}/barcodes[/{barcodeId}]`, `PUT .../barcodes/{barcodeId}/default` |
+| Invoices    | `GET /invoices`, `POST /invoices`, `GET /invoices/{id}`, `GET /invoices/paged`, `GET /invoices/filter` |
+| Purchases   | `GET /purchases`, `POST /purchases`, `GET /purchases/{id}`, `GET /purchases/paged`, `POST/PUT /purchases/{id}/post`, `POST /purchases/{id}/cancel` |
+| Sales Returns | `POST /returns/sale`, `GET /returns/sale` |
+| Purchase Returns | `POST /returns/purchase`, `GET /returns/purchase` |
+| Clients     | `GET/POST /clients`, `GET/PUT/DELETE /clients/{id}`, `GET /clients/{id}/statement` |
+| Suppliers   | `GET/POST /suppliers`, `GET/PUT/DELETE /suppliers/{id}`, `GET /suppliers/{id}/statement` |
+| Payments    | `GET /payments`, `POST /payments`, `GET /payments/client/{id}`, `GET /payments/supplier/{id}` |
+| Shifts      | `GET /shifts`, `POST /shifts/open`, `PUT /shifts/{id}/close` |
+| Expenses    | `GET/POST /expenses`, `DELETE /expenses/{id}`, `GET /expenses/categories` |
+| Reports     | `GET /reports/low-stock`, `GET /reports/sales`, `GET /reports/purchases`, `GET /reports/profit`, `GET /reports/returns`, `GET /reports/expenses`, `GET /reports/inventory`, `GET /reports/cash` |
+| Printer Settings | `GET/PUT /printer-settings` |
+| Printing    | `POST /printing/print`, `POST /printing/print-barcode` |
+| License     | `GET /license`, `POST /license/unlock` |
+| Health      | `GET /health` |
 
 > All endpoints except `POST /auth/login` and `GET /license` require a
 > `Bearer <token>` header issued by `POST /auth/login`.

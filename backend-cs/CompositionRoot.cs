@@ -115,7 +115,7 @@ namespace PosCs
         public static BrandService BrandService => Lazy(ref _brandService,
             () => new BrandService(BrandsRepo));
         public static UnitMasterService UnitMasterService => Lazy(ref _unitMasterService,
-            () => new UnitMasterService(MasterUnitsRepo));
+            () => new UnitMasterService(MasterUnitsRepo, Units));
         public static SupplierService SupplierService => Lazy(ref _supplierService,
             () => new SupplierService(SuppliersRepo, PaymentsRepo, PurchasesRepo, PurchaseReturnsRepo));
         public static ClientService ClientService => Lazy(ref _clientService,

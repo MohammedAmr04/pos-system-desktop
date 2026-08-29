@@ -1,9 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -16,7 +18,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useTranslations } from "next-intl"
+import { Button } from "@/components/ui/button"
+import { Wallet } from "lucide-react"
 import { Invoice, InvoiceDetail } from "@/types/domain/domain.types"
+import { RecordPaymentDialog } from "@/components/common/record-payment-dialog"
 
 interface InvoiceDetailsDialogProps {
   open: boolean
@@ -30,7 +35,10 @@ export function InvoiceDetailsDialog({
   invoice,
 }: InvoiceDetailsDialogProps) {
   const t = useTranslations("Invoices")
+  const [recordPaymentOpen, setRecordPaymentOpen] = useState(false)
   if (!invoice) return null
+
+  const canRecordPayment = (invoice.status ?? 'posted') === 'posted' && invoice.paymentMethod === 'credit' && !!invoice.client
 
   const details: InvoiceDetail[] = invoice.InvoiceDetail ?? invoice.invoiceDetail ?? []
   const hasCostData = details.some((d) => d.totalCost != null)
@@ -141,7 +149,24 @@ export function InvoiceDetailsDialog({
             )}
           </div>
         </div>
+        {canRecordPayment && (
+          <DialogFooter className="mt-4">
+            <Button onClick={() => setRecordPaymentOpen(true)}>
+              <Wallet className="mr-2 h-4 w-4" /> {t("recordPayment")}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
+      {canRecordPayment && (
+        <RecordPaymentDialog
+          kind="client"
+          party={invoice.client ?? null}
+          invoiceId={invoice.id}
+          invoiceLabel={`${t("invoiceNumber")} #${invoice.invoiceNumber}`}
+          open={recordPaymentOpen}
+          onOpenChange={setRecordPaymentOpen}
+        />
+      )}
     </Dialog>
   )
 }

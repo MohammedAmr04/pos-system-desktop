@@ -88,7 +88,7 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
     (c) => c.isActive || c.id === initialData?.categoryId
   )
   const selectableBrands = brands.filter((b) => b.isActive || b.id === initialData?.brandId)
-  const selectableUnits = units.filter((u) => u.isActive || u.id === baseUnit?.unitId)
+  const selectableUnits = units.filter((u) => u.isActive)
   const defaultUnitId = baseUnit?.unitId ?? selectableUnits.find((u) => u.isActive)?.id ?? ""
 
   const schema = makeProductSchema(t as (key: string) => string)
@@ -250,15 +250,13 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
               value={field.value}
               onValueChange={(v) => v != null && field.onChange(v)}
               items={{
-                "": t("defaultUnit"),
                 ...Object.fromEntries(selectableUnits.map((u) => [u.id, u.name])),
               }}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("defaultUnit")} />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">{t("defaultUnit")}</SelectItem>
                 {selectableUnits
                   .filter((u) => u.isActive || u.id === field.value)
                   .map((u) => (

@@ -204,7 +204,9 @@ namespace PosCs.Application.Services
 
             var totalAmount = InvoicePricing.FinalizeLines(lineDetails, shares);
 
-            var paymentMethod = dto.PaymentMethod == "credit" ? "credit" : "cash";
+            var paymentMethod = (dto.PaymentMethod ?? "").ToLowerInvariant();
+            if (paymentMethod != "credit" && paymentMethod != "card" && paymentMethod != "bank_transfer")
+                paymentMethod = "cash";
             var clientId = string.IsNullOrWhiteSpace(dto.ClientId) ? null : dto.ClientId.Trim();
             if (paymentMethod == "credit")
                 ValidateCreditClient(clientId);

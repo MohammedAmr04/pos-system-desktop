@@ -147,8 +147,8 @@ namespace PosCs.Infrastructure.Persistence
 
                         InsertLines(conn, (SqliteTransaction)tx, invoice, items, applySideEffects: !isDraft);
 
-                        if (!isDraft && invoice.PaymentMethod == "cash")
-                            InsertAutoCashPayment(conn, (SqliteTransaction)tx, invoice);
+                        if (!isDraft && invoice.PaymentMethod != "credit")
+                            InsertAutoPayment(conn, (SqliteTransaction)tx, invoice);
 
                         tx.Commit();
                     }
@@ -246,8 +246,8 @@ namespace PosCs.Infrastructure.Persistence
 
                         InsertLines(conn, (SqliteTransaction)tx, invoice, items, applySideEffects: true);
 
-                        if (invoice.PaymentMethod == "cash")
-                            InsertAutoCashPayment(conn, (SqliteTransaction)tx, invoice);
+                        if (invoice.PaymentMethod != "credit")
+                            InsertAutoPayment(conn, (SqliteTransaction)tx, invoice);
 
                         conn.Execute("UPDATE Invoice SET status = 'posted', shiftId = @shiftId WHERE id = @id",
                             new { id, shiftId = invoice.ShiftId }, transaction: tx);
@@ -396,21 +396,25 @@ namespace PosCs.Infrastructure.Persistence
             return shiftId;
         }
 
-        /// <summary>Cash sales settle immediately (spec §21): an automatic payment keeps the
-        /// derived paid/status consistent without any mutable PaidAmount field.</summary>
-        private static void InsertAutoCashPayment(SqliteConnection conn, SqliteTransaction tx, Invoice invoice)
+        /// <summary>Non-credit sales settle immediately (spec §21): an automatic payment keeps the
+        /// derived paid/status consistent without any mutable PaidAmount field. The payment's
+        /// method mirrors the invoice's (cash/card/bank_transfer) so card and bank transfers are
+        /// excluded from the cash drawer at shift close.</summary>
+        private static void InsertAutoPayment(SqliteConnection conn, SqliteTransaction tx, Invoice invoice)
         {
+            var method = (string.IsNullOrEmpty(invoice.PaymentMethod) || invoice.PaymentMethod == "credit") ? "cash" : invoice.PaymentMethod;
             conn.Execute(@"
                 INSERT INTO Payment (id, amount, paymentMethod, date, invoiceId, clientId, supplierId, reference, notes, createdBy, shiftId, createdAt)
-                VALUES (@id, @amount, 'cash', @date, @invoiceId, @clientId, NULL, @reference, NULL, @createdBy, @shiftId, @createdAt)",
+                VALUES (@id, @amount, @paymentMethod, @date, @invoiceId, @clientId, NULL, @reference, NULL, @createdBy, @shiftId, @createdAt)",
                 new
                 {
                     id = Guid.NewGuid().ToString("N"),
                     amount = invoice.TotalAmount,
+                    paymentMethod = method,
                     date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
                     invoiceId = invoice.Id,
                     clientId = string.IsNullOrEmpty(invoice.ClientId) ? null : invoice.ClientId,
-                    reference = $"auto: cash sale #{invoice.InvoiceNumber}",
+                    reference = $"auto: {method} sale #{invoice.InvoiceNumber}",
                     createdBy = invoice.CreatedBy,
                     shiftId = string.IsNullOrEmpty(invoice.ShiftId) ? null : invoice.ShiftId,
                     createdAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Product, ProductUnit, PriceMode } from '@/types/domain/domain.types'
+import { Product, ProductUnit, PriceMode, PaymentMethod } from '@/types/domain/domain.types'
 
 export interface CartItem {
   id: string
@@ -34,12 +34,12 @@ interface POSStore {
   priceMode: PriceMode
   searchQuery: string
   clientId: string | null
-  paymentMethod: 'cash' | 'credit'
+  paymentMethod: PaymentMethod
   /** Set while the cart mirrors a saved draft invoice (plan Phase 6). */
   draftId: string | null
   setClient: (clientId: string | null) => void
-  setPaymentMethod: (method: 'cash' | 'credit') => void
-  loadDraft: (draft: { id: string; clientId: string | null; paymentMethod: string; discount: number; items: CartItem[] }) => void
+  setPaymentMethod: (method: PaymentMethod) => void
+  loadDraft: (draft: { id: string; clientId: string | null; paymentMethod: string; discount: number; discountType?: 'fixed' | 'percentage'; priceMode?: PriceMode; items: CartItem[] }) => void
   setSearchQuery: (query: string) => void
   setPriceMode: (mode: PriceMode) => void
   togglePriceMode: () => void
@@ -69,13 +69,20 @@ export const usePOSStore = create<POSStore>((set, get) => ({
 
   setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
 
-  loadDraft: (draft) => set({
-    draftId: draft.id,
-    clientId: draft.clientId,
-    paymentMethod: draft.paymentMethod === 'credit' ? 'credit' : 'cash',
-    discount: draft.discount,
-    discountType: 'fixed',
-    cartItems: draft.items,
+  loadDraft: (draft) => set((state) => {
+    const methods: PaymentMethod[] = ['cash', 'credit', 'card', 'bank_transfer']
+    const paymentMethod = methods.includes(draft.paymentMethod as PaymentMethod)
+      ? (draft.paymentMethod as PaymentMethod)
+      : 'cash'
+    return {
+      draftId: draft.id,
+      clientId: draft.clientId,
+      paymentMethod,
+      discount: draft.discount,
+      discountType: draft.discountType ?? state.discountType,
+      priceMode: draft.priceMode ?? state.priceMode,
+      cartItems: draft.items,
+    }
   }),
 
   setSearchQuery: (query) => set({ searchQuery: query }),

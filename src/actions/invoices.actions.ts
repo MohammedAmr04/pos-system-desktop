@@ -5,7 +5,7 @@ import { printInvoiceDocument } from "@/actions/printing.actions"
 
 interface InvoiceOptions {
   clientId?: string | null
-  paymentMethod?: 'cash' | 'credit'
+  paymentMethod?: 'cash' | 'credit' | 'card' | 'bank_transfer'
   status?: 'draft' | 'posted'
 }
 

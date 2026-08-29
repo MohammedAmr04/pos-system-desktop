@@ -58,6 +58,7 @@ export interface ProductWriteRequest {
 }
 
 export type PriceMode = 'retail' | 'wholesale'
+export type PaymentMethod = 'cash' | 'credit' | 'card' | 'bank_transfer'
 
 export interface Invoice {
   id: string
@@ -367,7 +368,7 @@ export interface InvoiceCreatePayload {
   discountValue?: number
   priceMode: PriceMode
   clientId?: string | null
-  paymentMethod?: 'cash' | 'credit'
+  paymentMethod?: PaymentMethod
   status?: 'draft' | 'posted'
 }
 
