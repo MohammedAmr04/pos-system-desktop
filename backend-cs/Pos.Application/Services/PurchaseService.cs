@@ -37,10 +37,13 @@ namespace PosCs.Application.Services
         }
 
         /// <summary>Edits an existing invoice. Editing a posted purchase is a transactional
-        /// reversal + re-application inside the repository (spec §13); cancelled are immutable.</summary>
+        /// reversal + re-application inside the repository (spec §13); cancelled are immutable.
+        /// Posted invoices preserve their status when edited (only header fields are mutable).</summary>
         public PurchaseInvoice Update(string id, SavePurchaseRequest request)
         {
             var existing = _purchases.GetById(id);
+            if (existing.Status == "posted" && request.Status == "draft")
+                request.Status = "posted";
             return SaveCore(request, existing.CreatedBy, existingId: id);
         }
 

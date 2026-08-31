@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { useSearchParams } from "next/navigation"
 import { useRouter } from "@/i18n/navigation"
 import { useAuth } from "@/components/common/auth-context"
@@ -49,6 +50,7 @@ const toNum = (value: string): number | null => {
 
 export function EditorClient() {
   const t = useTranslations("Purchases")
+  const resolveError = useApiError()
   const params = useSearchParams()
   const router = useRouter()
   const { hasPermission } = useAuth()
@@ -110,6 +112,7 @@ export function EditorClient() {
   const canSaveNew = !editId && hasPermission(PERMISSIONS.PURCHASES_CREATE)
   const canEditExisting = !!editId && hasPermission(PERMISSIONS.PURCHASES_UPDATE)
   const canModify = !readOnly && (canSaveNew || canEditExisting)
+  const linesEditable = !readOnly && status !== "posted"
 
   const subtotal = lines.reduce((sum, line) => sum + (toNum(line.quantity) ?? 0) * (toNum(line.unitCost) ?? 0), 0)
   const total = subtotal - (toNum(discount) ?? 0) + (toNum(tax) ?? 0)
@@ -154,7 +157,7 @@ export function EditorClient() {
       toast.success(targetStatus === "posted" ? t("posted") : t("updated"))
       router.push("/purchases")
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setSaving(false)
     }
@@ -235,11 +238,11 @@ export function EditorClient() {
       <LinesEditor
         products={products}
         lines={lines}
-        disabled={!canModify}
+        disabled={!linesEditable}
         onAdd={addLine}
         onRemove={removeLine}
         onUpdate={updateLine}
-        onAddNewProduct={canCreateProduct ? () => setProductSheetOpen(true) : undefined}
+        onAddNewProduct={linesEditable && canCreateProduct ? () => setProductSheetOpen(true) : undefined}
       />
 
       {canCreateProduct && (
@@ -267,7 +270,7 @@ export function EditorClient() {
         </div>
         {canModify && (
           <div className="flex items-center gap-2">
-            <Button variant="outline" disabled={saving} onClick={() => handleSave(editId && status === "posted" ? "posted" : "draft")}>
+            <Button variant="outline" disabled={saving} onClick={() => handleSave(status === "posted" ? "posted" : "draft")}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               {editId && status === "posted" ? t("saveChanges") : t("saveDraft")}
             </Button>
