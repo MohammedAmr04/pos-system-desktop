@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { CircleCheck, CircleX, Pencil, Plus, Trash } from "lucide-react"
 
@@ -23,6 +24,7 @@ const PAGE_SIZE = 20
 export function UnitsClient() {
   const t = useTranslations("UnitsMaster")
   const tc = useTranslations("Common")
+  const resolveError = useApiError()
   const { hasPermission } = useAuth()
   const canCreate = hasPermission(PERMISSIONS.UNITS_CREATE)
   const canUpdate = hasPermission(PERMISSIONS.UNITS_UPDATE)
@@ -67,7 +69,7 @@ export function UnitsClient() {
       await updateUnit(unit.id, { name: unit.name, isActive: !unit.isActive })
       toast.success(unit.isActive ? t("deactivated") : t("activated"))
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     }
   }
 
@@ -77,7 +79,7 @@ export function UnitsClient() {
       await deleteUnit(unit.id)
       toast.success(t("deleted"))
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     }
   }
 

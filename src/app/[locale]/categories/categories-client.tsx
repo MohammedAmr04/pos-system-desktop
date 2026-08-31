@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { FolderCheck, FolderMinus, Pencil, Plus } from "lucide-react"
 
@@ -23,6 +24,7 @@ const PAGE_SIZE = 20
 export function CategoriesClient() {
   const t = useTranslations("Categories")
   const tc = useTranslations("Common")
+  const resolveError = useApiError()
   const { hasPermission } = useAuth()
   const canCreate = hasPermission(PERMISSIONS.CATEGORIES_CREATE)
   const canUpdate = hasPermission(PERMISSIONS.CATEGORIES_UPDATE)
@@ -66,7 +68,7 @@ export function CategoriesClient() {
       await updateCategory(category.id, { isActive: !category.isActive })
       toast.success(category.isActive ? t("deactivated") : t("activated"))
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     }
   }
 

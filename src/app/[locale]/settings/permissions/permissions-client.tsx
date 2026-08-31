@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2, Lock, ShieldCheck } from "lucide-react"
 import { setRolePermissions } from "@/actions/roles.actions"
@@ -17,6 +18,7 @@ const ADMIN_ROLE_ID = "role-admin"
 
 export function PermissionsClient() {
   const t = useTranslations("Permissions")
+  const resolveError = useApiError()
   const queryClient = useQueryClient()
   const { refreshAccess } = useAuth()
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
@@ -70,7 +72,7 @@ export function PermissionsClient() {
       toast.success(t("permissionsUpdated"))
       await queryClient.invalidateQueries({ queryKey: adminKeys.all() })
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setSaving(false)
     }

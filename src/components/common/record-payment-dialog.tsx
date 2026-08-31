@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { Client, Supplier } from "@/types/domain/domain.types"
 import { createPayment } from "@/actions/payments.actions"
 import {
@@ -46,7 +47,8 @@ export function RecordPaymentDialog({
   defaultAmount,
   onSaved,
 }: RecordPaymentDialogProps) {
-  const t = useTranslations("Payments")
+const t = useTranslations("Payments")
+  const resolveError = useApiError()
   const [amount, setAmount] = useState("")
   const [method, setMethod] = useState<"cash" | "card" | "bank_transfer">("cash")
   const [reference, setReference] = useState("")
@@ -94,7 +96,7 @@ export function RecordPaymentDialog({
       setMethod("cash")
       setInitializedFor(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("saveFailed"))
+      setError(resolveError(err) || t("saveFailed"))
     } finally {
       setSaving(false)
     }

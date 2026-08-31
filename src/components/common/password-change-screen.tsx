@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Lock, Save } from "lucide-react"
@@ -32,6 +33,7 @@ function validatePassword(password: string): string | null {
 
 export function PasswordChangeScreen({ onSuccess }: PasswordChangeScreenProps) {
   const t = useTranslations("Auth")
+  const resolveError = useApiError()
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -74,11 +76,11 @@ export function PasswordChangeScreen({ onSuccess }: PasswordChangeScreenProps) {
       setConfirmPassword("")
       onSuccess()
     } catch (e) {
-      setError((e as Error).message || t("changePasswordFailed"))
+      setError(resolveError(e) || t("changePasswordFailed"))
     } finally {
       setLoading(false)
     }
-  }, [loading, canSubmit, validationError, currentPassword, newPassword, onSuccess, t])
+  }, [loading, canSubmit, validationError, currentPassword, newPassword, onSuccess, t, resolveError])
 
   return (
     <div className="flex h-screen items-center justify-center bg-muted/30 p-8">

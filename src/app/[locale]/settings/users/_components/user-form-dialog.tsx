@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { RoleSummary, UserSummary } from "@/types/domain/domain.types"
@@ -37,6 +38,7 @@ interface UserFormState {
 
 export function UserFormDialog({ open, onOpenChange, roles, user, onSaved }: UserFormDialogProps) {
   const t = useTranslations("Users")
+  const resolveError = useApiError()
   const [form, setForm] = useState<UserFormState>(() =>
     user
       ? { name: user.name, username: user.username, password: "", isActive: user.isActive, roleIds: [...user.roleIds] }
@@ -76,7 +78,7 @@ export function UserFormDialog({ open, onOpenChange, roles, user, onSaved }: Use
       onOpenChange(false)
       onSaved()
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setIsSaving(false)
     }

@@ -4,6 +4,7 @@ import { Supplier } from "@/types/domain/domain.types"
 import { createSupplier, updateSupplier } from "@/actions/suppliers.actions"
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,6 +36,7 @@ interface SupplierFormState {
 
 export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: SupplierFormDialogProps) {
   const t = useTranslations("Suppliers")
+  const resolveError = useApiError()
   const [form, setForm] = useState<SupplierFormState>(() => ({
     name: supplier?.name ?? "",
     phone: supplier?.phone ?? "",
@@ -70,7 +72,7 @@ export function SupplierFormDialog({ open, onOpenChange, supplier, onSaved }: Su
       onOpenChange(false)
       onSaved?.()
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setIsSaving(false)
     }

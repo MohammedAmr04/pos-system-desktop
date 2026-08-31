@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { RoleSummary } from "@/types/domain/domain.types"
@@ -26,6 +27,7 @@ interface RoleFormDialogProps {
 
 export function RoleFormDialog({ open, onOpenChange, role, onSaved }: RoleFormDialogProps) {
   const t = useTranslations("Roles")
+  const resolveError = useApiError()
   const [form, setForm] = useState(() => ({
     name: role?.name ?? "",
     description: role?.description ?? "",
@@ -47,7 +49,7 @@ export function RoleFormDialog({ open, onOpenChange, role, onSaved }: RoleFormDi
       onOpenChange(false)
       onSaved()
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setIsSaving(false)
     }

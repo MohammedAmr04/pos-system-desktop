@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { CircleCheck, CircleX, Pencil, Plus, ScrollText, Wallet } from "lucide-react"
 
@@ -25,6 +26,7 @@ const PAGE_SIZE = 20
 export function ClientsClient() {
   const t = useTranslations("Clients")
   const tc = useTranslations("Common")
+  const resolveError = useApiError()
   const { hasPermission } = useAuth()
   const canCreate = hasPermission(PERMISSIONS.CLIENTS_CREATE)
   const canUpdate = hasPermission(PERMISSIONS.CLIENTS_UPDATE)
@@ -71,7 +73,7 @@ export function ClientsClient() {
       await updateClient(client.id, { isActive: !client.isActive })
       toast.success(client.isActive ? t("deactivated") : t("activated"))
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     }
   }
 

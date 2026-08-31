@@ -19,6 +19,7 @@ import { useAllCategories } from "@/hooks/use-categories"
 import { useAllUnits } from "@/hooks/use-units"
 import { toast } from "sonner"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 
 interface ProductFormProps {
   initialData?: Product | null
@@ -75,6 +76,7 @@ function FieldError({ message }: { message?: string }) {
 
 export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductFormProps) {
   const t = useTranslations("Products")
+  const resolveError = useApiError()
   const { data: categories = [] } = useAllCategories()
   const { data: brands = [] } = useAllBrands()
   const { data: units = [] } = useAllUnits()
@@ -157,7 +159,7 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
         reset()
       }
     } catch (e) {
-      toast.error((e as Error).message || t("createError"))
+      toast.error(resolveError(e) || t("createError"))
     }
   }
 

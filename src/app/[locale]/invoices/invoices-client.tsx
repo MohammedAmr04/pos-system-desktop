@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Eye, Pencil, Upload, CircleX, Undo2 } from "lucide-react"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns"
@@ -51,6 +52,7 @@ export function InvoicesClient() {
   const t = useTranslations("Invoices")
   const tc = useTranslations("Common")
   const tp = useTranslations("Payments")
+  const resolveError = useApiError()
   const router = useRouter()
   const { hasPermission } = useAuth()
   const canCreateReturns = hasPermission(PERMISSIONS.INVOICES_RETURN)
@@ -94,7 +96,7 @@ export function InvoicesClient() {
       await postInvoice(invoice.id)
       toast.success(t("postedDone"))
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     }
   }
 
@@ -104,7 +106,7 @@ export function InvoicesClient() {
       await cancelInvoice(invoice.id)
       toast.success(t("cancelledDone"))
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     }
   }
 

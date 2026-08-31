@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { RoleSummary } from "@/types/domain/domain.types"
@@ -27,6 +28,7 @@ interface RolePermissionsDialogProps {
 
 export function RolePermissionsDialog({ role, onOpenChange, onSaved }: RolePermissionsDialogProps) {
   const t = useTranslations("Roles")
+  const resolveError = useApiError()
   const [selected, setSelected] = useState<string[]>([])
   const [initializedFor, setInitializedFor] = useState<string | null>(null)
   const [permsSaving, setPermsSaving] = useState(false)
@@ -64,7 +66,7 @@ export function RolePermissionsDialog({ role, onOpenChange, onSaved }: RolePermi
       onOpenChange(false)
       onSaved()
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setPermsSaving(false)
     }

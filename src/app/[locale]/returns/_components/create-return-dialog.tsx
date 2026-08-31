@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { Invoice, SaleReturn } from "@/types/domain/domain.types"
@@ -30,6 +31,7 @@ export function CreateReturnDialog({ open, invoice, onClose, onCreated }: Create
   const t = useTranslations("Returns")
   const ti = useTranslations("Invoices")
   const tp = useTranslations("POS")
+  const resolveError = useApiError()
   const queryClient = useQueryClient()
 
   const [qtys, setQtys] = useState<Record<string, number>>({})
@@ -88,7 +90,7 @@ export function CreateReturnDialog({ open, invoice, onClose, onCreated }: Create
       onCreated?.(created)
       onClose()
     } catch (e) {
-      toast.error((e as Error).message || t("createFailed"))
+      toast.error(resolveError(e) || t("createFailed"))
     } finally {
       setSubmitting(false)
     }

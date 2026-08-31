@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { ExpenseCategory } from "@/types/domain/domain.types"
@@ -27,6 +28,7 @@ interface ExpenseCategoriesDialogProps {
 export function ExpenseCategoriesDialog({ open, onOpenChange }: ExpenseCategoriesDialogProps) {
   const t = useTranslations("Expenses")
   const tc = useTranslations("Common")
+  const resolveError = useApiError()
   const { data: categories = [] } = useExpenseCategories(true)
   const [newCatName, setNewCatName] = useState("")
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -39,7 +41,7 @@ export function ExpenseCategoriesDialog({ open, onOpenChange }: ExpenseCategorie
       await createExpenseCategory(name)
       setNewCatName("")
     } catch (e) {
-      toast.error((e as Error).message || t("categorySaveFailed"))
+      toast.error(resolveError(e) || t("categorySaveFailed"))
     }
   }
 
@@ -50,7 +52,7 @@ export function ExpenseCategoriesDialog({ open, onOpenChange }: ExpenseCategorie
     try {
       await updateExpenseCategory(cat.id, { name, isActive: cat.isActive })
     } catch (e) {
-      toast.error((e as Error).message || t("categorySaveFailed"))
+      toast.error(resolveError(e) || t("categorySaveFailed"))
     }
   }
 
@@ -58,7 +60,7 @@ export function ExpenseCategoriesDialog({ open, onOpenChange }: ExpenseCategorie
     try {
       await updateExpenseCategory(cat.id, { name: cat.name, isActive })
     } catch (e) {
-      toast.error((e as Error).message || t("categorySaveFailed"))
+      toast.error(resolveError(e) || t("categorySaveFailed"))
     }
   }
 

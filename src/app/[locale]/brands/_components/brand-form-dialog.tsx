@@ -4,6 +4,7 @@ import { Brand } from "@/types/domain/domain.types"
 import { createBrand, updateBrand } from "@/actions/brands.actions"
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +33,7 @@ interface BrandFormState {
 
 export function BrandFormDialog({ open, onOpenChange, brand, onSaved }: BrandFormDialogProps) {
   const t = useTranslations("Brands")
+  const resolveError = useApiError()
   const [form, setForm] = useState<BrandFormState>(() => ({
     name: brand?.name ?? "",
     isActive: brand?.isActive ?? true,
@@ -53,7 +55,7 @@ export function BrandFormDialog({ open, onOpenChange, brand, onSaved }: BrandFor
       onOpenChange(false)
       onSaved?.()
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setIsSaving(false)
     }

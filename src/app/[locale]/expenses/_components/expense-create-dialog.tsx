@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { ExpenseCategory } from "@/types/domain/domain.types"
@@ -34,6 +35,7 @@ interface ExpenseCreateDialogProps {
 export function ExpenseCreateDialog({ open, onOpenChange, categories, onSaved }: ExpenseCreateDialogProps) {
   const t = useTranslations("Expenses")
   const tc = useTranslations("Common")
+  const resolveError = useApiError()
   const [categoryInput, setCategoryInput] = useState("")
   const [amountInput, setAmountInput] = useState("")
   const [descriptionInput, setDescriptionInput] = useState("")
@@ -69,7 +71,7 @@ export function ExpenseCreateDialog({ open, onOpenChange, categories, onSaved }:
       setReferenceInput("")
       onSaved()
     } catch (e) {
-      toast.error((e as Error).message || t("createFailed"))
+      toast.error(resolveError(e) || t("createFailed"))
     } finally {
       setCreating(false)
     }

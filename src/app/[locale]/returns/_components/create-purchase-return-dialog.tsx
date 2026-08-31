@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { PurchaseInvoice, PurchaseReturn } from "@/types/domain/domain.types"
@@ -29,6 +30,7 @@ interface CreatePurchaseReturnDialogProps {
 export function CreatePurchaseReturnDialog({ open, purchase, onClose, onCreated }: CreatePurchaseReturnDialogProps) {
   const t = useTranslations("Returns")
   const tp = useTranslations("POS")
+  const resolveError = useApiError()
   const queryClient = useQueryClient()
 
   const [qtys, setQtys] = useState<Record<string, number>>({})
@@ -90,7 +92,7 @@ export function CreatePurchaseReturnDialog({ open, purchase, onClose, onCreated 
       onCreated?.(created)
       onClose()
     } catch (e) {
-      toast.error((e as Error).message || t("createFailed"))
+      toast.error(resolveError(e) || t("createFailed"))
     } finally {
       setSubmitting(false)
     }

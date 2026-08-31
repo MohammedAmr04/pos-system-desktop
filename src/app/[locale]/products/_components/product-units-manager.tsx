@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Boxes, Edit, Plus, Trash } from "lucide-react"
 import { useForm } from "react-hook-form"
@@ -58,6 +59,7 @@ export function ProductUnitsManager({
   onRefresh,
 }: ProductUnitsManagerProps) {
   const t = useTranslations("Products")
+  const resolveError = useApiError()
   const [isUnitFormOpen, setIsUnitFormOpen] = useState(false)
   const [unitForm, setUnitForm] = useState<UnitFormState>({
     unitMasterId: "",
@@ -126,7 +128,7 @@ export function ProductUnitsManager({
       setIsUnitFormOpen(false)
       onRefresh?.()
     } catch (e) {
-      toast.error((e as Error).message || t("unitSaveFailed"))
+      toast.error(resolveError(e) || t("unitSaveFailed"))
     }
   }
 
@@ -138,7 +140,7 @@ export function ProductUnitsManager({
       toast.success(t("unitDeleted"))
       onRefresh?.()
     } catch (e) {
-      toast.error((e as Error).message || t("unitDeleteFailed"))
+      toast.error(resolveError(e) || t("unitDeleteFailed"))
     }
   }
 
@@ -157,7 +159,7 @@ export function ProductUnitsManager({
       setIsAddBarcodeOpen(false)
       onRefresh?.()
     } catch (e) {
-      toast.error((e as Error).message || t("barcodeAddFailed"))
+      toast.error(resolveError(e) || t("barcodeAddFailed"))
     }
   }
 
@@ -168,7 +170,7 @@ export function ProductUnitsManager({
       toast.success(t("barcodeDeleted"))
       onRefresh?.()
     } catch (e) {
-      toast.error((e as Error).message || t("barcodeDeleteFailed"))
+      toast.error(resolveError(e) || t("barcodeDeleteFailed"))
     }
   }
 
@@ -178,7 +180,7 @@ export function ProductUnitsManager({
       toast.success(t("defaultBarcodeUpdated"))
       onRefresh?.()
     } catch (e) {
-      toast.error((e as Error).message || t("defaultBarcodeUpdateFailed"))
+      toast.error(resolveError(e) || t("defaultBarcodeUpdateFailed"))
     }
   }
 

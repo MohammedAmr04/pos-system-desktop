@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Eye, Pencil, CircleX, Upload, Undo2, Plus } from "lucide-react"
 
@@ -32,6 +33,7 @@ const PAGE_SIZE = 20
 export function PurchasesClient() {
   const t = useTranslations("Purchases")
   const tc = useTranslations("Common")
+  const resolveError = useApiError()
   const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
@@ -73,7 +75,7 @@ export function PurchasesClient() {
       toast.success(t("posted"))
       await refresh()
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     }
   }
 
@@ -84,7 +86,7 @@ export function PurchasesClient() {
       toast.success(t("cancelledDone"))
       await refresh()
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     }
   }
 

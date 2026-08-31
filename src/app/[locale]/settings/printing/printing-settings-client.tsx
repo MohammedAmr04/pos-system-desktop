@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2, Save } from "lucide-react"
 import { PrinterSettings } from "@/types/domain/domain.types"
@@ -57,6 +58,7 @@ function PrintingSettingsForm({
   canUpdate: boolean
 }) {
   const t = useTranslations("Printing")
+  const resolveError = useApiError()
   const queryClient = useQueryClient()
 
   const [saving, setSaving] = useState(false)
@@ -73,7 +75,7 @@ function PrintingSettingsForm({
       await queryClient.invalidateQueries({ queryKey: printerSettingsKeys.current() })
       toast.success(t("saved"))
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setSaving(false)
     }

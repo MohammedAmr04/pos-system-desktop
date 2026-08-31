@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { openShift } from "@/actions/shifts.actions"
@@ -24,6 +25,7 @@ interface ShiftOpenDialogProps {
 
 export function ShiftOpenDialog({ open, onOpenChange, onOpened }: ShiftOpenDialogProps) {
   const t = useTranslations("Shifts")
+  const resolveError = useApiError()
   const [openingCashInput, setOpeningCashInput] = useState("")
   const [notesInput, setNotesInput] = useState("")
   const [opening, setOpening] = useState(false)
@@ -43,7 +45,7 @@ export function ShiftOpenDialog({ open, onOpenChange, onOpened }: ShiftOpenDialo
       setNotesInput("")
       onOpened()
     } catch (e) {
-      toast.error((e as Error).message || t("openFailed"))
+      toast.error(resolveError(e) || t("openFailed"))
     } finally {
       setOpening(false)
     }

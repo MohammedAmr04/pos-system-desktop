@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { Shift } from "@/types/domain/domain.types"
@@ -28,6 +29,7 @@ interface ShiftCloseDialogProps {
 
 export function ShiftCloseDialog({ shift, onOpenChange, onClosed }: ShiftCloseDialogProps) {
   const t = useTranslations("Shifts")
+  const resolveError = useApiError()
   const [countedInput, setCountedInput] = useState("")
   const [closing, setClosing] = useState(false)
 
@@ -49,7 +51,7 @@ export function ShiftCloseDialog({ shift, onOpenChange, onClosed }: ShiftCloseDi
       setCountedInput("")
       onClosed()
     } catch (e) {
-      toast.error((e as Error).message || t("closeFailed"))
+      toast.error(resolveError(e) || t("closeFailed"))
     } finally {
       setClosing(false)
     }

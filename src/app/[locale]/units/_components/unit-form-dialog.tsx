@@ -4,6 +4,7 @@ import { MasterUnit } from "@/types/domain/domain.types"
 import { createUnit, updateUnit } from "@/actions/units.actions"
 import { useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +33,7 @@ interface UnitFormState {
 
 export function UnitFormDialog({ open, onOpenChange, unit, onSaved }: UnitFormDialogProps) {
   const t = useTranslations("UnitsMaster")
+  const resolveError = useApiError()
   const [form, setForm] = useState<UnitFormState>(() => ({
     name: unit?.name ?? "",
     isActive: unit?.isActive ?? true,
@@ -53,7 +55,7 @@ export function UnitFormDialog({ open, onOpenChange, unit, onSaved }: UnitFormDi
       onOpenChange(false)
       onSaved?.()
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setIsSaving(false)
     }

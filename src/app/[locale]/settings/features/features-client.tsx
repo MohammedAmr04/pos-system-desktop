@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2, Save } from "lucide-react"
 import { TenantFeature } from "@/types/domain/domain.types"
@@ -16,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card"
 
 export function FeaturesClient() {
   const t = useTranslations("Features")
+  const resolveError = useApiError()
   const queryClient = useQueryClient()
   const { hasPermission, refreshAccess } = useAuth()
   const canUpdate = hasPermission(PERMISSIONS.SETTINGS_UPDATE)
@@ -43,7 +45,7 @@ export function FeaturesClient() {
       await refreshAccess()
       await queryClient.invalidateQueries({ queryKey: adminKeys.all() })
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setSaving(false)
     }

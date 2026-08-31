@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Pencil, Plus, ShieldCheck, Trash, Loader2 } from "lucide-react"
 
@@ -28,6 +29,7 @@ const ADMIN_ROLE_ID = "role-admin"
 
 export function RolesClient() {
   const t = useTranslations("Roles")
+  const resolveError = useApiError()
   const queryClient = useQueryClient()
   const { refreshAccess } = useAuth()
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -63,7 +65,7 @@ export function RolesClient() {
       setRoleToDelete(null)
       await refresh()
     } catch (e) {
-      toast.error((e as Error).message || t("deleteFailed"))
+      toast.error(resolveError(e) || t("deleteFailed"))
     } finally {
       setIsDeleting(false)
     }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { CircleCheck, CircleX, Pencil, Plus, ScrollText, Wallet } from "lucide-react"
 
@@ -25,6 +26,7 @@ const PAGE_SIZE = 20
 export function SuppliersClient() {
   const t = useTranslations("Suppliers")
   const tc = useTranslations("Common")
+  const resolveError = useApiError()
   const { hasPermission } = useAuth()
   const canCreate = hasPermission(PERMISSIONS.SUPPLIERS_CREATE)
   const canUpdate = hasPermission(PERMISSIONS.SUPPLIERS_UPDATE)
@@ -71,7 +73,7 @@ export function SuppliersClient() {
       await updateSupplier(supplier.id, { isActive: !supplier.isActive })
       toast.success(supplier.isActive ? t("deactivated") : t("activated"))
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     }
   }
 
