@@ -4,7 +4,7 @@ import { POSClient } from "./pos-client"
 
 export default function POSPage() {
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background">
+    <div className="flex min-h-screen flex-col bg-background lg:h-screen lg:overflow-hidden">
       <POSClient />
     </div>
   )

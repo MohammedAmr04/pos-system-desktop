@@ -11,6 +11,15 @@ import { useAuth } from "@/components/common/auth-context"
 import { FEATURES, PERMISSIONS } from "@/lib/constants"
 import { lineDiscountAmount, lineFinalTotal } from "./utils/pricing"
 import { LineEditDialog, LineEditState } from "./line-edit-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 export function CartPanel() {
   const t = useTranslations("POS")
@@ -23,6 +32,7 @@ export function CartPanel() {
   const removeItem = usePOSStore((s) => s.removeItem)
 
   const [editState, setEditState] = useState<LineEditState | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<CartItem | null>(null)
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
 
   const openLineEdit = (item: CartItem) => {
@@ -103,7 +113,10 @@ export function CartPanel() {
                       </TooltipIconButton>
                       <Input
                         type="number"
+                        inputMode="decimal"
+                        dir="ltr"
                         min={1}
+                        aria-label={t("quantity")}
                         value={item.quantity}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value)
@@ -115,7 +128,7 @@ export function CartPanel() {
                         <Plus className="h-5 w-5" />
                       </TooltipIconButton>
                     </div>
-                    <div className="w-24 text-right text-lg font-semibold">
+                    <div className="w-24 text-right text-lg font-semibold" dir="ltr">
                       {lineFinalTotal(item).toFixed(2)}
                     </div>
                     {(canPriceOverride || canLineDiscount) && (
@@ -123,7 +136,7 @@ export function CartPanel() {
                         <Pencil className="h-5 w-5" />
                       </TooltipIconButton>
                     )}
-                    <TooltipIconButton label={t("remove")} className="text-destructive h-10 w-10" onClick={() => removeItem(item.id)}>
+                    <TooltipIconButton label={t("remove")} className="text-destructive h-10 w-10" onClick={() => setRemoveTarget(item)}>
                       <Trash2 className="h-5 w-5" />
                     </TooltipIconButton>
                   </div>
@@ -142,6 +155,29 @@ export function CartPanel() {
           onClose={() => setEditState(null)}
         />
       )}
+
+      <Dialog open={!!removeTarget} onOpenChange={(open) => { if (!open) setRemoveTarget(null) }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{t("confirmRemoveTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("confirmRemoveDescription", { name: removeTarget?.name ?? "" })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveTarget(null)}>{t("cancel")}</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (removeTarget) removeItem(removeTarget.id)
+                setRemoveTarget(null)
+              }}
+            >
+              {t("confirmRemove")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

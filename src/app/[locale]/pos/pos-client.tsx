@@ -10,10 +10,19 @@ import { PERMISSIONS, FEATURES } from "@/lib/constants"
 import { AccessDenied } from "@/components/common/access-denied"
 import { Button } from "@/components/ui/button"
 import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Link } from "@/i18n/navigation"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
-import { ArrowLeft } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { addProductBarcode } from "@/actions/products.actions"
 import { baseUnitOf, resolveBarcode } from "@/lib/barcode"
 import { listProductsForPOS } from "@/api/products"
@@ -29,6 +38,7 @@ import { UnknownBarcodeDialog } from "./_components/unknown-barcode-dialog"
 
 export function POSClient() {
   const t = useTranslations("POS")
+  const resolveError = useApiError()
   const { hasAccess, hasPermission, hasFeature } = useAuth()
 
   const canUsePOS = hasAccess(PERMISSIONS.INVOICES_CREATE) && hasPermission(PERMISSIONS.PRODUCTS_VIEW)
@@ -46,6 +56,17 @@ export function POSClient() {
   const searchRef = useRef<ProductSearchHandle>(null)
   const [unitPicker, setUnitPicker] = useState<UnitPickerState | null>(null)
   const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null)
+  const [priceModeTarget, setPriceModeTarget] = useState<'retail' | 'wholesale' | null>(null)
+  const cartItems = usePOSStore((s) => s.cartItems)
+
+  const switchPriceMode = useCallback((mode: 'retail' | 'wholesale') => {
+    const hasOverrides = cartItems.some((item) => item.overridden || item.priceEditNote)
+    if (hasOverrides && mode !== priceMode) {
+      setPriceModeTarget(mode)
+    } else {
+      setPriceMode(mode)
+    }
+  }, [cartItems, priceMode, setPriceMode])
 
   const { data: activeShift } = useActiveShift()
   const { data: productsData = [] } = useProductsForPOS()
@@ -156,12 +177,12 @@ export function POSClient() {
       addItem(product, unit)
       await queryClient.invalidateQueries({ queryKey: productsKeys.all })
     } catch (e) {
-      toast.error((e as Error).message || t("linkFailed"))
+      toast.error(resolveError(e) || t("linkFailed"))
     } finally {
       closeUnknownDialog()
       setUnitPicker(null)
     }
-  }, [unknownBarcode, queryClient, addItem, closeUnknownDialog, t])
+  }, [unknownBarcode, queryClient, addItem, closeUnknownDialog, t, resolveError])
 
   const handleLinkConfirm = (product: Product) => {
     const units = product.units?.length ? product.units : []
@@ -190,6 +211,53 @@ export function POSClient() {
     }
   }, [unknownBarcode, refresh, addItem, closeUnknownDialog, t])
 
+  const handleScan = useCallback((barcode: string) => {
+    const resolved = resolveBarcode(products, barcode)
+    if (resolved) {
+      handleSelect(resolved.product, resolved.unit)
+    } else {
+      setUnknownBarcode(barcode)
+    }
+  }, [products, handleSelect])
+
+  const scanBufferRef = useRef("")
+  const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const isEditable = (el: Element | null): boolean => {
+      if (!el) return false
+      const tag = el.tagName
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable
+    }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (document.querySelector('[data-slot="dialog-content"], [role="dialog"]')) return
+      if (isEditable(document.activeElement)) return
+
+      if (e.key === 'Enter') {
+        const buffer = scanBufferRef.current.trim()
+        if (buffer) {
+          e.preventDefault()
+          scanBufferRef.current = ""
+          handleScan(buffer)
+        }
+        return
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        scanBufferRef.current += e.key
+        if (scanTimerRef.current) clearTimeout(scanTimerRef.current)
+        scanTimerRef.current = setTimeout(() => { scanBufferRef.current = "" }, 800)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      if (scanTimerRef.current) clearTimeout(scanTimerRef.current)
+    }
+  }, [handleScan])
+
   if (!canUsePOS) {
     return <AccessDenied />
   }
@@ -201,7 +269,7 @@ export function POSClient() {
           <div className="flex items-center gap-3">
             <Link href="/">
               <TooltipIconButton label={t("back")} variant="outline">
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4" />
               </TooltipIconButton>
             </Link>
             {activeShift ? (
@@ -223,7 +291,7 @@ export function POSClient() {
                   variant={priceMode === 'retail' ? 'default' : 'ghost'}
                   size="sm"
                   className="h-8 px-3"
-                  onClick={() => setPriceMode('retail')}
+                  onClick={() => switchPriceMode('retail')}
                 >
                   {t("retail")}
                 </Button>
@@ -231,7 +299,7 @@ export function POSClient() {
                   variant={priceMode === 'wholesale' ? 'default' : 'ghost'}
                   size="sm"
                   className="h-8 px-3"
-                  onClick={() => setPriceMode('wholesale')}
+                  onClick={() => switchPriceMode('wholesale')}
                 >
                   {t("wholesale")}
                 </Button>
@@ -267,6 +335,26 @@ export function POSClient() {
       )}
 
       <UnitPickerDialog picker={unitPicker} onClose={() => setUnitPicker(null)} />
+
+      <Dialog open={priceModeTarget !== null} onOpenChange={(open) => { if (!open) setPriceModeTarget(null) }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{t("confirmPriceModeTitle")}</DialogTitle>
+            <DialogDescription>{t("confirmPriceModeDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPriceModeTarget(null)}>{t("cancel")}</Button>
+            <Button
+              onClick={() => {
+                if (priceModeTarget) setPriceMode(priceModeTarget)
+                setPriceModeTarget(null)
+              }}
+            >
+              {t("confirmSwitch")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

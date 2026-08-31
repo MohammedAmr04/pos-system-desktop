@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -16,6 +17,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { usePOSStore } from "@/store/pos.store"
 import { useAuth } from "@/components/common/auth-context"
 import { FEATURES, PERMISSIONS } from "@/lib/constants"
@@ -29,6 +38,7 @@ import { Client } from "@/types/domain/domain.types"
 
 export function CheckoutPanel() {
   const t = useTranslations("POS")
+  const resolveError = useApiError()
   const { hasAccess } = useAuth()
   const canInvoiceDiscount = hasAccess(PERMISSIONS.DISCOUNTS_INVOICE, FEATURES.INVOICE_DISCOUNT)
   const canPrintReceipt = hasAccess(PERMISSIONS.PRINTING_RECEIPT, FEATURES.RECEIPT_PRINTING)
@@ -48,6 +58,7 @@ export function CheckoutPanel() {
 
   const [isCheckingOut, setIsCheckingOut] = useState(false)
   const [amountPaid, setAmountPaid] = useState(0)
+  const [confirmClear, setConfirmClear] = useState(false)
   const paidTouched = useRef(false)
   const discountInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
@@ -64,8 +75,9 @@ export function CheckoutPanel() {
   const { subtotal, itemsDiscount, eligibleSubtotal, effectiveDiscount, total } =
     cartTotals(cartItems, discount, discountType)
 
+  const isCredit = paymentMethod === 'credit'
   const changeDue = Math.max(0, amountPaid - total)
-  const canCheckout = cartItems.length > 0 && amountPaid >= total
+  const canCheckout = cartItems.length > 0 && !!activeShift && (isCredit || amountPaid >= total)
 
   useEffect(() => {
     if (!paidTouched.current) {
@@ -134,11 +146,11 @@ export function CheckoutPanel() {
       paidTouched.current = false
       clearCart()
     } catch (e) {
-      toast.error((e as Error).message || t("checkoutFailed"))
+      toast.error(resolveError(e) || t("checkoutFailed"))
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, validateDiscount, t, clearCart, canPrintReceipt, refreshAfterSale, activeShift])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, validateDiscount, t, clearCart, canPrintReceipt, refreshAfterSale, activeShift, resolveError])
 
   const handleSaveDraft = useCallback(async () => {
     if (cartItems.length === 0) return
@@ -163,15 +175,22 @@ export function CheckoutPanel() {
       paidTouched.current = false
       clearCart()
     } catch (e) {
-      toast.error((e as Error).message || t("checkoutFailed"))
+      toast.error(resolveError(e) || t("checkoutFailed"))
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, t, clearCart, refreshAfterSale, activeShift])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, t, clearCart, refreshAfterSale, activeShift, resolveError])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip when a dialog is open
+      if (document.querySelector('[data-slot="dialog-content"], [role="dialog"]')) return
+      // Skip when the target is a form element (except F11/F12 checkout keys)
+      const el = document.activeElement
+      const editable = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable)
+
       if (e.key === 'F2') {
+        if (!canInvoiceDiscount) return
         e.preventDefault()
         discountInputRef.current?.focus()
         discountInputRef.current?.select()
@@ -188,6 +207,7 @@ export function CheckoutPanel() {
         return
       }
       if (e.ctrlKey && e.key === ' ') {
+        if (editable || !canInvoiceDiscount) return
         e.preventDefault()
         toggleDiscountType()
       }
@@ -195,7 +215,7 @@ export function CheckoutPanel() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleCheckout, toggleDiscountType, canCheckout, canPrintReceipt])
+  }, [handleCheckout, toggleDiscountType, canCheckout, canPrintReceipt, canInvoiceDiscount])
 
   return (
     <Card className="flex-1 flex flex-col">
@@ -273,13 +293,21 @@ export function CheckoutPanel() {
                   <Input
                     ref={discountInputRef}
                     type="number"
+                    inputMode="decimal"
+                    dir="ltr"
                     min="0"
                     step={discountType === 'percentage' ? "1" : "0.01"}
                     max={discountType === 'percentage' ? "100" : undefined}
+                    aria-label={t("discount")}
                     className="text-right text-lg h-12"
                     value={discount || ""}
                     onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
                   />
+                  {discount > 0 && discountType === 'percentage' && discount > 100 && (
+                    <p className="absolute -bottom-4 left-0 text-[10px] font-medium text-destructive">
+                      {t("maxPercentageDiscount")}
+                    </p>
+                  )}
                 </div>
                 <TooltipIconButton
                   label={discountType === 'fixed' ? t("discountTypePercentage") : t("discountTypeFixed")}
@@ -289,7 +317,7 @@ export function CheckoutPanel() {
                   {discountType === 'fixed' ? t("currency") : '%'}
                 </TooltipIconButton>
                 <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-60">
-                  ^␣
+                  F2
                 </kbd>
               </div>
             </div>
@@ -299,76 +327,139 @@ export function CheckoutPanel() {
             <span>{total.toFixed(2)}</span>
           </div>
 
-          <div className="space-y-4 border-t pt-4">
-            <h4 className="text-lg font-semibold">{t("totalDue")}</h4>
-            <div className="flex justify-between text-2xl font-bold">
-              <span className="text-muted-foreground">{t("totalDue")}</span>
-              <span>{total.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground text-xl">{t("amountPaid")}</span>
-              <Input
-                type="number"
-                min="0"
-                step="1"
-                className="w-40 text-right text-lg h-12"
-                value={amountPaid || ""}
-                onChange={(e) => {
-                  paidTouched.current = true
-                  setAmountPaid(parseFloat(e.target.value) || 0)
-                }}
-                onFocus={() => {
-                  if (!paidTouched.current) {
+          {!isCredit ? (
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground text-xl">{t("amountPaid")}</span>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  dir="ltr"
+                  min="0"
+                  step="1"
+                  aria-label={t("amountPaid")}
+                  className="w-40 text-right text-lg h-12"
+                  value={amountPaid || ""}
+                  onChange={(e) => {
                     paidTouched.current = true
-                  }
-                }}
-              />
+                    setAmountPaid(parseFloat(e.target.value) || 0)
+                  }}
+                  onFocus={() => {
+                    if (!paidTouched.current) {
+                      paidTouched.current = true
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[5, 10, 20, 50, 100, 200]
+                  .filter((n) => n < total)
+                  .map((n) => (
+                    <Button
+                      key={n}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 min-w-16"
+                      onClick={() => {
+                        paidTouched.current = true
+                        setAmountPaid(n)
+                      }}
+                    >
+                      {n.toFixed(0)}
+                    </Button>
+                  ))}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-9 min-w-16"
+                  onClick={() => {
+                    paidTouched.current = true
+                    setAmountPaid(total)
+                  }}
+                >
+                  {t("exactAmount")}
+                </Button>
+              </div>
+              <div className="flex justify-between text-2xl font-bold">
+                <span className="text-muted-foreground">{t("changeDue")}</span>
+                <span className={changeDue > 0 ? "text-green-600" : "text-muted-foreground"}>
+                  {changeDue.toFixed(2)}
+                </span>
+              </div>
+              {amountPaid > 0 && amountPaid < total && (
+                <p className="text-destructive text-sm font-medium">
+                  {t("insufficientPayment")}
+                </p>
+              )}
             </div>
-            <div className="flex justify-between text-2xl font-bold">
-              <span className="text-muted-foreground">{t("changeDue")}</span>
-              <span className={changeDue > 0 ? "text-green-600" : "text-muted-foreground"}>
-                {changeDue.toFixed(2)}
-              </span>
+          ) : (
+            <div className="flex items-center justify-between rounded-md bg-primary/10 px-3 py-2">
+              <span className="text-sm font-medium text-primary">{t("creditDue")}</span>
+              <span className="text-lg font-bold text-primary">{total.toFixed(2)}</span>
             </div>
-            {amountPaid > 0 && amountPaid < total && (
-              <p className="text-destructive text-sm font-medium">
-                {t("insufficientPayment")}
-              </p>
-            )}
-          </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4 mt-8">
-          <Button variant="outline" className="h-16 text-lg" onClick={handleSaveDraft} disabled={isCheckingOut || cartItems.length === 0}>
+          {!activeShift && cartItems.length > 0 && (
+            <p className="col-span-2 rounded-md bg-amber-500/10 px-3 py-2 text-center text-xs font-medium text-amber-600">
+              {t("requiresOpenShift")}
+            </p>
+          )}
+          <Button variant="outline" className="h-16 text-lg" onClick={handleSaveDraft} disabled={isCheckingOut || cartItems.length === 0 || !activeShift}>
             {t("saveDraft")}
           </Button>
 
           <Button className="h-16 text-lg" size="lg" onClick={() => handleCheckout(false)} disabled={isCheckingOut || !canCheckout}>
-            {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isCheckingOut && <Loader2 className="ms-2 h-4 w-4 animate-spin" />}
             {draftId ? t("saveAndPostDraft") : t("save")}
-            <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
+            <kbd className="ms-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
               F11
             </kbd>
           </Button>
 
           {canPrintReceipt && (
             <Button className="h-16 text-lg" size="lg" onClick={() => handleCheckout(true)} disabled={isCheckingOut || !canCheckout}>
-              {isCheckingOut && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isCheckingOut && <Loader2 className="ms-2 h-4 w-4 animate-spin" />}
               {t("saveAndPrint")}
-              <kbd className="mr-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
+              <kbd className="ms-2 pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-primary-foreground/20 px-1.5 font-mono text-[10px] font-medium opacity-70">
                 F12
               </kbd>
             </Button>
           )}
 
-          <Button variant="outline" className="h-16 col-span-2 text-lg" onClick={() => {
-            paidTouched.current = false
-            clearCart()
-          }}>
+          <Button variant="outline" className="h-16 col-span-2 text-lg"
+            disabled={cartItems.length === 0}
+            onClick={() => setConfirmClear(true)}>
             {t("clear")}
           </Button>
         </div>
       </CardContent>
+
+      <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{t("confirmClearTitle")}</DialogTitle>
+            <DialogDescription>{t("confirmClearDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmClear(false)}>{t("cancel")}</Button>
+            <Button
+              className="text-destructive-foreground"
+              variant="destructive"
+              onClick={() => {
+                paidTouched.current = false
+                clearCart()
+                setConfirmClear(false)
+              }}
+            >
+              {t("confirmClear")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
