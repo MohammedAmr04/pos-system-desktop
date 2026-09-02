@@ -589,6 +589,7 @@
     "newPurchase": "فاتورة شراء جديدة",
     "editPurchase": "تعديل فاتورة الشراء",
     "invoiceNumber": "رقم الفاتورة",
+    "time": "الوقت",
     "supplierInvoiceNumber": "رقم فاتورة المورد",
     "supplierInvoiceNumberPlaceholder": "الرقم على ورق المورد (اختياري)",
     "supplier": "المورد",
