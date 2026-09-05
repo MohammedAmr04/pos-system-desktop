@@ -20,9 +20,11 @@ namespace PosCs.Application.Services
         private readonly IAccessControl _access;
         private readonly IClock _clock;
         private readonly IClientRepository _clients;
+        private readonly IEmployeeRepository _employees;
 
         public InvoiceService(IInvoiceRepository invoices, IProductRepository products,
-            IProductUnitRepository units, IAccessControl access, IClock clock, IClientRepository clients)
+            IProductUnitRepository units, IAccessControl access, IClock clock, IClientRepository clients,
+            IEmployeeRepository employees)
         {
             _invoices = invoices;
             _products = products;
@@ -30,6 +32,7 @@ namespace PosCs.Application.Services
             _access = access;
             _clock = clock;
             _clients = clients;
+            _employees = employees;
         }
 
         public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize)
@@ -210,6 +213,9 @@ namespace PosCs.Application.Services
             var clientId = string.IsNullOrWhiteSpace(dto.ClientId) ? null : dto.ClientId.Trim();
             if (paymentMethod == "credit")
                 ValidateCreditClient(clientId);
+            var employeeId = string.IsNullOrWhiteSpace(dto.EmployeeId) ? null : dto.EmployeeId.Trim();
+            if (employeeId != null)
+                ValidateEmployee(employeeId);
 
             var status = dto.Status == "draft" ? "draft" : "posted";
 
@@ -224,10 +230,22 @@ namespace PosCs.Application.Services
                 Status = status,
                 PaymentMethod = paymentMethod,
                 ClientId = clientId,
+                EmployeeId = employeeId,
                 CreatedBy = userId
             };
 
             return Tuple.Create(invoice, lineDetails);
+        }
+
+        /// <summary>Salesperson attribution must reference an existing, active employee.
+        /// Posted invoices are immutable (only drafts pass through BuildInvoice).</summary>
+        private void ValidateEmployee(string employeeId)
+        {
+            var employee = _employees.GetById(employeeId);
+            if (employee == null)
+                throw new NotFoundException("Employee not found");
+            if (!employee.IsActive)
+                throw new DomainValidationException("Employee is inactive");
         }
 
         /// <summary>Credit sales must answer "who owes us?" — client required and active (spec §21).</summary>
@@ -254,12 +272,12 @@ namespace PosCs.Application.Services
             return _invoices.GetRange(fromDate, toDate);
         }
 
-        public InvoicePageResult GetPaged(int page, int pageSize, string from, string to, string q, string status = null, string range = null)
+        public InvoicePageResult GetPaged(int page, int pageSize, string from, string to, string q, string status = null, string range = null, string employeeId = null)
         {
             page = Math.Max(1, page);
             pageSize = Math.Max(1, Math.Min(pageSize, 100));
             ResolveRange(from, to, range == "all", out var fromDate, out var toDate);
-            return _invoices.GetPaged(fromDate, toDate, q, status, page, pageSize);
+            return _invoices.GetPaged(fromDate, toDate, q, status, page, pageSize, employeeId);
         }
 
         public Invoice GetById(string id)

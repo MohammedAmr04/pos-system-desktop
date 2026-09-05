@@ -44,7 +44,7 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize)
+        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
@@ -71,6 +71,11 @@ namespace PosCs.Infrastructure.Persistence
                     clauses.Add("status = @status");
                     parameters.Add("status", status);
                 }
+                if (!string.IsNullOrWhiteSpace(employeeId))
+                {
+                    clauses.Add("employeeId = @employeeId");
+                    parameters.Add("employeeId", employeeId.Trim());
+                }
 
                 var where = clauses.Count > 0 ? " WHERE " + string.Join(" AND ", clauses) : "";
                 parameters.Add("pageSize", pageSize);
@@ -87,7 +92,10 @@ namespace PosCs.Infrastructure.Persistence
                     parameters).ToList();
 
                 foreach (var inv in items)
+                {
                     AttachClient(conn, inv);
+                    AttachEmployee(conn, inv);
+                }
 
                 return new InvoicePageResult { Items = items, Total = total, Revenue = revenue, Discounts = discounts };
             }
@@ -108,7 +116,7 @@ namespace PosCs.Infrastructure.Persistence
                             invoice.ShiftId = RequireActiveShiftId(conn, tx);
 
                         conn.Execute(@"
-                            INSERT INTO Invoice (id, invoiceNumber, totalAmount, discount, discountType, discountValue, discountAmount, priceMode, status, clientId, paymentMethod, createdBy, shiftId, createdAt)
+                            INSERT INTO Invoice (id, invoiceNumber, totalAmount, discount, discountType, discountValue, discountAmount, priceMode, status, clientId, employeeId, paymentMethod, createdBy, shiftId, createdAt)
                             VALUES (
                                 @id,
                                 (SELECT COALESCE(MAX(invoiceNumber), 0) + 1 FROM Invoice),
@@ -120,6 +128,7 @@ namespace PosCs.Infrastructure.Persistence
                                 @priceMode,
                                 @status,
                                 @clientId,
+                                @employeeId,
                                 @paymentMethod,
                                 @createdBy,
                                 @shiftId,
@@ -136,6 +145,7 @@ namespace PosCs.Infrastructure.Persistence
                                 priceMode = invoice.PriceMode,
                                 status = isDraft ? "draft" : "posted",
                                 clientId = string.IsNullOrEmpty(invoice.ClientId) ? null : invoice.ClientId,
+                                employeeId = string.IsNullOrEmpty(invoice.EmployeeId) ? null : invoice.EmployeeId,
                                 paymentMethod = invoice.PaymentMethod ?? "cash",
                                 createdBy = invoice.CreatedBy,
                                 shiftId = string.IsNullOrEmpty(invoice.ShiftId) ? null : invoice.ShiftId,
@@ -183,7 +193,7 @@ namespace PosCs.Infrastructure.Persistence
                             UPDATE Invoice SET totalAmount = @totalAmount, discount = @discount,
                                 discountType = @discountType, discountValue = @discountValue,
                                 discountAmount = @discountAmount, priceMode = @priceMode,
-                                clientId = @clientId, paymentMethod = @paymentMethod
+                                clientId = @clientId, employeeId = @employeeId, paymentMethod = @paymentMethod
                             WHERE id = @id",
                             new
                             {
@@ -195,6 +205,7 @@ namespace PosCs.Infrastructure.Persistence
                                 discountAmount = invoice.DiscountAmount,
                                 priceMode = invoice.PriceMode,
                                 clientId = string.IsNullOrEmpty(invoice.ClientId) ? null : invoice.ClientId,
+                                employeeId = string.IsNullOrEmpty(invoice.EmployeeId) ? null : invoice.EmployeeId,
                                 paymentMethod = invoice.PaymentMethod ?? "cash"
                             }, transaction: tx);
 
@@ -481,6 +492,7 @@ namespace PosCs.Infrastructure.Persistence
             {
                 AttachDetails(conn, invoice);
                 AttachClient(conn, invoice);
+                AttachEmployee(conn, invoice);
             }
             return invoice;
         }
@@ -490,6 +502,13 @@ namespace PosCs.Infrastructure.Persistence
             if (!string.IsNullOrEmpty(invoice.ClientId))
                 invoice.Client = conn.QueryFirstOrDefault<Client>(
                     "SELECT * FROM Client WHERE id = @id", new { id = invoice.ClientId });
+        }
+
+        private static void AttachEmployee(SqliteConnection conn, Invoice invoice)
+        {
+            if (!string.IsNullOrEmpty(invoice.EmployeeId))
+                invoice.Employee = conn.QueryFirstOrDefault<Employee>(
+                    "SELECT * FROM Employee WHERE id = @id", new { id = invoice.EmployeeId });
         }
 
         private static void AttachDetails(SqliteConnection conn, Invoice invoice)

@@ -81,6 +81,8 @@ namespace PosCs.Application.Models
         /// <summary>'cash' | 'credit' (default cash); credit requires a client (spec §21).</summary>
         public string PaymentMethod { get; set; }
         public string ClientId { get; set; }
+        /// <summary>Optional salesperson (Employee directory). Immutable once posted.</summary>
+        public string EmployeeId { get; set; }
         /// <summary>'draft' | 'posted' (default posted). Drafts have zero side effects.</summary>
         public string Status { get; set; }
     }

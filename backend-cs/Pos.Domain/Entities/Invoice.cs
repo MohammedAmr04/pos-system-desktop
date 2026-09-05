@@ -23,12 +23,15 @@ namespace PosCs.Domain.Entities
         public string PaymentMethod { get; set; } = "cash";
         public string ClientId { get; set; }
         public string CreatedBy { get; set; }
+        /// <summary>Optional salesperson attribution (Employee directory, not a login).</summary>
+        public string EmployeeId { get; set; }
         /// <summary>The shift that was open when the sale was posted (plan Phase 9).</summary>
         public string ShiftId { get; set; }
 
         // Serialized under its exact legacy key by the API contract resolver.
         public List<InvoiceDetail> InvoiceDetail { get; set; } = new List<InvoiceDetail>();
         public Client Client { get; set; }
+        public Employee Employee { get; set; }
     }
 
     public class InvoiceDetail
