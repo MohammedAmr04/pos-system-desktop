@@ -116,6 +116,7 @@ export interface PagedInvoices {
   page: number
   pageSize: number
   totals: { revenue: number; discounts: number }
+  paidByInvoice: Record<string, number>
 }
 
 export interface PagedShiftInvoices {
@@ -193,6 +194,7 @@ export interface Supplier {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  balance?: number
 }
 
 export interface Client {
@@ -204,7 +206,10 @@ export interface Client {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  balance?: number
 }
+
+export type BalanceFilter = "all" | "positive" | "negative" | "zero"
 
 export interface Employee {
   id: string
@@ -234,6 +239,16 @@ export interface PartyStatementEntry {
   description: string
   debit: number
   credit: number
+}
+
+export interface PartyInvoices {
+  items: Invoice[]
+  paidByInvoice: Record<string, number>
+}
+
+export interface PartyPurchases {
+  items: PurchaseInvoice[]
+  paidByInvoice: Record<string, number>
 }
 
 export interface PurchaseLineInput {

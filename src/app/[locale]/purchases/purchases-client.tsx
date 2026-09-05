@@ -26,7 +26,7 @@ import {
 import { TableColumn, TableBuilder } from "@/components/common/table-builder"
 import { DataPagination } from "@/components/common/data-pagination"
 import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
-import { PurchaseDetailsDialog } from "./_components/purchase-details-dialog"
+import { PurchaseDetailsDialog } from "@/components/common/purchase-details-dialog"
 
 const PAGE_SIZE = 20
 

@@ -93,6 +93,7 @@ export function InvoicesClient() {
   const items = data?.items ?? []
   const total = data?.total ?? 0
   const totals = data?.totals ?? { revenue: 0, discounts: 0 }
+  const paidByInvoice = data?.paidByInvoice ?? {}
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const { data: fullInvoice } = useInvoice(selectedId ?? "", !!selectedId)
@@ -183,6 +184,28 @@ export function InvoicesClient() {
       key: "totalAmount",
       header: t("total"),
       cell: (inv) => inv.totalAmount.toFixed(2),
+    },
+    {
+      key: "paymentStatus",
+      header: <span className="block text-center">{t("paymentStatus")}</span>,
+      className: "text-center",
+      cell: (inv) => {
+        const paid = paidByInvoice[inv.id] ?? 0
+        let key: "paid" | "partially_paid" | "unpaid" = "unpaid"
+        if (paid >= inv.totalAmount - 0.005) key = "paid"
+        else if (paid > 0.005) key = "partially_paid"
+        const cls =
+          key === "paid"
+            ? "bg-emerald-500/10 text-emerald-600"
+            : key === "partially_paid"
+              ? "bg-amber-500/10 text-amber-600"
+              : "bg-slate-500/10 text-slate-600"
+        return (
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+            {tp(`paymentStatus.${key}`)}
+          </span>
+        )
+      },
     },
     {
       key: "discount",

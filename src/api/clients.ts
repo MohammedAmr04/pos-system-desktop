@@ -1,12 +1,12 @@
 import { request, toQuery } from "@/lib/api"
-import { Client, PagedMasterData, PartyStatement } from "@/types/domain/domain.types"
+import { BalanceFilter, Client, PagedMasterData, PartyInvoices, PartyStatement } from "@/types/domain/domain.types"
 
 export function listClients() {
   return request<Client[]>('/api/clients')
 }
 
-export function listClientsPaged(page = 1, pageSize = 20, q?: string) {
-  return request<PagedMasterData<Client>>(`/api/clients/paged${toQuery({ page, pageSize, q })}`)
+export function listClientsPaged(page = 1, pageSize = 20, q?: string, balance?: BalanceFilter) {
+  return request<PagedMasterData<Client>>(`/api/clients/paged${toQuery({ page, pageSize, q, balance: balance && balance !== 'all' ? balance : undefined })}`)
 }
 
 export function getClient(id: string) {
@@ -15,4 +15,8 @@ export function getClient(id: string) {
 
 export function getClientStatement(id: string) {
   return request<PartyStatement>(`/api/clients/${id}/statement`)
+}
+
+export function listClientInvoices(id: string) {
+  return request<PartyInvoices>(`/api/clients/${id}/invoices`)
 }
