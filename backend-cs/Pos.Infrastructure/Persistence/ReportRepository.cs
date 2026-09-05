@@ -79,6 +79,31 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
+        public List<EmployeePerformanceRow> GetEmployeePerformance(DateTime from, DateTime to)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+            {
+                var rows = conn.Query<EmployeePerformanceRow>(
+                    @"SELECT i.employeeId AS EmployeeId,
+                             e.name AS EmployeeName,
+                             COUNT(1) AS InvoiceCount,
+                             COALESCE(SUM(i.totalAmount), 0) AS Total,
+                             COALESCE(SUM(i.totalAmount), 0) / COUNT(1) AS AverageTicket
+                      FROM Invoice i
+                      LEFT JOIN Employee e ON e.id = i.employeeId
+                      WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                      GROUP BY i.employeeId, e.name
+                      ORDER BY Total DESC",
+                    new { from, to }).ToList();
+                foreach (var row in rows)
+                {
+                    row.Total = Math.Round(row.Total, 2);
+                    row.AverageTicket = Math.Round(row.AverageTicket, 2);
+                }
+                return rows;
+            }
+        }
+
         public PurchasesReport GetPurchasesReport(DateTime from, DateTime to)
         {
             using (var conn = DbConnectionFactory.CreateConnection())

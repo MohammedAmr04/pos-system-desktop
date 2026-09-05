@@ -15,6 +15,7 @@ namespace PosCs.Application.Ports
         ReturnsReport GetReturnsReport(DateTime from, DateTime to);
         ExpensesReport GetExpensesReport(DateTime from, DateTime to);
         CashReport GetCashReport(DateTime from, DateTime to);
+        List<EmployeePerformanceRow> GetEmployeePerformance(DateTime from, DateTime to);
     }
 
     public sealed class SalesByDayRow
@@ -164,5 +165,16 @@ namespace PosCs.Application.Ports
         public double TotalDifference { get; set; }
         public int ShiftCount { get; set; }
         public List<CashShiftRow> Shifts { get; set; } = new List<CashShiftRow>();
+    }
+
+    /// <summary>Per-salesperson performance over posted invoices. EmployeeId/Name are
+    /// null for unattributed sales; no share-of-total math (out of scope).</summary>
+    public sealed class EmployeePerformanceRow
+    {
+        public string EmployeeId { get; set; }
+        public string EmployeeName { get; set; }
+        public int InvoiceCount { get; set; }
+        public double Total { get; set; }
+        public double AverageTicket { get; set; }
     }
 }

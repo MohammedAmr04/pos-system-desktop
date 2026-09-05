@@ -41,5 +41,7 @@ namespace PosCs.Application.Services
         public ExpensesReport Expenses(DateTime from, DateTime to) => _reports.GetExpensesReport(from, to);
 
         public CashReport Cash(DateTime from, DateTime to) => _reports.GetCashReport(from, to);
+
+        public List<EmployeePerformanceRow> EmployeePerformance(DateTime from, DateTime to) => _reports.GetEmployeePerformance(from, to);
     }
 }

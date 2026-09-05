@@ -141,6 +141,22 @@ namespace PosCs.Controllers
             }
         }
 
+        [Route("employee-performance")]
+        [HttpGet]
+        [RequirePermission("reports.view")]
+        public IHttpActionResult GetEmployeePerformance([FromUri] DateTime from, [FromUri] DateTime to)
+        {
+            try
+            {
+                return Ok(_service.EmployeePerformance(from, EndOfDay(to)));
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[API ERR] Failed to build employee performance report: {ex}");
+                return InternalServerError(new Exception("Failed to build employee performance report"));
+            }
+        }
+
         private static DateTime EndOfDay(DateTime value) => value.Date.AddDays(1).AddSeconds(-1);
     }
 }
