@@ -41,7 +41,7 @@ namespace PosCs.Tests.Application
             return new ShiftPageResult { Items = items, Total = items.Count };
         }
 
-        public Shift Close(string shiftId, double countedCash)
+        public Shift Close(string shiftId, double countedCash, string closedBy)
         {
             var shift = Stored.FirstOrDefault(s => s.Id == shiftId);
             if (shift == null)
@@ -66,6 +66,13 @@ namespace PosCs.Tests.Application
                 Items = new List<Invoice>(),
                 Total = 0
             };
+
+        public CashDrawerMovement CreateDrawerMovement(CashDrawerMovement movement)
+        {
+            movement.Id = Guid.NewGuid().ToString("N");
+            movement.CreatedAt = DateTime.Now;
+            return movement;
+        }
     }
 
     public class ShiftServiceTests
@@ -107,7 +114,7 @@ namespace PosCs.Tests.Application
             var shift = service.Open(new OpenShiftRequest(), "u");
 
             Assert.Throws<DomainValidationException>(() =>
-                service.Close(shift.Id, new CloseShiftRequest { CountedCash = -5 }));
+                service.Close(shift.Id, new CloseShiftRequest { CountedCash = -5 }, "u"));
         }
 
         [Fact]
@@ -117,7 +124,7 @@ namespace PosCs.Tests.Application
             var service = new ShiftService(repo);
             var shift = service.Open(new OpenShiftRequest { OpeningCash = 250 }, "u");
 
-            var closed = service.Close(shift.Id, new CloseShiftRequest { CountedCash = 300 });
+            var closed = service.Close(shift.Id, new CloseShiftRequest { CountedCash = 300 }, "u");
 
             Assert.Equal(300, closed.CountedCash);
             Assert.Equal("closed", closed.Status);
@@ -129,10 +136,10 @@ namespace PosCs.Tests.Application
             var repo = new FakeShiftRepository();
             var service = new ShiftService(repo);
             var shift = service.Open(new OpenShiftRequest(), "u");
-            service.Close(shift.Id, new CloseShiftRequest { CountedCash = 10 });
+            service.Close(shift.Id, new CloseShiftRequest { CountedCash = 10 }, "u");
 
             Assert.Throws<DomainValidationException>(() =>
-                service.Close(shift.Id, new CloseShiftRequest { CountedCash = 10 }));
+                service.Close(shift.Id, new CloseShiftRequest { CountedCash = 10 }, "u"));
         }
 
         [Fact]
