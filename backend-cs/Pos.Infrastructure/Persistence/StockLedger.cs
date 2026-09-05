@@ -19,6 +19,8 @@ namespace PosCs.Infrastructure.Persistence
         public const string SaleReversal = "sale_reversal";
         public const string SaleReturn = "sale_return";
         public const string PurchaseReturn = "purchase_return";
+        public const string AdjustmentIn = "adjustment_in";
+        public const string AdjustmentOut = "adjustment_out";
 
         /// <summary>Appends a ledger row and applies the signed base-unit delta to stock.
         /// When requireStock is true a negative resulting stock aborts via InsufficientStockException.</summary>

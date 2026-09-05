@@ -69,6 +69,8 @@ namespace PosCs
         private static LicenseService _licenseService;
         private static ReportsService _reportsService;
         private static PrintingService _printingService;
+        private static IOperationsRepository _operations;
+        private static OperationsService _operationsService;
 
         public static IClock Clock => Lazy(ref _clock, () => new SystemClock());
         public static IPasswordHasher Hasher => Lazy(ref _hasher, () => new PasswordHasher());
@@ -103,6 +105,7 @@ namespace PosCs
         public static IReceiptPrinter Receipts => Lazy(ref _receiptPrinter, () => new ReceiptPrinter(PrinterSettingsRepo));
         public static IBarcodeLabelPrinter BarcodeLabels => Lazy(ref _labelPrinter, () => new BarcodeLabelPrinter(PrinterSettingsRepo));
         public static IPrinterSettingsRepository PrinterSettingsRepo => Lazy(ref _printerSettings, () => new PrinterSettingsRepository());
+        public static IOperationsRepository OperationsRepo => Lazy(ref _operations, () => new OperationsRepository());
         public static PrinterSettingsService PrinterSettingsService => Lazy(ref _printerSettingsService,
             () => new PrinterSettingsService(PrinterSettingsRepo));
 
@@ -144,6 +147,8 @@ namespace PosCs
             () => new ReportsService(Products, ReportsRepo));
         public static PrintingService PrintingService => Lazy(ref _printingService,
             () => new PrintingService(Receipts, BarcodeLabels));
+        public static OperationsService OperationsService => Lazy(ref _operationsService,
+            () => new OperationsService(OperationsRepo));
 
         private static T Lazy<T>(ref T field, System.Func<T> factory) where T : class
         {
