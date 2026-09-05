@@ -87,6 +87,8 @@
     "confirmRemoveDescription": "هل تريد إزالة «{name}» من السلة؟",
     "client": "العميل",
     "walkIn": "عميل نقدي",
+    "salesperson": "البائع",
+    "noSalesperson": "بدون بائع",
     "paymentMethod": "طريقة الدفع",
     "cash": "نقدي",
     "credit": "آجل",
@@ -248,7 +250,10 @@
     "saveFailed": "فشل تنفيذ العملية",
     "makeReturn": "إنشاء مرتجع",
     "partiallyReturned": "مرتجع جزئي",
-    "fullyReturned": "مرتجع كامل"
+    "fullyReturned": "مرتجع كامل",
+    "employee": "البائع",
+    "employeeAll": "كل البائعين",
+    "unassigned": "بدون بائع"
   },
   "Sidebar": {
     "dashboard": "لوحة التحكم",
@@ -277,7 +282,8 @@
     "settingsPrinting": "الطباعة",
     "inventoryAdjustments": "تسويات المخزون",
     "alerts": "التنبيهات",
-    "auditLogs": "سجل التدقيق"
+    "auditLogs": "سجل التدقيق",
+    "employees": "الموظفين"
   },
   "License": {
     "tamperDetected": "تم اكتشاف تلاعب في وقت النظام",
@@ -337,11 +343,18 @@
     "reasonPlaceholder": "سبب الجرد",
     "defaultReason": "جرد مخزون",
     "create": "إنشاء جرد",
+    "creating": "جارٍ إنشاء الجرد...",
     "newTitle": "إنشاء جلسة جرد",
     "newDescription": "أنشئ مسودة ثم أضف المنتجات وعدّها على مراحل.",
     "reasonHint": "السبب اختياري ويمكن تركه فارغًا.",
     "createAndStart": "إنشاء وبدء الجرد",
     "created": "تم إنشاء جلسة الجرد",
+    "notes": "ملاحظات",
+    "notesPlaceholder": "أضف ملاحظات عن جلسة الجرد (اختياري)",
+    "saveNotes": "حفظ الملاحظات",
+    "notesSaved": "تم حفظ الملاحظات",
+    "saving": "جارٍ الحفظ...",
+    "missingSession": "لم يتم تحديد جلسة جرد لفتحها.",
     "createdAt": "تاريخ الإنشاء",
     "statusLabel": "الحالة",
     "products": "المنتجات",
@@ -383,8 +396,17 @@
     "cancelSession": "إلغاء الجلسة",
     "cancelled": "تم إلغاء جلسة الجرد",
     "cancelConfirm": "هل تريد إلغاء هذه الجلسة؟ لن يمكن تعديلها بعد ذلك.",
+    "deleteSession": "حذف الجلسة",
+    "deleted": "تم حذف جلسة الجرد",
+    "deleteConfirm": "هل تريد حذف هذه الجلسة نهائيًا؟ لن يمكن استرجاعها.",
+    "deleteFailed": "تعذر حذف الجلسة",
     "loading": "جارٍ تحميل جلسة الجرد...",
-    "status": { "draft": "مسودة", "counting": "قيد الجرد", "posted": "معتمدة", "cancelled": "ملغاة" }
+    "status": {
+      "draft": "مسودة",
+      "counting": "قيد الجرد",
+      "posted": "معتمدة",
+      "cancelled": "ملغاة"
+    }
   },
   "Alerts": {
     "title": "التنبيهات",
@@ -661,6 +683,33 @@
     "noEntries": "لا توجد حركات بعد — كشف الحساب سيظهر مع الفواتير الآجلة والدفعات",
     "saveFailed": "فشل الحفظ"
   },
+  "Employees": {
+    "title": "الموظفين",
+    "description": "دليل الموظفين لربط المبيعات بالبائع (بدون حسابات دخول)",
+    "newEmployee": "موظف جديد",
+    "editEmployee": "تعديل الموظف",
+    "name": "الاسم",
+    "namePlaceholder": "اسم الموظف",
+    "phone": "الهاتف",
+    "phonePlaceholder": "رقم الهاتف",
+    "status": "الحالة",
+    "actions": "الإجراءات",
+    "active": "نشط",
+    "inactive": "موقوف",
+    "createHint": "أضف موظفًا جديدًا ليظهر في قائمة البائعين بنقطة البيع",
+    "editHint": "عدّل بيانات الموظف",
+    "created": "تم إنشاء الموظف",
+    "updated": "تم تحديث الموظف",
+    "activated": "تم تفعيل الموظف",
+    "deactivated": "تم إيقاف الموظف",
+    "activate": "تفعيل",
+    "deactivate": "إيقاف",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "empty": "لا يوجد موظفين",
+    "noResults": "لا توجد نتائج مطابقة",
+    "saveFailed": "فشل الحفظ"
+  },
   "Purchases": {
     "title": "المشتريات",
     "description": "فواتير الشراء — المسودة لا تؤثر على المخزون، والترحيل يضيف الكميات ويحدّث أسعار البيع عند إدخالها",
@@ -923,7 +972,11 @@
     "openingCash": "نقدية افتتاحية",
     "expectedCash": "الكاش المتوقع",
     "countedCash": "الكاش المعدود",
-    "difference": "الفرق"
+    "difference": "الفرق",
+    "tab_employees": "الموظفين",
+    "employee": "الموظف",
+    "averageTicket": "متوسط الفاتورة",
+    "unassigned": "بدون بائع"
   },
   "Errors": {
     "failed": "تعذر تنفيذ العملية",

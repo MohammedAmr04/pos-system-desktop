@@ -73,8 +73,10 @@ export interface Invoice {
   status?: 'draft' | 'posted' | 'cancelled'
   paymentMethod?: string
   clientId?: string | null
+  employeeId?: string | null
   createdBy?: string | null
   client?: Client | null
+  employee?: Employee | null
   returnStatus?: string | null
   invoiceDetail?: InvoiceDetail[]
   InvoiceDetail?: InvoiceDetail[]
@@ -202,6 +204,23 @@ export interface Client {
   isActive: boolean
   createdAt: string
   updatedAt: string
+}
+
+export interface Employee {
+  id: string
+  name: string
+  phone: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EmployeePerformanceRow {
+  employeeId: string | null
+  employeeName: string | null
+  invoiceCount: number
+  total: number
+  averageTicket: number
 }
 
 export interface PartyStatement {
@@ -374,6 +393,7 @@ export interface InvoiceCreatePayload {
   discountValue?: number
   priceMode: PriceMode
   clientId?: string | null
+  employeeId?: string | null
   paymentMethod?: PaymentMethod
   status?: 'draft' | 'posted'
 }
@@ -642,6 +662,6 @@ export interface InventoryAdjustmentLineInput { productId: string; productUnitId
 export interface InventoryAdjustmentLine { id: string; productId: string; productUnitId: string; productName: string; barcode: string | null; unitName: string; quantityFactor: number; systemQuantity: number; countedQuantity: number; countedBaseQuantity: number; differenceQuantity: number; unitCost: number; buyPrice: number; retailPrice: number; wholesalePrice: number | null; isMatched: boolean; updatedAt: string | null }
 export interface PagedAuditLogs { items: AuditLogEntry[]; total: number }
 export interface PagedAlerts { items: AlertItem[]; total: number }
-export interface InventoryAdjustmentSummary { id: string; number: number; reason: string; createdBy: string; createdAt: string; status: 'draft' | 'counting' | 'posted' | 'cancelled'; lineCount: number; differenceCount: number }
+export interface InventoryAdjustmentSummary { id: string; number: number; reason: string; notes: string | null; createdBy: string; createdAt: string; status: 'draft' | 'counting' | 'posted' | 'cancelled'; lineCount: number; differenceCount: number }
 export interface PagedInventoryAdjustments { items: InventoryAdjustmentSummary[]; total: number }
 export interface InventoryAdjustmentDetail extends InventoryAdjustmentSummary { postedAt: string | null; cancelledAt: string | null; lines: InventoryAdjustmentLine[] }

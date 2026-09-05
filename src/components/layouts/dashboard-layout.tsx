@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname } from "@/i18n/navigation"
-import { Package, ShoppingCart, FileText, LayoutDashboard, AlertTriangle, LogOut, Settings, Users, Shield, SlidersHorizontal, KeyRound, FolderTree, Tags, Ruler, Truck, UsersRound, Boxes, Wallet, Undo2, Timer, Receipt, BarChart3, Printer, ClipboardList, Bell, History } from "lucide-react"
+import { Package, ShoppingCart, FileText, LayoutDashboard, AlertTriangle, LogOut, Settings, Users, Shield, SlidersHorizontal, KeyRound, FolderTree, Tags, Ruler, Truck, UsersRound, Boxes, Wallet, Undo2, Timer, Receipt, BarChart3, Printer, ClipboardList, Bell, History, Contact } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
 import { useAuth } from "@/components/common/auth-context"
@@ -89,6 +89,13 @@ const sidebarNavItems: SidebarNavItem[] = [
     href: "/clients/",
     icon: UsersRound,
     permission: PERMISSIONS.CLIENTS_VIEW,
+    section: "main",
+  },
+  {
+    key: "employees",
+    href: "/employees/",
+    icon: Contact,
+    permission: PERMISSIONS.EMPLOYEES_VIEW,
     section: "main",
   },
   {
