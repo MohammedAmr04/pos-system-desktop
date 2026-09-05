@@ -29,6 +29,7 @@ namespace PosCs
         private static IUnitRepository _masterUnits;
         private static ISupplierRepository _suppliers;
         private static IClientRepository _clients;
+        private static IEmployeeRepository _employees;
         private static IInvoiceRepository _invoices;
         private static IPurchaseRepository _purchases;
         private static IPaymentRepository _payments;
@@ -56,6 +57,7 @@ namespace PosCs
         private static UnitMasterService _unitMasterService;
         private static SupplierService _supplierService;
         private static ClientService _clientService;
+        private static EmployeeService _employeeService;
         private static PurchaseService _purchaseService;
         private static PaymentService _paymentService;
         private static InvoiceService _invoiceService;
@@ -87,6 +89,7 @@ namespace PosCs
         public static PurchaseService PurchaseService => Lazy(ref _purchaseService,
             () => new PurchaseService(PurchasesRepo));
         public static IClientRepository ClientsRepo => Lazy(ref _clients, () => new ClientRepository());
+        public static IEmployeeRepository EmployeesRepo => Lazy(ref _employees, () => new EmployeeRepository());
         public static IInvoiceRepository Invoices => Lazy(ref _invoices, () => new InvoiceRepository());
         public static IPurchaseRepository PurchasesRepo => Lazy(ref _purchases, () => new PurchaseRepository());
         public static IPaymentRepository PaymentsRepo => Lazy(ref _payments, () => new PaymentRepository());
@@ -123,10 +126,12 @@ namespace PosCs
             () => new SupplierService(SuppliersRepo, PaymentsRepo, PurchasesRepo, PurchaseReturnsRepo));
         public static ClientService ClientService => Lazy(ref _clientService,
             () => new ClientService(ClientsRepo, PaymentsRepo, Invoices));
+        public static EmployeeService EmployeeService => Lazy(ref _employeeService,
+            () => new EmployeeService(EmployeesRepo));
         public static PaymentService PaymentService => Lazy(ref _paymentService,
             () => new PaymentService(PaymentsRepo, ClientsRepo, SuppliersRepo, Invoices, PurchasesRepo));
         public static InvoiceService InvoiceService => Lazy(ref _invoiceService,
-            () => new InvoiceService(Invoices, Products, Units, Access, Clock, ClientsRepo));
+            () => new InvoiceService(Invoices, Products, Units, Access, Clock, ClientsRepo, EmployeesRepo));
         public static SaleReturnService SaleReturnService => Lazy(ref _saleReturnService,
             () => new SaleReturnService(SaleReturnsRepo, Invoices));
         public static PurchaseReturnService PurchaseReturnService => Lazy(ref _purchaseReturnService,

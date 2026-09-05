@@ -21,6 +21,20 @@ namespace PosCs.Application.Models
         public bool? IsActive { get; set; }
     }
 
+    public sealed class CreateEmployeeRequest
+    {
+        public string Name { get; set; }
+        public string Phone { get; set; }
+    }
+
+    /// <summary>Null members keep their current value; empty string clears the phone.</summary>
+    public sealed class UpdateEmployeeRequest
+    {
+        public string Name { get; set; }
+        public string Phone { get; set; }
+        public bool? IsActive { get; set; }
+    }
+
     public sealed class CreateClientRequest
     {
         public string Name { get; set; }

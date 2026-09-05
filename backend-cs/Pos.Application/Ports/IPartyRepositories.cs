@@ -29,4 +29,17 @@ namespace PosCs.Application.Ports
         Client Create(Client client);
         Client Update(Client client);
     }
+
+    /// <summary>
+    /// Employees are never deleted — invoices reference them for sales attribution,
+    /// so they are deactivated instead.
+    /// </summary>
+    public interface IEmployeeRepository
+    {
+        List<Employee> GetAll();
+        PagedResult<Employee> GetPaged(int page, int pageSize, string query);
+        Employee GetById(string id);
+        Employee Create(Employee employee);
+        Employee Update(Employee employee);
+    }
 }
