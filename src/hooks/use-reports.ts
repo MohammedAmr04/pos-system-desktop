@@ -1,6 +1,7 @@
 import { useQuery, UseQueryResult } from "@tanstack/react-query"
 import {
   CashReport,
+  EmployeePerformanceRow,
   ExpensesReport,
   InventoryValuationRow,
   Product,
@@ -11,6 +12,7 @@ import {
 } from "@/types/domain/domain.types"
 import {
   getCashReport,
+  getEmployeePerformance,
   getExpensesReport,
   getInventoryReport,
   getLowStockReport,
@@ -30,6 +32,7 @@ export const reportsKeys = {
   returns: (from: string, to: string) => [...reportsKeys.all, "returns", from, to] as const,
   expenses: (from: string, to: string) => [...reportsKeys.all, "expenses", from, to] as const,
   cash: (from: string, to: string) => [...reportsKeys.all, "cash", from, to] as const,
+  employees: (from: string, to: string) => [...reportsKeys.all, "employees", from, to] as const,
 }
 
 export function useLowStockReport(enabled = true) {
@@ -92,6 +95,14 @@ export function useCashReport(from: string, to: string, enabled = true) {
   return useQuery<CashReport>({
     queryKey: reportsKeys.cash(from, to),
     queryFn: () => getCashReport(from, to),
+    enabled,
+  })
+}
+
+export function useEmployeePerformance(from: string, to: string, enabled = true) {
+  return useQuery<EmployeePerformanceRow[]>({
+    queryKey: reportsKeys.employees(from, to),
+    queryFn: () => getEmployeePerformance(from, to),
     enabled,
   })
 }

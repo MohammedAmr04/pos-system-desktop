@@ -34,12 +34,14 @@ interface POSStore {
   priceMode: PriceMode
   searchQuery: string
   clientId: string | null
+  employeeId: string | null
   paymentMethod: PaymentMethod
   /** Set while the cart mirrors a saved draft invoice (plan Phase 6). */
   draftId: string | null
   setClient: (clientId: string | null) => void
+  setEmployee: (employeeId: string | null) => void
   setPaymentMethod: (method: PaymentMethod) => void
-  loadDraft: (draft: { id: string; clientId: string | null; paymentMethod: string; discount: number; discountType?: 'fixed' | 'percentage'; priceMode?: PriceMode; items: CartItem[] }) => void
+  loadDraft: (draft: { id: string; clientId: string | null; employeeId: string | null; paymentMethod: string; discount: number; discountType?: 'fixed' | 'percentage'; priceMode?: PriceMode; items: CartItem[] }) => void
   setSearchQuery: (query: string) => void
   setPriceMode: (mode: PriceMode) => void
   togglePriceMode: () => void
@@ -62,10 +64,13 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   priceMode: 'retail',
   searchQuery: '',
   clientId: null,
+  employeeId: null,
   paymentMethod: 'cash',
   draftId: null,
 
   setClient: (clientId) => set({ clientId }),
+
+  setEmployee: (employeeId) => set({ employeeId }),
 
   setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
 
@@ -77,6 +82,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     return {
       draftId: draft.id,
       clientId: draft.clientId,
+      employeeId: draft.employeeId,
       paymentMethod,
       discount: draft.discount,
       discountType: draft.discountType ?? state.discountType,
@@ -204,6 +210,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     discountType: 'fixed',
     searchQuery: '',
     clientId: null,
+    employeeId: null,
     paymentMethod: 'cash',
     draftId: null,
   }),

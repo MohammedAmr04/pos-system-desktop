@@ -68,6 +68,10 @@ export function InvoiceDetailsDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto mt-4 pr-2">
+          <div className="mb-2 flex items-center justify-between text-sm text-muted-foreground">
+            <span>{t("employee")}</span>
+            <span className="font-medium text-foreground">{invoice.employee?.name ?? t("unassigned")}</span>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>

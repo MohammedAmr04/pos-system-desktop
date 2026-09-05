@@ -34,7 +34,8 @@ import { postInvoice } from "@/actions/invoices.lifecycle.actions"
 import { invoicesKeys } from "@/hooks/use-invoices"
 import { shiftsKeys, useActiveShift } from "@/hooks/use-shifts"
 import { useActiveClients } from "@/hooks/use-clients"
-import { Client } from "@/types/domain/domain.types"
+import { useActiveEmployees } from "@/hooks/use-employees"
+import { Client, Employee } from "@/types/domain/domain.types"
 
 export function CheckoutPanel() {
   const t = useTranslations("POS")
@@ -48,9 +49,11 @@ export function CheckoutPanel() {
   const discountType = usePOSStore((s) => s.discountType)
   const priceMode = usePOSStore((s) => s.priceMode)
   const clientId = usePOSStore((s) => s.clientId)
+  const employeeId = usePOSStore((s) => s.employeeId)
   const paymentMethod = usePOSStore((s) => s.paymentMethod)
   const draftId = usePOSStore((s) => s.draftId)
   const setClient = usePOSStore((s) => s.setClient)
+  const setEmployee = usePOSStore((s) => s.setEmployee)
   const setPaymentMethod = usePOSStore((s) => s.setPaymentMethod)
   const setDiscount = usePOSStore((s) => s.setDiscount)
   const toggleDiscountType = usePOSStore((s) => s.toggleDiscountType)
@@ -66,6 +69,8 @@ export function CheckoutPanel() {
   const { data: activeShift } = useActiveShift()
   const { data: allClients = [] } = useActiveClients()
   const clients: Client[] = allClients
+  const { data: allEmployees = [] } = useActiveEmployees()
+  const employees: Employee[] = allEmployees
 
   const refreshAfterSale = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: invoicesKeys.all })
@@ -129,6 +134,7 @@ export function CheckoutPanel() {
       if (draftId) {
         await saveDraftInvoice(cartItems, effectiveDiscount, discountType || undefined, discount || undefined, priceMode, {
           clientId,
+          employeeId,
           paymentMethod,
           status: 'posted',
           draftId,
@@ -137,6 +143,7 @@ export function CheckoutPanel() {
       } else {
         await createInvoice(cartItems, effectiveDiscount, print, discountType || undefined, discount || undefined, priceMode, {
           clientId,
+          employeeId,
           paymentMethod,
           status: 'posted',
         })
@@ -150,7 +157,7 @@ export function CheckoutPanel() {
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, validateDiscount, t, clearCart, canPrintReceipt, refreshAfterSale, activeShift, resolveError])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, employeeId, paymentMethod, draftId, validateDiscount, t, clearCart, canPrintReceipt, refreshAfterSale, activeShift, resolveError])
 
   const handleSaveDraft = useCallback(async () => {
     if (cartItems.length === 0) return
@@ -166,6 +173,7 @@ export function CheckoutPanel() {
     try {
       await saveDraftInvoice(cartItems, effectiveDiscount, discountType || undefined, discount || undefined, priceMode, {
         clientId,
+        employeeId,
         paymentMethod,
         status: 'draft',
         draftId,
@@ -179,7 +187,7 @@ export function CheckoutPanel() {
     } finally {
       setIsCheckingOut(false)
     }
-  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, paymentMethod, draftId, t, clearCart, refreshAfterSale, activeShift, resolveError])
+  }, [cartItems, effectiveDiscount, discount, discountType, priceMode, clientId, employeeId, paymentMethod, draftId, t, clearCart, refreshAfterSale, activeShift, resolveError])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -247,8 +255,7 @@ export function CheckoutPanel() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="pos-payment" className="text-sm font-medium">{t("paymentMethod")}</label>
-              <Select
+              <label htmlFor="pos-payment" className="text-sm font-medium">{t("paymentMethod")}</label>              <Select
                 value={paymentMethod}
                 onValueChange={(v) => v && setPaymentMethod(v as 'cash' | 'credit' | 'card' | 'bank_transfer')}
                 items={{
@@ -269,6 +276,27 @@ export function CheckoutPanel() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="pos-employee" className="text-sm font-medium">{t("salesperson")}</label>
+            <Select
+              value={employeeId ?? ""}
+              onValueChange={(v) => setEmployee(v || null)}
+              items={{
+                "": t("noSalesperson"),
+                ...Object.fromEntries(employees.filter((e) => e.isActive).map((e) => [e.id, e.name])),
+              }}
+            >
+              <SelectTrigger id="pos-employee" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">{t("noSalesperson")}</SelectItem>
+                {employees.filter((e) => e.isActive).map((e) => (
+                  <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           {draftId && (
             <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-600">

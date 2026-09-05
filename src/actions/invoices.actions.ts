@@ -5,6 +5,7 @@ import { printInvoiceDocument } from "@/actions/printing.actions"
 
 interface InvoiceOptions {
   clientId?: string | null
+  employeeId?: string | null
   paymentMethod?: 'cash' | 'credit' | 'card' | 'bank_transfer'
   status?: 'draft' | 'posted'
 }
@@ -40,6 +41,7 @@ function buildPayload(
     discountValue,
     priceMode,
     clientId: opts?.clientId ?? null,
+    employeeId: opts?.employeeId ?? null,
     paymentMethod: opts?.paymentMethod ?? 'cash',
     status: opts?.status ?? 'posted',
   }

@@ -118,6 +118,7 @@ export function POSClient() {
         loadDraft({
           id: inv.id,
           clientId: inv.clientId ?? null,
+          employeeId: inv.employeeId ?? null,
           paymentMethod: inv.paymentMethod ?? 'cash',
           discount: inv.discount,
           discountType: (inv.discountType === 'percentage' ? 'percentage' : 'fixed'),

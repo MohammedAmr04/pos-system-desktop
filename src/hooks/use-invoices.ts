@@ -7,6 +7,7 @@ export interface InvoicesFilter {
   q?: string
   status?: string
   range?: "all"
+  employeeId?: string
 }
 
 export const invoicesKeys = {
@@ -26,6 +27,7 @@ export function useInvoicesPage(page: number, pageSize: number, filter: Invoices
         q: filter.q?.trim() || undefined,
         status: filter.status,
         range: filter.range,
+        employeeId: filter.employeeId,
       }),
     placeholderData: keepPreviousData,
   })

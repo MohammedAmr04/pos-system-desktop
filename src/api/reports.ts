@@ -8,6 +8,7 @@ import {
   ReturnsReport,
   ExpensesReport,
   CashReport,
+  EmployeePerformanceRow,
 } from "@/types/domain/domain.types"
 
 export function getLowStockReport() {
@@ -16,6 +17,10 @@ export function getLowStockReport() {
 
 export function getSalesReport(from: string, to: string) {
   return request<SalesReport>(`/api/reports/sales${rangeQuery(from, to)}`)
+}
+
+export function getEmployeePerformance(from: string, to: string) {
+  return request<EmployeePerformanceRow[]>(`/api/reports/employee-performance${rangeQuery(from, to)}`)
 }
 
 export function getPurchasesReport(from: string, to: string) {

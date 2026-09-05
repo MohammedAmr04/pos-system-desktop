@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { Loader2, TriangleAlert } from "lucide-react"
 import {
   useCashReport,
+  useEmployeePerformance,
   useExpensesReport,
   useInventoryReport,
   useProfitReport,
@@ -15,6 +16,7 @@ import {
 } from "@/hooks/use-reports"
 import {
   CashReport,
+  EmployeePerformanceRow,
   ExpensesReport,
   InventoryValuationRow,
   ProfitReport,
@@ -35,11 +37,12 @@ import { InventoryTab } from "./_components/inventory-tab"
 import { ReturnsTab } from "./_components/returns-tab"
 import { ExpensesTab } from "./_components/expenses-tab"
 import { CashTab } from "./_components/cash-tab"
+import { EmployeesTab } from "./_components/employees-tab"
 import { Link } from "@/i18n/navigation"
 
-type ReportKey = "sales" | "purchases" | "profit" | "inventory" | "returns" | "expenses" | "cash"
+type ReportKey = "sales" | "purchases" | "profit" | "inventory" | "returns" | "expenses" | "cash" | "employees"
 
-const REPORT_KEYS: ReportKey[] = ["sales", "purchases", "profit", "inventory", "returns", "expenses", "cash"]
+const REPORT_KEYS: ReportKey[] = ["sales", "purchases", "profit", "inventory", "returns", "expenses", "cash", "employees"]
 
 const monthStart = () => {
   const d = new Date()
@@ -65,6 +68,7 @@ export function ReportsClient() {
   const { data: returns, isFetching: returnsFetching, isError: returnsError } = useReturnsReport(from, to, canView && tab === "returns") as { data: ReturnsReport | undefined; isFetching: boolean; isError: boolean }
   const { data: expenses, isFetching: expensesFetching, isError: expensesError } = useExpensesReport(from, to, canView && tab === "expenses") as { data: ExpensesReport | undefined; isFetching: boolean; isError: boolean }
   const { data: cash, isFetching: cashFetching, isError: cashError } = useCashReport(from, to, canView && tab === "cash") as { data: CashReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: employees, isFetching: employeesFetching, isError: employeesError } = useEmployeePerformance(from, to, canView && tab === "employees") as { data: EmployeePerformanceRow[] | undefined; isFetching: boolean; isError: boolean }
 
   const activeError = tab === "sales" ? salesError
     : tab === "purchases" ? purchasesError
@@ -72,7 +76,8 @@ export function ReportsClient() {
     : tab === "inventory" ? inventoryError
     : tab === "returns" ? returnsError
     : tab === "expenses" ? expensesError
-    : cashError
+    : tab === "cash" ? cashError
+    : employeesError
 
   const loading = tab === "sales" ? salesFetching
     : tab === "purchases" ? purchasesFetching
@@ -80,7 +85,8 @@ export function ReportsClient() {
     : tab === "inventory" ? inventoryFetching
     : tab === "returns" ? returnsFetching
     : tab === "expenses" ? expensesFetching
-    : cashFetching
+    : tab === "cash" ? cashFetching
+    : employeesFetching
 
   useEffect(() => {
     if (activeError) toast.error(t("loadFailed"))
@@ -137,6 +143,7 @@ export function ReportsClient() {
           {tab === "returns" && returns && <ReturnsTab data={returns} />}
           {tab === "expenses" && expenses && <ExpensesTab data={expenses} />}
           {tab === "cash" && cash && <CashTab data={cash} />}
+          {tab === "employees" && employees && <EmployeesTab data={employees} />}
         </>
       )}
     </div>

@@ -8,6 +8,7 @@ import { Eye, Pencil, Upload, CircleX, Undo2 } from "lucide-react"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns"
 import { Invoice } from "@/types/domain/domain.types"
 import { useInvoicesPage, useInvoice } from "@/hooks/use-invoices"
+import { useActiveEmployees } from "@/hooks/use-employees"
 import { postInvoice, cancelInvoice } from "@/actions/invoices.lifecycle.actions"
 import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
 import { useRouter } from "@/i18n/navigation"
@@ -64,6 +65,9 @@ export function InvoicesClient() {
   const [toDate, setToDate] = useState<Date | undefined>(undefined)
   const [allRange, setAllRange] = useState(false)
   const [status, setStatus] = useState("all")
+  const [employeeId, setEmployeeId] = useState("all")
+  const canViewEmployees = hasPermission(PERMISSIONS.EMPLOYEES_VIEW)
+  const { data: allEmployees = [] } = useActiveEmployees()
 
   const debouncedQueryChange = useDebouncedCallback((value: string) => {
     setQuery(value)
@@ -82,6 +86,7 @@ export function InvoicesClient() {
     q: query.trim() || undefined,
     range: allRange ? "all" as const : undefined,
     status,
+    employeeId: canViewEmployees ? employeeId : "all",
   }
 
   const { data, isPending } = useInvoicesPage(page, PAGE_SIZE, filter)
@@ -145,6 +150,12 @@ export function InvoicesClient() {
       header: <span className="block text-center">{t("client")}</span>,
       className: "text-center",
       cell: (inv) => inv.client?.name || t("walkIn"),
+    },
+    {
+      key: "employee",
+      header: <span className="block text-center">{t("employee")}</span>,
+      className: "text-center",
+      cell: (inv) => inv.employee?.name || t("unassigned"),
     },
     {
       key: "paymentMethod",
@@ -299,6 +310,30 @@ export function InvoicesClient() {
             <SelectItem value="cancelled">{t("cancelled")}</SelectItem>
           </SelectContent>
         </Select>
+        {canViewEmployees && (
+          <Select
+            value={employeeId}
+            onValueChange={(v) => {
+              if (v == null) return
+              setEmployeeId(v)
+              setPage(1)
+            }}
+            items={{
+              all: t("employeeAll"),
+              ...Object.fromEntries(allEmployees.filter((e) => e.isActive).map((e) => [e.id, e.name])),
+            }}
+          >
+            <SelectTrigger aria-label={t("employee")} className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("employeeAll")}</SelectItem>
+              {allEmployees.filter((e) => e.isActive).map((e) => (
+                <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="flex gap-2 mr-auto">
           <Button variant="outline" size="sm" onClick={() => quickFilter("today")}>
             {t("today")}
