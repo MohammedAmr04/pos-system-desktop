@@ -11,7 +11,12 @@ namespace PosCs.Application.Ports
     public interface ISupplierRepository
     {
         List<Supplier> GetAll();
-        PagedResult<Supplier> GetPaged(int page, int pageSize, string query);
+        /// <summary>
+        /// Server-side paged listing. Each item carries its computed Balance.
+        /// balanceFilter: null/"all" (no filter), "positive" (we owe them),
+        /// "negative" (they owe us / overpaid), "zero" (settled).
+        /// </summary>
+        PagedResult<Supplier> GetPaged(int page, int pageSize, string query, string balanceFilter);
         Supplier GetById(string id);
         Supplier Create(Supplier supplier);
         Supplier Update(Supplier supplier);
@@ -24,7 +29,12 @@ namespace PosCs.Application.Ports
     public interface IClientRepository
     {
         List<Client> GetAll();
-        PagedResult<Client> GetPaged(int page, int pageSize, string query);
+        /// <summary>
+        /// Server-side paged listing. Each item carries its computed Balance.
+        /// balanceFilter: null/"all" (no filter), "positive" (they owe us),
+        /// "negative" (advance credit — we owe them), "zero" (settled).
+        /// </summary>
+        PagedResult<Client> GetPaged(int page, int pageSize, string query, string balanceFilter);
         Client GetById(string id);
         Client Create(Client client);
         Client Update(Client client);

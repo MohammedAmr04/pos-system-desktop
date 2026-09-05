@@ -21,6 +21,19 @@ namespace PosCs.Application.Ports
         /// <summary>Total money paid to a supplier.</summary>
         double SumBySupplier(string supplierId);
 
+        /// <summary>
+        /// General (not invoice-linked) payments received from a client — the pool
+        /// distributed oldest-first across the client's invoices (display only).
+        /// </summary>
+        double SumUnlinkedByClient(string clientId);
+
+        /// <summary>
+        /// General non-negative payments to a supplier — the pool distributed
+        /// oldest-first across the supplier's credit purchases (display only).
+        /// Negative amounts are cash-purchase refunds (drawer events), not settlements.
+        /// </summary>
+        double SumUnlinkedBySupplier(string supplierId);
+
         /// <summary>All payments from a client, oldest first (account statements).</summary>
         List<Payment> ListByClient(string clientId);
 

@@ -131,7 +131,7 @@ namespace PosCs
         public static PaymentService PaymentService => Lazy(ref _paymentService,
             () => new PaymentService(PaymentsRepo, ClientsRepo, SuppliersRepo, Invoices, PurchasesRepo));
         public static InvoiceService InvoiceService => Lazy(ref _invoiceService,
-            () => new InvoiceService(Invoices, Products, Units, Access, Clock, ClientsRepo, EmployeesRepo));
+            () => new InvoiceService(Invoices, Products, Units, Access, Clock, ClientsRepo, EmployeesRepo, PaymentsRepo));
         public static SaleReturnService SaleReturnService => Lazy(ref _saleReturnService,
             () => new SaleReturnService(SaleReturnsRepo, Invoices));
         public static PurchaseReturnService PurchaseReturnService => Lazy(ref _purchaseReturnService,

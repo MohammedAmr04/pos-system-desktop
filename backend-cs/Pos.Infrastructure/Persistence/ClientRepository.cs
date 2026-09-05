@@ -18,28 +18,44 @@ namespace PosCs.Infrastructure.Persistence
                 return conn.Query<Client>("SELECT * FROM Client ORDER BY name COLLATE NOCASE").ToList();
         }
 
-        public PagedResult<Client> GetPaged(int page, int pageSize, string query)
+        /// <summary>
+        /// Balance mirrors ClientService.GetStatement exactly: posted invoices minus
+        /// all received payments (cash-sale auto payments cancel their own invoice).
+        /// Rounded to 2 decimals so the zero filter is not tripped by float noise.
+        /// </summary>
+        private const string BalanceExpr =
+            "ROUND(COALESCE((SELECT SUM(totalAmount) FROM Invoice WHERE clientId = c.id AND status = 'posted'), 0) " +
+            "- COALESCE((SELECT SUM(amount) FROM Payment WHERE clientId = c.id), 0), 2)";
+
+        public PagedResult<Client> GetPaged(int page, int pageSize, string query, string balanceFilter)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
-                if (string.IsNullOrWhiteSpace(query))
+                var clauses = new List<string>();
+                var parameters = new DynamicParameters();
+                parameters.Add("pageSize", pageSize);
+                parameters.Add("offset", (page - 1) * pageSize);
+
+                if (!string.IsNullOrWhiteSpace(query))
                 {
-                    var total = conn.ExecuteScalar<int>("SELECT COUNT(1) FROM Client");
-                    var items = conn.Query<Client>(
-                        "SELECT * FROM Client ORDER BY name COLLATE NOCASE LIMIT @pageSize OFFSET @offset",
-                        new { pageSize, offset = (page - 1) * pageSize }).ToList();
-                    return new PagedResult<Client> { Items = items, Total = total };
+                    clauses.Add("(c.name LIKE @like ESCAPE '\\' OR c.phone LIKE @like ESCAPE '\\')");
+                    parameters.Add("like", $"%{EscapeLike(query)}%");
                 }
 
-                var like = $"%{EscapeLike(query)}%";
-                var totalFiltered = conn.ExecuteScalar<int>(
-                    "SELECT COUNT(1) FROM Client WHERE name LIKE @like ESCAPE '\\' OR phone LIKE @like ESCAPE '\\'",
-                    new { like });
-                var filteredItems = conn.Query<Client>(
-                    "SELECT * FROM Client WHERE name LIKE @like ESCAPE '\\' OR phone LIKE @like ESCAPE '\\' " +
-                    "ORDER BY name COLLATE NOCASE LIMIT @pageSize OFFSET @offset",
-                    new { like, pageSize, offset = (page - 1) * pageSize }).ToList();
-                return new PagedResult<Client> { Items = filteredItems, Total = totalFiltered };
+                if (balanceFilter == "positive")
+                    clauses.Add($"({BalanceExpr}) > 0");
+                else if (balanceFilter == "negative")
+                    clauses.Add($"({BalanceExpr}) < 0");
+                else if (balanceFilter == "zero")
+                    clauses.Add($"({BalanceExpr}) = 0");
+
+                var where = clauses.Count > 0 ? " WHERE " + string.Join(" AND ", clauses) : "";
+                var total = conn.ExecuteScalar<int>($"SELECT COUNT(1) FROM Client c{where}", parameters);
+                var items = conn.Query<Client>(
+                    $"SELECT c.*, ({BalanceExpr}) AS Balance FROM Client c{where} " +
+                    "ORDER BY c.name COLLATE NOCASE LIMIT @pageSize OFFSET @offset",
+                    parameters).ToList();
+                return new PagedResult<Client> { Items = items, Total = total };
             }
         }
 

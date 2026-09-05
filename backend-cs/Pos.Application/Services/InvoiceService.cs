@@ -21,10 +21,11 @@ namespace PosCs.Application.Services
         private readonly IClock _clock;
         private readonly IClientRepository _clients;
         private readonly IEmployeeRepository _employees;
+        private readonly IPaymentRepository _payments;
 
         public InvoiceService(IInvoiceRepository invoices, IProductRepository products,
             IProductUnitRepository units, IAccessControl access, IClock clock, IClientRepository clients,
-            IEmployeeRepository employees)
+            IEmployeeRepository employees, IPaymentRepository payments)
         {
             _invoices = invoices;
             _products = products;
@@ -33,13 +34,14 @@ namespace PosCs.Application.Services
             _clock = clock;
             _clients = clients;
             _employees = employees;
+            _payments = payments;
         }
 
         public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize)
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return _invoices.GetPaged(from, to, query, status, page, pageSize);
+            return WithPaid(_invoices.GetPaged(from, to, query, status, page, pageSize));
         }
 
         public Invoice Post(string id)
@@ -277,7 +279,53 @@ namespace PosCs.Application.Services
             page = Math.Max(1, page);
             pageSize = Math.Max(1, Math.Min(pageSize, 100));
             ResolveRange(from, to, range == "all", out var fromDate, out var toDate);
-            return _invoices.GetPaged(fromDate, toDate, q, status, page, pageSize, employeeId);
+            return WithAllocatedPaid(_invoices.GetPaged(fromDate, toDate, q, status, page, pageSize, employeeId));
+        }
+
+        /// <summary>Attaches invoice-linked payment totals for payment-status badges.</summary>
+        private InvoicePageResult WithPaid(InvoicePageResult result)
+        {
+            result.PaidByInvoice = _payments.SumGroupedByInvoice(result.Items.Select(i => i.Id));
+            return result;
+        }
+
+        /// <summary>
+        /// Badge math for the invoices list: invoice-linked payments plus each client's
+        /// general pool distributed oldest-first — the same display math as the
+        /// statement pages, so a client who paid in full shows paid everywhere.
+        /// Drafts/cancelled keep linked-only values (no debt to allocate against).
+        /// </summary>
+        private InvoicePageResult WithAllocatedPaid(InvoicePageResult result)
+        {
+            var paid = _payments.SumGroupedByInvoice(result.Items.Select(i => i.Id));
+            var clientIds = result.Items
+                .Where(i => !string.IsNullOrEmpty(i.ClientId))
+                .Select(i => i.ClientId)
+                .Distinct()
+                .ToList();
+            foreach (var clientId in clientIds)
+            {
+                var full = _invoices.ListPostedByClient(clientId);
+                var linked = _payments.SumGroupedByInvoice(full.Select(i => i.Id));
+                var pool = _payments.SumUnlinkedByClient(clientId);
+                var allocated = PaymentAllocation.Allocate(
+                    full.Select(i => new AllocationInput
+                    {
+                        Id = i.Id,
+                        Total = i.TotalAmount,
+                        LinkedPaid = linked.ContainsKey(i.Id) ? linked[i.Id] : 0
+                    }),
+                    pool);
+                foreach (var entry in allocated)
+                    paid[entry.Key] = entry.Value;
+            }
+            foreach (var item in result.Items)
+            {
+                if (!paid.ContainsKey(item.Id))
+                    paid[item.Id] = 0;
+            }
+            result.PaidByInvoice = paid;
+            return result;
         }
 
         public Invoice GetById(string id)

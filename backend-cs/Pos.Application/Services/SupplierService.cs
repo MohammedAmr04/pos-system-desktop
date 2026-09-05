@@ -5,6 +5,7 @@ using PosCs.Application.Models;
 using PosCs.Application.Ports;
 using PosCs.Domain.Entities;
 using PosCs.Domain.Exceptions;
+using PosCs.Domain.Rules;
 
 namespace PosCs.Application.Services
 {
@@ -34,11 +35,11 @@ namespace PosCs.Application.Services
             return _repo.GetAll().Where(s => s.IsActive).ToList();
         }
 
-        public PagedResult<Supplier> GetPaged(int page, int pageSize, string query)
+        public PagedResult<Supplier> GetPaged(int page, int pageSize, string query, string balanceFilter)
         {
             page = Math.Max(1, page);
             pageSize = Math.Max(1, Math.Min(pageSize, 100));
-            return _repo.GetPaged(page, pageSize, query?.Trim());
+            return _repo.GetPaged(page, pageSize, query?.Trim(), NormalizeBalanceFilter(balanceFilter));
         }
 
         public Supplier GetById(string id)
@@ -150,6 +151,46 @@ namespace PosCs.Application.Services
             }
 
             return new PartyStatementResult { PartyId = id, Balance = balance, Entries = entries };
+        }
+
+        /// <summary>
+        /// Posted credit purchases of one supplier for the statement page table,
+        /// oldest first. Per-purchase paid = invoice-linked payments plus the general
+        /// (unlinked) payment pool distributed oldest-first — display only.
+        /// Cash purchases settle instantly and are excluded, mirroring the statement.
+        /// </summary>
+        public SupplierPurchasesResult GetPurchases(string id)
+        {
+            GetById(id);
+
+            var items = _purchases.ListPostedBySupplier(id).Where(p => p.PaymentMethod != "cash").ToList();
+            var linked = _payments.SumGroupedByInvoice(items.Select(i => i.Id));
+            var pool = _payments.SumUnlinkedBySupplier(id);
+            var paid = PaymentAllocation.Allocate(
+                items.Select(i => new AllocationInput
+                {
+                    Id = i.Id,
+                    Total = i.Total,
+                    LinkedPaid = linked.ContainsKey(i.Id) ? linked[i.Id] : 0
+                }),
+                pool);
+            return new SupplierPurchasesResult { Items = items, PaidByInvoice = paid };
+        }
+
+        /// <summary>
+        /// Normalizes the balance filter coming from the API: null/empty/"all" means
+        /// no filtering; anything else must be a known value.
+        /// </summary>
+        internal static string NormalizeBalanceFilter(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+            var normalized = value.Trim().ToLowerInvariant();
+            if (normalized == "all")
+                return null;
+            if (normalized == "positive" || normalized == "negative" || normalized == "zero")
+                return normalized;
+            throw new DomainValidationException("Invalid balance filter. Allowed values: all, positive, negative, zero.");
         }
 
         private static string Clean(string value)

@@ -61,7 +61,8 @@ namespace PosCs.Controllers
                     total = result.Total,
                     page,
                     pageSize,
-                    totals = new { revenue = result.Revenue, discounts = result.Discounts }
+                    totals = new { revenue = result.Revenue, discounts = result.Discounts },
+                    paidByInvoice = result.PaidByInvoice
                 });
             }
             catch (Exception ex)

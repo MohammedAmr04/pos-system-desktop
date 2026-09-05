@@ -34,11 +34,11 @@ namespace PosCs.Controllers
         [Route("paged")]
         [HttpGet]
         [RequirePermission("clients.view")]
-        public HttpResponseMessage GetPaged([FromUri] int page = 1, [FromUri] int pageSize = 20, [FromUri] string q = null)
+        public HttpResponseMessage GetPaged([FromUri] int page = 1, [FromUri] int pageSize = 20, [FromUri] string q = null, [FromUri] string balance = null)
         {
             try
             {
-                var result = _service.GetPaged(page, pageSize, q);
+                var result = _service.GetPaged(page, pageSize, q, balance);
                 return Request.CreateResponse(HttpStatusCode.OK, new
                 {
                     items = result.Items,
@@ -115,8 +115,7 @@ namespace PosCs.Controllers
         [Route("{id}/statement")]
         [HttpGet]
         [RequirePermission("clients.view")]
-        public HttpResponseMessage GetStatement(string id)
-        {
+        public HttpResponseMessage GetStatement(string id)        {
             try
             {
                 var statement = _service.GetStatement(id);
@@ -132,6 +131,28 @@ namespace PosCs.Controllers
                 if (ApiErrors.IsHandled(ex)) return ApiErrors.From(Request, ex, null);
                 Console.Error.WriteLine($"[API ERR] Failed to fetch client statement {id}: {ex}");
                 return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to fetch client statement");
+            }
+        }
+
+        [Route("{id}/invoices")]
+        [HttpGet]
+        [RequirePermission("clients.view")]
+        public HttpResponseMessage GetInvoices(string id)
+        {
+            try
+            {
+                var result = _service.GetInvoices(id);
+                return Request.CreateResponse(HttpStatusCode.OK, new
+                {
+                    items = result.Items,
+                    paidByInvoice = result.PaidByInvoice
+                });
+            }
+            catch (Exception ex)
+            {
+                if (ApiErrors.IsHandled(ex)) return ApiErrors.From(Request, ex, null);
+                Console.Error.WriteLine($"[API ERR] Failed to fetch client invoices {id}: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to fetch client invoices");
             }
         }
     }

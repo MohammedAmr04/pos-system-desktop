@@ -109,6 +109,26 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
+        public double SumUnlinkedByClient(string clientId)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+            {
+                return conn.ExecuteScalar<double>(
+                    "SELECT COALESCE(SUM(amount), 0) FROM Payment WHERE clientId = @clientId AND invoiceId IS NULL",
+                    new { clientId });
+            }
+        }
+
+        public double SumUnlinkedBySupplier(string supplierId)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+            {
+                return conn.ExecuteScalar<double>(
+                    "SELECT COALESCE(SUM(amount), 0) FROM Payment WHERE supplierId = @supplierId AND invoiceId IS NULL AND amount >= 0",
+                    new { supplierId });
+            }
+        }
+
         public List<Payment> ListByClient(string clientId)
         {
             return ListByParty("clientId", clientId);

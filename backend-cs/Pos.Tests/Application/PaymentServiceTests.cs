@@ -52,6 +52,12 @@ namespace PosCs.Tests.Application
                 .GroupBy(p => p.InvoiceId)
                 .ToDictionary(g => g.Key, g => g.Sum(p => p.Amount));
         }
+
+        public double SumUnlinkedByClient(string clientId) =>
+            Stored.Where(p => p.ClientId == clientId && p.InvoiceId == null).Sum(p => p.Amount);
+
+        public double SumUnlinkedBySupplier(string supplierId) =>
+            Stored.Where(p => p.SupplierId == supplierId && p.InvoiceId == null && p.Amount >= 0).Sum(p => p.Amount);
     }
 
     public class FakePartyLookup
@@ -64,7 +70,7 @@ namespace PosCs.Tests.Application
             public Client Update(Client client) => client;
             public Client GetById(string id) => Existing != null && Existing.Id == id ? Existing : null;
             public List<Client> GetAll() => new List<Client>();
-            public PagedResult<Client> GetPaged(int page, int pageSize, string query) =>
+            public PagedResult<Client> GetPaged(int page, int pageSize, string query, string balanceFilter) =>
                 new PagedResult<Client> { Items = new List<Client>(), Total = 0 };
         }
 
@@ -75,7 +81,7 @@ namespace PosCs.Tests.Application
             public Supplier Update(Supplier supplier) => supplier;
             public Supplier GetById(string id) => Existing != null && Existing.Id == id ? Existing : null;
             public List<Supplier> GetAll() => new List<Supplier>();
-            public PagedResult<Supplier> GetPaged(int page, int pageSize, string query) =>
+            public PagedResult<Supplier> GetPaged(int page, int pageSize, string query, string balanceFilter) =>
                 new PagedResult<Supplier> { Items = new List<Supplier>(), Total = 0 };
         }
     }

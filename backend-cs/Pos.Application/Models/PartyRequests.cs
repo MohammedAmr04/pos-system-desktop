@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using PosCs.Domain.Entities;
 
 namespace PosCs.Application.Models
 {
@@ -73,5 +74,27 @@ namespace PosCs.Application.Models
         public decimal Debit { get; set; }
         /// <summary>Amount settling the balance (payments, returns).</summary>
         public decimal Credit { get; set; }
+    }
+
+    /// <summary>
+    /// Posted sales of one client (oldest first) plus per-invoice paid:
+    /// invoice-linked payments with the general payment pool distributed
+    /// oldest-first (display only — stored payments are untouched).
+    /// </summary>
+    public sealed class ClientInvoicesResult
+    {
+        public List<Invoice> Items { get; set; } = new List<Invoice>();
+        public Dictionary<string, double> PaidByInvoice { get; set; } = new Dictionary<string, double>();
+    }
+
+    /// <summary>
+    /// Posted credit purchases of one supplier (oldest first) plus per-purchase paid:
+    /// invoice-linked payments with the general payment pool distributed
+    /// oldest-first (display only — stored payments are untouched).
+    /// </summary>
+    public sealed class SupplierPurchasesResult
+    {
+        public List<PurchaseInvoice> Items { get; set; } = new List<PurchaseInvoice>();
+        public Dictionary<string, double> PaidByInvoice { get; set; } = new Dictionary<string, double>();
     }
 }

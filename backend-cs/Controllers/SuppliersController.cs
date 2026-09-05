@@ -34,11 +34,11 @@ namespace PosCs.Controllers
         [Route("paged")]
         [HttpGet]
         [RequirePermission("suppliers.view")]
-        public HttpResponseMessage GetPaged([FromUri] int page = 1, [FromUri] int pageSize = 20, [FromUri] string q = null)
+        public HttpResponseMessage GetPaged([FromUri] int page = 1, [FromUri] int pageSize = 20, [FromUri] string q = null, [FromUri] string balance = null)
         {
             try
             {
-                var result = _service.GetPaged(page, pageSize, q);
+                var result = _service.GetPaged(page, pageSize, q, balance);
                 return Request.CreateResponse(HttpStatusCode.OK, new
                 {
                     items = result.Items,
@@ -132,6 +132,28 @@ namespace PosCs.Controllers
                 if (ApiErrors.IsHandled(ex)) return ApiErrors.From(Request, ex, null);
                 Console.Error.WriteLine($"[API ERR] Failed to fetch supplier statement {id}: {ex}");
                 return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to fetch supplier statement");
+            }
+        }
+
+        [Route("{id}/purchases")]
+        [HttpGet]
+        [RequirePermission("suppliers.view")]
+        public HttpResponseMessage GetPurchases(string id)
+        {
+            try
+            {
+                var result = _service.GetPurchases(id);
+                return Request.CreateResponse(HttpStatusCode.OK, new
+                {
+                    items = result.Items,
+                    paidByInvoice = result.PaidByInvoice
+                });
+            }
+            catch (Exception ex)
+            {
+                if (ApiErrors.IsHandled(ex)) return ApiErrors.From(Request, ex, null);
+                Console.Error.WriteLine($"[API ERR] Failed to fetch supplier purchases {id}: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to fetch supplier purchases");
             }
         }
     }

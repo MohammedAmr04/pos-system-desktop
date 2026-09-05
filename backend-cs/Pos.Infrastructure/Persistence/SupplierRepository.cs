@@ -18,28 +18,46 @@ namespace PosCs.Infrastructure.Persistence
                 return conn.Query<Supplier>("SELECT * FROM Supplier ORDER BY name COLLATE NOCASE").ToList();
         }
 
-        public PagedResult<Supplier> GetPaged(int page, int pageSize, string query)
+        /// <summary>
+        /// Balance mirrors SupplierService.GetStatement exactly: posted credit
+        /// purchases minus non-cash-origin returns minus non-negative payments.
+        /// Rounded to 2 decimals so the zero filter is not tripped by float noise.
+        /// </summary>
+        private const string BalanceExpr =
+            "ROUND(COALESCE((SELECT SUM(total) FROM PurchaseInvoice WHERE supplierId = s.id AND status = 'posted' AND paymentMethod <> 'cash'), 0) " +
+            "- COALESCE((SELECT SUM(r.totalAmount) FROM PurchaseReturn r JOIN PurchaseInvoice p ON p.id = r.purchaseInvoiceId " +
+            "WHERE p.supplierId = s.id AND p.paymentMethod <> 'cash' AND r.status = 'posted'), 0) " +
+            "- COALESCE((SELECT SUM(amount) FROM Payment WHERE supplierId = s.id AND amount >= 0), 0), 2)";
+
+        public PagedResult<Supplier> GetPaged(int page, int pageSize, string query, string balanceFilter)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
-                if (string.IsNullOrWhiteSpace(query))
+                var clauses = new List<string>();
+                var parameters = new DynamicParameters();
+                parameters.Add("pageSize", pageSize);
+                parameters.Add("offset", (page - 1) * pageSize);
+
+                if (!string.IsNullOrWhiteSpace(query))
                 {
-                    var total = conn.ExecuteScalar<int>("SELECT COUNT(1) FROM Supplier");
-                    var items = conn.Query<Supplier>(
-                        "SELECT * FROM Supplier ORDER BY name COLLATE NOCASE LIMIT @pageSize OFFSET @offset",
-                        new { pageSize, offset = (page - 1) * pageSize }).ToList();
-                    return new PagedResult<Supplier> { Items = items, Total = total };
+                    clauses.Add("(s.name LIKE @like ESCAPE '\\' OR s.phone LIKE @like ESCAPE '\\')");
+                    parameters.Add("like", $"%{EscapeLike(query)}%");
                 }
 
-                var like = $"%{EscapeLike(query)}%";
-                var totalFiltered = conn.ExecuteScalar<int>(
-                    "SELECT COUNT(1) FROM Supplier WHERE name LIKE @like ESCAPE '\\' OR phone LIKE @like ESCAPE '\\'",
-                    new { like });
-                var filteredItems = conn.Query<Supplier>(
-                    "SELECT * FROM Supplier WHERE name LIKE @like ESCAPE '\\' OR phone LIKE @like ESCAPE '\\' " +
-                    "ORDER BY name COLLATE NOCASE LIMIT @pageSize OFFSET @offset",
-                    new { like, pageSize, offset = (page - 1) * pageSize }).ToList();
-                return new PagedResult<Supplier> { Items = filteredItems, Total = totalFiltered };
+                if (balanceFilter == "positive")
+                    clauses.Add($"({BalanceExpr}) > 0");
+                else if (balanceFilter == "negative")
+                    clauses.Add($"({BalanceExpr}) < 0");
+                else if (balanceFilter == "zero")
+                    clauses.Add($"({BalanceExpr}) = 0");
+
+                var where = clauses.Count > 0 ? " WHERE " + string.Join(" AND ", clauses) : "";
+                var total = conn.ExecuteScalar<int>($"SELECT COUNT(1) FROM Supplier s{where}", parameters);
+                var items = conn.Query<Supplier>(
+                    $"SELECT s.*, ({BalanceExpr}) AS Balance FROM Supplier s{where} " +
+                    "ORDER BY s.name COLLATE NOCASE LIMIT @pageSize OFFSET @offset",
+                    parameters).ToList();
+                return new PagedResult<Supplier> { Items = items, Total = total };
             }
         }
 

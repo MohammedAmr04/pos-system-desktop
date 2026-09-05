@@ -12,5 +12,11 @@ namespace PosCs.Domain.Entities
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        /// <summary>
+        /// Computed account balance, populated only by the paged listing (posted
+        /// credit purchases minus returns and payments). Positive means we owe the
+        /// supplier; negative means we overpaid. Never persisted.
+        /// </summary>
+        public double Balance { get; set; }
     }
 }
