@@ -22,6 +22,8 @@ namespace PosCs
     {
         private static byte[] _fallbackBytes;
         private static bool _fallbackAvailable;
+        private static byte[] _inventorySessionFallbackBytes;
+        private static bool _inventorySessionFallbackAvailable;
 
         public void Configuration(IAppBuilder app)
         {
@@ -113,6 +115,13 @@ namespace PosCs
                     _fallbackBytes = System.IO.File.ReadAllBytes(indexHtmlPath);
                     _fallbackAvailable = true;
                 }
+
+                var inventorySessionPath = System.IO.Path.Combine(wwwroot, "ar", "inventory-adjustments", "__session__", "index.html");
+                if (System.IO.File.Exists(inventorySessionPath))
+                {
+                    _inventorySessionFallbackBytes = System.IO.File.ReadAllBytes(inventorySessionPath);
+                    _inventorySessionFallbackAvailable = true;
+                }
             }
 
             // SPA fallback BEFORE Web API — serves ar/index.html for non-API routes
@@ -129,9 +138,14 @@ namespace PosCs
                     return;
                 }
 
+                var isInventorySession = path.StartsWith("/ar/inventory-adjustments/", StringComparison.OrdinalIgnoreCase)
+                    && !path.StartsWith("/ar/inventory-adjustments/new", StringComparison.OrdinalIgnoreCase);
+                var fallback = isInventorySession && _inventorySessionFallbackAvailable
+                    ? _inventorySessionFallbackBytes
+                    : _fallbackBytes;
                 ctx.Response.ContentType = "text/html; charset=utf-8";
-                ctx.Response.ContentLength = _fallbackBytes.LongLength;
-                await ctx.Response.Body.WriteAsync(_fallbackBytes, 0, _fallbackBytes.Length);
+                ctx.Response.ContentLength = fallback.LongLength;
+                await ctx.Response.Body.WriteAsync(fallback, 0, fallback.Length);
             });
 
             app.UseWebApi(config);
