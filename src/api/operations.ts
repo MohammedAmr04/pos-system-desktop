@@ -5,9 +5,11 @@ export function listAuditLogs(page = 1, pageSize = 20, action?: string, entityTy
 export function listAlerts(page = 1, pageSize = 20, status = "open") { return request<PagedAlerts>(`/api/alerts${toQuery({ page, pageSize, status })}`) }
 export function acknowledgeAlert(id: string) { return request<AlertItem>(`/api/alerts/${id}/acknowledge`, { method: "POST" }) }
 export function listInventoryAdjustments(page = 1, pageSize = 20) { return request<PagedInventoryAdjustments>(`/api/inventory-adjustments${toQuery({ page, pageSize })}`) }
-export function createInventoryAdjustment(reason: string) { return request<{ id: string; number: number; status: string }>("/api/inventory-adjustments", { method: "POST", body: JSON.stringify({ reason }) }) }
+export function createInventoryAdjustment() { return request<{ id: string; number: number; status: string }>("/api/inventory-adjustments", { method: "POST", body: JSON.stringify({}) }) }
 export function getInventoryAdjustment(id: string) { return request<InventoryAdjustmentDetail>(`/api/inventory-adjustments/${id}`) }
+export function updateInventoryAdjustmentNotes(id: string, notes: string) { return request<InventoryAdjustmentDetail>(`/api/inventory-adjustments/${id}/notes`, { method: "PUT", body: JSON.stringify({ notes }) }) }
 export function saveInventoryAdjustmentLine(id: string, line: InventoryAdjustmentLineInput) { return request<InventoryAdjustmentLine>(`/api/inventory-adjustments/${id}/lines`, { method: "PUT", body: JSON.stringify(line) }) }
 export function deleteInventoryAdjustmentLine(id: string, lineId: string) { return request<{ success: boolean }>(`/api/inventory-adjustments/${id}/lines/${lineId}`, { method: "DELETE" }) }
 export function postInventoryAdjustment(id: string) { return request<InventoryAdjustmentDetail>(`/api/inventory-adjustments/${id}/post`, { method: "POST" }) }
 export function cancelInventoryAdjustment(id: string) { return request<InventoryAdjustmentDetail>(`/api/inventory-adjustments/${id}/cancel`, { method: "POST" }) }
+export function deleteInventoryAdjustment(id: string) { return request<{ success: boolean }>(`/api/inventory-adjustments/${id}`, { method: "DELETE" }) }

@@ -1,9 +1,9 @@
 "use client"
 
 import { useDeferredValue, useState } from "react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { cancelInventoryCount, postInventoryCount, saveInventoryCountLine } from "@/actions/operations.actions"
+import { cancelInventoryCount, deleteInventoryCount, postInventoryCount, saveInventoryCountLine } from "@/actions/operations.actions"
 import { getProduct } from "@/api/products"
 import { useAuth } from "@/components/common/auth-context"
 import { Button } from "@/components/ui/button"
@@ -16,9 +16,12 @@ import { Product } from "@/types/domain/domain.types"
 import { CountLineRow } from "./count-line-row"
 import { CountStatusBadge } from "./count-status-badge"
 import { ProductDetailsSheet } from "./product-details-sheet"
+import { InventorySessionNotes } from "./inventory-session-notes"
+import { ArrowLeft, ArrowRight, Trash2 } from "lucide-react"
 
 export function InventorySession({ id, onBack }: { id: string; onBack: () => void }) {
   const t = useTranslations("InventoryCounts")
+  const locale = useLocale()
   const { hasPermission } = useAuth()
   const canEdit = hasPermission(PERMISSIONS.INVENTORY_ADJUSTMENTS_CREATE)
   const { data: session, isPending } = useInventoryAdjustment(id)
@@ -78,23 +81,38 @@ export function InventorySession({ id, onBack }: { id: string; onBack: () => voi
       toast.error(error instanceof Error ? error.message : t("saveFailed"))
     }
   }
+  const removeSession = async () => {
+    if (!confirm(t("deleteConfirm"))) return
+    try {
+      await deleteInventoryCount(id)
+      toast.success(t("deleted"))
+      onBack()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("deleteFailed"))
+    }
+  }
   return (
     <div className="flex-1 space-y-5 pt-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Button variant="ghost" onClick={onBack}>{t("back")}</Button>
+          <Button variant="ghost" onClick={onBack}>{locale === "en"?<ArrowLeft/>:<ArrowRight/>}  {t("back")}</Button>
           <h2 className="mt-2 text-3xl font-bold">{t("sessionNumber", { number: session.number })}</h2>
-          <p className="text-muted-foreground">{session.reason} · <CountStatusBadge status={session.status} /></p>
+          <p className="text-muted-foreground"><CountStatusBadge status={session.status} /></p>
         </div>
         <div className="flex gap-2">
           {editable && (
             <>
               <Button variant="outline" onClick={() => void cancel()}>{t("cancelSession")}</Button>
+              <Button variant="destructive" onClick={() => void removeSession()}><Trash2 className="ml-2 size-4" />{t("deleteSession")}</Button>
               <Button disabled={posting || session.lineCount === 0} onClick={() => void post()}>{t("post")}</Button>
             </>
           )}
+          {!editable && canEdit && session.status === "cancelled" && (
+            <Button variant="destructive" onClick={() => void removeSession()}><Trash2 className="ml-2 size-4" />{t("deleteSession")}</Button>
+          )}
         </div>
       </div>
+      <InventorySessionNotes key={session.id} id={id} defaultNotes={session.notes} editable={editable} />
       {editable && (
         <div className="relative max-w-2xl">
           <Input

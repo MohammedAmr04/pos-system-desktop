@@ -24,11 +24,13 @@ export function CountLineRow({
   onDetails: (id: string) => void
 }) {
   const t = useTranslations("InventoryCounts")
-  const { data: product } = useProduct(line.productId, editable)
+  const { data: product } = useProduct(line.productId)
   const [count, setCount] = useState(String(line.countedQuantity))
   const [unitCost, setUnitCost] = useState(String(line.unitCost))
   const [unitId, setUnitId] = useState(line.productUnitId)
   const [saving, setSaving] = useState(false)
+  const units = product?.units ?? []
+  const selectedUnit = units.find((unit) => unit.id === unitId)
   const update = async (
     changes: Partial<{
       countedQuantity: number
@@ -75,7 +77,7 @@ export function CountLineRow({
       <TableCell className="text-center" dir="ltr">{line.systemQuantity}</TableCell>
       <TableCell>
         <Select
-          value={unitId}
+          value={selectedUnit?.id ?? null}
           onValueChange={(value) => {
             if (value == null) return
             setUnitId(value)
@@ -84,10 +86,10 @@ export function CountLineRow({
           disabled={!editable || saving || !product?.units?.length}
         >
           <SelectTrigger aria-label={t("unit")} className="w-28">
-            <SelectValue placeholder={line.unitName} />
+            <SelectValue placeholder={line.unitName}>{selectedUnit?.unitName ?? line.unitName}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            {(product?.units ?? []).map((unit) => (
+            {units.map((unit) => (
               <SelectItem key={unit.id} value={unit.id}>{unit.unitName}</SelectItem>
             ))}
           </SelectContent>

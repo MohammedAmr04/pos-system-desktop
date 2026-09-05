@@ -6,9 +6,10 @@ namespace PosCs.Application.Models
     public class AuditLogEntry { public string Id { get; set; } public string ActorUserId { get; set; } public string Action { get; set; } public string EntityType { get; set; } public string EntityId { get; set; } public string Summary { get; set; } public DateTime CreatedAt { get; set; } }
     public class AlertItem { public string Id { get; set; } public string Type { get; set; } public string Severity { get; set; } public string EntityType { get; set; } public string EntityId { get; set; } public string Message { get; set; } public string Status { get; set; } public string AcknowledgedBy { get; set; } public DateTime? AcknowledgedAt { get; set; } public DateTime CreatedAt { get; set; } }
     public class CreateInventoryAdjustmentRequest { public string Reason { get; set; } }
+    public class UpdateInventoryAdjustmentNotesRequest { public string Notes { get; set; } }
     public class InventoryAdjustmentLineRequest { public string ProductId { get; set; } public string ProductUnitId { get; set; } public double CountedQuantity { get; set; } public double? UnitCost { get; set; } public bool IsMatched { get; set; } }
     public class InventoryAdjustmentResult { public string Id { get; set; } public int Number { get; set; } public string Status { get; set; } }
-    public class InventoryAdjustmentSummary { public string Id { get; set; } public int Number { get; set; } public string Reason { get; set; } public string CreatedBy { get; set; } public DateTime CreatedAt { get; set; } public string Status { get; set; } public int LineCount { get; set; } public int DifferenceCount { get; set; } }
+    public class InventoryAdjustmentSummary { public string Id { get; set; } public int Number { get; set; } public string Reason { get; set; } public string Notes { get; set; } public string CreatedBy { get; set; } public DateTime CreatedAt { get; set; } public string Status { get; set; } public int LineCount { get; set; } public int DifferenceCount { get; set; } }
     public class InventoryAdjustmentLine
     {
         public string Id { get; set; } public string ProductId { get; set; } public string ProductUnitId { get; set; }

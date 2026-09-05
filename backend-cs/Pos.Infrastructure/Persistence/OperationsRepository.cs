@@ -49,7 +49,7 @@ namespace PosCs.Infrastructure.Persistence
             using (var connection = DbConnectionFactory.CreateConnection())
             {
                 var total = connection.ExecuteScalar<int>("SELECT COUNT(1) FROM InventoryAdjustment");
-                const string sql = @"SELECT a.id,a.number,a.reason,a.createdBy,a.createdAt,a.status,
+                const string sql = @"SELECT a.id,a.number,a.reason,a.notes,a.createdBy,a.createdAt,a.status,
                     COUNT(l.id) AS lineCount,
                     SUM(CASE WHEN ABS(COALESCE(l.differenceQuantity, 0)) > 0.000001 THEN 1 ELSE 0 END) AS differenceCount
                     FROM InventoryAdjustment a LEFT JOIN InventoryAdjustmentLine l ON l.adjustmentId=a.id
@@ -72,6 +72,19 @@ namespace PosCs.Infrastructure.Persistence
         public InventoryAdjustmentDetail GetAdjustment(string id)
         {
             using (var connection = DbConnectionFactory.CreateConnection()) return GetAdjustmentCore(connection, id);
+        }
+
+        public InventoryAdjustmentDetail UpdateAdjustmentNotes(string id, UpdateInventoryAdjustmentNotesRequest request, string user)
+        {
+            using (var connection = DbConnectionFactory.CreateConnection()) using (var transaction = connection.BeginTransaction())
+            {
+                var adjustment = GetEditableAdjustment(connection, transaction, id);
+                var notes = request.Notes == null ? string.Empty : request.Notes.Trim();
+                connection.Execute("UPDATE InventoryAdjustment SET notes=@notes WHERE id=@id", new { id, notes }, transaction);
+                WriteAudit(connection, transaction, user, "inventory.adjustment.notes_updated", id, "Updated notes for inventory count #" + adjustment.Number);
+                transaction.Commit();
+                return GetAdjustmentCore(connection, id);
+            }
         }
 
         public InventoryAdjustmentLine UpsertAdjustmentLine(string adjustmentId, InventoryAdjustmentLineRequest request, string user)
@@ -166,9 +179,23 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
+        public void DeleteAdjustment(string adjustmentId, string user)
+        {
+            using (var connection = DbConnectionFactory.CreateConnection()) using (var transaction = connection.BeginTransaction())
+            {
+                var adjustment = connection.QueryFirstOrDefault<AdjustmentRow>("SELECT id AS Id,number AS Number,status AS Status FROM InventoryAdjustment WHERE id=@id", new { id = adjustmentId }, transaction);
+                if (adjustment == null) throw new NotFoundException("Inventory count not found");
+                if (adjustment.Status == "posted") throw new DomainValidationException("A posted inventory count cannot be deleted");
+                connection.Execute("DELETE FROM InventoryAdjustmentLine WHERE adjustmentId=@adjustmentId", new { adjustmentId }, transaction);
+                connection.Execute("DELETE FROM InventoryAdjustment WHERE id=@id", new { id = adjustmentId }, transaction);
+                WriteAudit(connection, transaction, user, "inventory.adjustment.deleted", adjustmentId, "Deleted inventory count #" + adjustment.Number);
+                transaction.Commit();
+            }
+        }
+
         private static InventoryAdjustmentDetail GetAdjustmentCore(SqliteConnection connection, string id)
         {
-            var detail = connection.QueryFirstOrDefault<InventoryAdjustmentDetail>("SELECT id,number,reason,createdBy,createdAt,status,postedAt,cancelledAt FROM InventoryAdjustment WHERE id=@id", new { id });
+            var detail = connection.QueryFirstOrDefault<InventoryAdjustmentDetail>("SELECT id,number,reason,notes,createdBy,createdAt,status,postedAt,cancelledAt FROM InventoryAdjustment WHERE id=@id", new { id });
             if (detail == null) throw new NotFoundException("Inventory count not found");
             detail.Lines = connection.Query<InventoryAdjustmentLine>(@"SELECT l.id,l.productId,l.productUnitId,p.name AS productName,
                 (SELECT b.barcode FROM ProductBarcode b WHERE b.productUnitId=l.productUnitId ORDER BY b.isDefault DESC LIMIT 1) AS barcode,

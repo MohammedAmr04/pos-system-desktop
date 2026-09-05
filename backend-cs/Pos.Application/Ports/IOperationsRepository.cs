@@ -10,9 +10,11 @@ namespace PosCs.Application.Ports
         PagedResult<InventoryAdjustmentSummary> GetAdjustments(int page, int pageSize);
         InventoryAdjustmentResult CreateAdjustment(CreateInventoryAdjustmentRequest request, string userId);
         InventoryAdjustmentDetail GetAdjustment(string id);
+        InventoryAdjustmentDetail UpdateAdjustmentNotes(string id, UpdateInventoryAdjustmentNotesRequest request, string userId);
         InventoryAdjustmentLine UpsertAdjustmentLine(string adjustmentId, InventoryAdjustmentLineRequest request, string userId);
         void DeleteAdjustmentLine(string adjustmentId, string lineId, string userId);
         InventoryAdjustmentDetail PostAdjustment(string adjustmentId, string userId);
         InventoryAdjustmentDetail CancelAdjustment(string adjustmentId, string userId);
+        void DeleteAdjustment(string adjustmentId, string userId);
     }
 }
