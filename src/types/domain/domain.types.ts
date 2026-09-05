@@ -635,3 +635,13 @@ export interface PrinterSettings {
   receiptHeader?: string | null
   receiptFooter?: string | null
 }
+
+export interface AuditLogEntry { id: string; actorUserId?: string | null; action: string; entityType: string; entityId?: string | null; summary: string; createdAt: string }
+export interface AlertItem { id: string; type: string; severity: string; entityType?: string | null; entityId?: string | null; message: string; status: 'open' | 'acknowledged'; acknowledgedBy?: string | null; acknowledgedAt?: string | null; createdAt: string }
+export interface InventoryAdjustmentLineInput { productId: string; productUnitId: string; countedQuantity: number; unitCost?: number; isMatched: boolean }
+export interface InventoryAdjustmentLine { id: string; productId: string; productUnitId: string; productName: string; barcode: string | null; unitName: string; quantityFactor: number; systemQuantity: number; countedQuantity: number; countedBaseQuantity: number; differenceQuantity: number; unitCost: number; buyPrice: number; retailPrice: number; wholesalePrice: number | null; isMatched: boolean; updatedAt: string | null }
+export interface PagedAuditLogs { items: AuditLogEntry[]; total: number }
+export interface PagedAlerts { items: AlertItem[]; total: number }
+export interface InventoryAdjustmentSummary { id: string; number: number; reason: string; createdBy: string; createdAt: string; status: 'draft' | 'counting' | 'posted' | 'cancelled'; lineCount: number; differenceCount: number }
+export interface PagedInventoryAdjustments { items: InventoryAdjustmentSummary[]; total: number }
+export interface InventoryAdjustmentDetail extends InventoryAdjustmentSummary { postedAt: string | null; cancelledAt: string | null; lines: InventoryAdjustmentLine[] }
