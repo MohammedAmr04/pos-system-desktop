@@ -40,6 +40,9 @@ namespace PosCs.Tests.Application
 
         public CashReport GetCashReport(DateTime from, DateTime to)
         { return CashResult; }
+
+        public List<EmployeePerformanceRow> GetEmployeePerformance(DateTime from, DateTime to)
+        { return new List<EmployeePerformanceRow>(); }
     }
 
     public class FakeProductsRepository : IProductRepository

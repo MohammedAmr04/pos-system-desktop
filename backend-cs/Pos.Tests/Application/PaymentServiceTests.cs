@@ -94,7 +94,7 @@ namespace PosCs.Tests.Application
 
         public List<Invoice> GetRange(DateTime? from, DateTime? to) => new List<Invoice>();
 
-        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize) =>
+        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null) =>
             new InvoicePageResult { Items = new List<Invoice>(), Total = 0 };
 
         public Invoice Update(string id, Invoice invoice, List<InvoiceDetail> lines) => invoice;
