@@ -8,10 +8,10 @@ export function listInvoices() {
 export function listInvoicesPaged(
   page = 1,
   pageSize = 20,
-  opts?: { from?: string; to?: string; q?: string; status?: string }
+  opts?: { from?: string; to?: string; q?: string; status?: string; range?: "all" }
 ) {
   return request<PagedInvoices>(
-    `/api/invoices/paged${toQuery({ page, pageSize, from: opts?.from, to: opts?.to, q: opts?.q, status: opts?.status !== 'all' ? opts?.status : undefined })}`
+    `/api/invoices/paged${toQuery({ page, pageSize, from: opts?.from, to: opts?.to, q: opts?.q, status: opts?.status !== 'all' ? opts?.status : undefined, range: opts?.range })}`
   )
 }
 

@@ -62,6 +62,7 @@ export function InvoicesClient() {
   const [query, setQuery] = useState("")
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined)
   const [toDate, setToDate] = useState<Date | undefined>(undefined)
+  const [allRange, setAllRange] = useState(false)
   const [status, setStatus] = useState("all")
 
   const debouncedQueryChange = useDebouncedCallback((value: string) => {
@@ -79,6 +80,7 @@ export function InvoicesClient() {
     from: fromDate ? format(fromDate, "yyyy-MM-dd") : undefined,
     to: toDate ? format(toDate, "yyyy-MM-dd") : undefined,
     q: query.trim() || undefined,
+    range: allRange ? "all" as const : undefined,
     status,
   }
 
@@ -222,9 +224,10 @@ export function InvoicesClient() {
     },
   ]
 
-  const handleDateChange = (from?: Date, to?: Date) => {
+  const handleDateChange = (from?: Date, to?: Date, range?: "all") => {
     setFromDate(from)
     setToDate(to)
+    setAllRange(range === "all")
     setPage(1)
   }
 
@@ -247,7 +250,7 @@ export function InvoicesClient() {
         break
       }
       case "all":
-        handleDateChange(undefined, undefined)
+        handleDateChange(undefined, undefined, "all")
         break
     }
   }
