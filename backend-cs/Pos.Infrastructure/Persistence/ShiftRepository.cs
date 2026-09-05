@@ -109,7 +109,7 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public Shift Close(string shiftId, double countedCash)
+        public Shift Close(string shiftId, double countedCash, string closedBy)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
@@ -145,6 +145,16 @@ namespace PosCs.Infrastructure.Persistence
                                 status = shift.Status,
                                 id = shift.Id
                             }, transaction: tx);
+
+                        if (Math.Abs(shift.Difference.Value) > 0.000001)
+                        {
+                            conn.Execute(@"INSERT OR IGNORE INTO Alert (id,type,severity,entityType,entityId,message,status,createdAt)
+                                VALUES (@id,'cash_difference','warning','shift',@shiftId,@message,'open',@createdAt)",
+                                new { id = Guid.NewGuid().ToString("N"), shiftId, message = "Cash difference for shift #" + shift.Number, createdAt = shift.ClosedAt.Value.ToString("yyyy-MM-dd HH:mm:ss") }, tx);
+                            conn.Execute(@"INSERT INTO AuditLog (id,actorUserId,action,entityType,entityId,summary,createdAt)
+                                VALUES (@id,@user,'shift.closed_with_difference','shift',@shiftId,@summary,@createdAt)",
+                                new { id = Guid.NewGuid().ToString("N"), user = closedBy, shiftId, summary = "Closed shift #" + shift.Number + " with difference " + shift.Difference.Value, createdAt = shift.ClosedAt.Value.ToString("yyyy-MM-dd HH:mm:ss") }, tx);
+                        }
 
                         tx.Commit();
                     }
@@ -252,10 +262,24 @@ namespace PosCs.Infrastructure.Persistence
                     });
                 }
 
+                var manualRows = conn.Query<CashDrawerMovement>(
+                    "SELECT id,shiftId,type,amount,reason,createdBy,createdAt FROM CashDrawerMovement WHERE shiftId=@id ORDER BY createdAt,rowid",
+                    new { id = shift.Id }).ToList();
+                foreach (var movement in manualRows)
+                {
+                    var effect = movement.Type == "paid_in" ? movement.Amount : -movement.Amount;
+                    report.Entries.Add(new ShiftReportEntry
+                    {
+                        Date = movement.CreatedAt,
+                        Description = (movement.Type == "paid_in" ? "Cash paid in" : "Cash paid out") + $" ({movement.Reason})",
+                        Amount = effect
+                    });
+                }
+
                 report.ExpectedCash = Math.Round(
                     report.OpeningCash + report.CashSales - report.SaleRefunds
                     + report.OtherCashIn - report.SupplierPaymentsOut + report.SupplierRefundsIn
-                    - report.ExpensesOut, 2);
+                    - report.ExpensesOut + manualRows.Sum(m => m.Type == "paid_in" ? m.Amount : -m.Amount), 2);
 
                 return report;
             }
@@ -280,6 +304,26 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
+        public CashDrawerMovement CreateDrawerMovement(CashDrawerMovement movement)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+            using (var tx = conn.BeginTransaction())
+            {
+                var open = conn.ExecuteScalar<int>("SELECT COUNT(1) FROM Shift WHERE id = @id AND status = 'open'", new { id = movement.ShiftId }, tx);
+                if (open == 0) throw new DomainValidationException("Cash drawer movements require an open shift");
+                movement.Id = Guid.NewGuid().ToString("N");
+                movement.CreatedAt = DateTime.Now;
+                conn.Execute(@"INSERT INTO CashDrawerMovement (id, shiftId, type, amount, reason, createdBy, createdAt)
+                    VALUES (@id, @shiftId, @type, @amount, @reason, @createdBy, @createdAt)",
+                    new { id = movement.Id, shiftId = movement.ShiftId, type = movement.Type, amount = movement.Amount, reason = movement.Reason, createdBy = movement.CreatedBy, createdAt = movement.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss") }, tx);
+                conn.Execute(@"INSERT INTO AuditLog (id,actorUserId,action,entityType,entityId,summary,createdAt)
+                    VALUES (@id,@user,@action,'cash_drawer_movement',@entityId,@summary,@createdAt)",
+                    new { id = Guid.NewGuid().ToString("N"), user = movement.CreatedBy, action = "shift.drawer." + movement.Type, entityId = movement.Id, summary = movement.Type + " for shift " + movement.ShiftId, createdAt = movement.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss") }, tx);
+                tx.Commit();
+                return movement;
+            }
+        }
+
         /// <summary>Signed sum of a shift's cash drawer movements: each row's signed drawer effect
         /// (sale +, refund −, supplier money out −, refund in +) exactly as the shift report
         /// classifies it. Cash expenses (Phase 10) are drawer outflows and subtract directly.</summary>
@@ -299,7 +343,15 @@ namespace PosCs.Infrastructure.Persistence
                 "SELECT COALESCE(SUM(amount), 0) FROM Expense WHERE shiftId = @shiftId AND paymentMethod = 'cash'",
                 new { shiftId }, transaction: tx);
 
-            return payments - expenses;
+            var manual = conn.Query<DrawerMovementRow>("SELECT type AS Type, amount AS Amount FROM CashDrawerMovement WHERE shiftId = @shiftId", new { shiftId }, tx)
+                .Sum(m => m.Type == "paid_in" ? m.Amount : -m.Amount);
+            return payments - expenses + manual;
+        }
+
+        private sealed class DrawerMovementRow
+        {
+            public string Type { get; set; }
+            public double Amount { get; set; }
         }
 
         private static string ResolveUserName(SqliteConnection conn, string userId)

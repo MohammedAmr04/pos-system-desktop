@@ -20,13 +20,14 @@ namespace PosCs.Application.Ports
 
         /// <summary>Closes an open shift: derives expected cash from its stamped cash
         /// payments and stores counted/difference atomically.</summary>
-        Shift Close(string shiftId, double countedCash);
+        Shift Close(string shiftId, double countedCash, string closedBy);
 
         /// <summary>Cash movement breakdown for one shift (end-of-shift report).</summary>
         ShiftReport GetReport(string shiftId);
 
         /// <summary>Invoices created during one shift (shift detail page), newest first.</summary>
         PagedResult<Invoice> GetShiftInvoices(string shiftId, int page, int pageSize);
+        CashDrawerMovement CreateDrawerMovement(CashDrawerMovement movement);
     }
 
     public sealed class ShiftPageResult
@@ -44,6 +45,13 @@ namespace PosCs.Application.Ports
     public sealed class CloseShiftRequest
     {
         public double CountedCash { get; set; }
+    }
+
+    public sealed class CreateCashDrawerMovementRequest
+    {
+        public string Type { get; set; }
+        public double Amount { get; set; }
+        public string Reason { get; set; }
     }
 
     public sealed class ShiftReportEntry

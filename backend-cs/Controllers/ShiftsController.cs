@@ -95,7 +95,7 @@ namespace PosCs.Controllers
         {
             try
             {
-                var shift = _service.Close(id, dto);
+                var shift = _service.Close(id, dto, Request.GetOwinContextUserId());
                 Console.WriteLine($"[API] Shift #{shift.Number} closed expected={shift.ExpectedCash} counted={shift.CountedCash} diff={shift.Difference}");
                 return Ok(shift);
             }
@@ -121,6 +121,32 @@ namespace PosCs.Controllers
                 if (ApiErrors.IsHandled(ex)) return Content(HttpStatusCode.BadRequest, new { message = ex.Message });
                 Console.WriteLine($"[API ERR] Failed to build shift report {id}: {ex}");
                 return InternalServerError(new Exception("Failed to build shift report"));
+            }
+        }
+
+        [Route("{id}/drawer-journal")]
+        [HttpGet]
+        [RequirePermission("shifts.view")]
+        public IHttpActionResult GetDrawerJournal(string id)
+        {
+            try { return Ok(_service.GetReport(id)); }
+            catch (Exception ex)
+            {
+                if (ApiErrors.IsHandled(ex)) return Content(HttpStatusCode.BadRequest, new { message = ex.Message });
+                return InternalServerError(new Exception("Failed to get drawer journal"));
+            }
+        }
+
+        [Route("{id}/drawer-movements")]
+        [HttpPost]
+        [RequirePermission("shifts.drawer.manage")]
+        public IHttpActionResult CreateDrawerMovement(string id, [FromBody] CreateCashDrawerMovementRequest dto)
+        {
+            try { return Ok(_service.CreateDrawerMovement(id, dto, Request.GetOwinContextUserId())); }
+            catch (Exception ex)
+            {
+                if (ApiErrors.IsHandled(ex)) return Content(HttpStatusCode.BadRequest, new { message = ex.Message });
+                return InternalServerError(new Exception("Failed to create cash drawer movement"));
             }
         }
 

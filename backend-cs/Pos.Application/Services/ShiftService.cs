@@ -32,14 +32,14 @@ namespace PosCs.Application.Services
             });
         }
 
-        public Shift Close(string id, CloseShiftRequest request)
+        public Shift Close(string id, CloseShiftRequest request, string userId)
         {
             if (request == null)
                 throw new DomainValidationException("Invalid shift data");
             if (request.CountedCash < 0)
                 throw new DomainValidationException("Counted cash cannot be negative");
 
-            return _shifts.Close(id, request.CountedCash);
+            return _shifts.Close(id, request.CountedCash, userId);
         }
 
         public Shift GetActive()
@@ -69,6 +69,22 @@ namespace PosCs.Application.Services
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
             return _shifts.GetShiftInvoices(id, page, pageSize);
+        }
+
+        public CashDrawerMovement CreateDrawerMovement(string shiftId, CreateCashDrawerMovementRequest request, string userId)
+        {
+            if (request == null || (request.Type != "paid_in" && request.Type != "paid_out"))
+                throw new DomainValidationException("Invalid cash drawer movement");
+            if (request.Amount <= 0 || string.IsNullOrWhiteSpace(request.Reason))
+                throw new DomainValidationException("Amount and reason are required");
+            return _shifts.CreateDrawerMovement(new CashDrawerMovement
+            {
+                ShiftId = shiftId,
+                Type = request.Type,
+                Amount = Math.Round(request.Amount, 2),
+                Reason = request.Reason.Trim(),
+                CreatedBy = userId
+            });
         }
     }
 }
