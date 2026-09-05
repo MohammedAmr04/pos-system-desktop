@@ -250,15 +250,15 @@ namespace PosCs.Application.Services
 
         public List<Invoice> GetFiltered(string from, string to)
         {
-            ResolveRange(from, to, out var fromDate, out var toDate);
+            ResolveRange(from, to, false, out var fromDate, out var toDate);
             return _invoices.GetRange(fromDate, toDate);
         }
 
-        public InvoicePageResult GetPaged(int page, int pageSize, string from, string to, string q, string status = null)
+        public InvoicePageResult GetPaged(int page, int pageSize, string from, string to, string q, string status = null, string range = null)
         {
             page = Math.Max(1, page);
             pageSize = Math.Max(1, Math.Min(pageSize, 100));
-            ResolveRange(from, to, out var fromDate, out var toDate);
+            ResolveRange(from, to, range == "all", out var fromDate, out var toDate);
             return _invoices.GetPaged(fromDate, toDate, q, status, page, pageSize);
         }
 
@@ -270,7 +270,7 @@ namespace PosCs.Application.Services
             return invoice;
         }
 
-        private void ResolveRange(string from, string to, out DateTime? fromDate, out DateTime? toDate)
+        private void ResolveRange(string from, string to, bool isAllRange, out DateTime? fromDate, out DateTime? toDate)
         {
             fromDate = null;
             toDate = null;
@@ -281,7 +281,7 @@ namespace PosCs.Application.Services
             if (!string.IsNullOrEmpty(to))
                 toDate = DateTime.Parse(to).Date.AddDays(1).AddSeconds(-1);
 
-            if (!fromDate.HasValue && !toDate.HasValue)
+            if (!isAllRange && !fromDate.HasValue && !toDate.HasValue)
             {
                 fromDate = _clock.Today;
                 toDate = _clock.Today.AddDays(1).AddSeconds(-1);
