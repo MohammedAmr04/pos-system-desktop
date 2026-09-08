@@ -7,6 +7,7 @@ using PosCs.Application.Ports;
 using PosCs.Domain.Entities;
 using PosCs.Domain.Exceptions;
 using PosCs.Infrastructure.Persistence;
+using Newtonsoft.Json;
 
 namespace PosCs.Infrastructure.Persistence
 {
@@ -69,10 +70,38 @@ namespace PosCs.Infrastructure.Persistence
                             item.ProductId = line.ProductId;
                             item.UnitName = line.UnitName;
 
-                            item.RestoredCost = RestoreFifo(conn, tx, line.Id, item.Quantity * factor);
-
-                            StockLedger.Apply(conn, tx, line.ProductId, item.Quantity * factor,
-                                StockLedger.SaleReturn, saleReturn.Id, saleReturn.Number.ToString(), requireStock: false);
+                            var lineType = conn.ExecuteScalar<string>(
+                                "SELECT productType FROM Product WHERE id = @id", new { id = line.ProductId }, transaction: tx) ?? "product";
+                            if (lineType == "bundle")
+                            {
+                                item.RestoredCost = 0;
+                                var components = string.IsNullOrWhiteSpace(line.BundleComponentsJson)
+                                    ? new List<InvoiceBundleComponent>()
+                                    : JsonConvert.DeserializeObject<List<InvoiceBundleComponent>>(line.BundleComponentsJson)
+                                        ?? new List<InvoiceBundleComponent>();
+                                foreach (var component in components)
+                                {
+                                    var componentQuantity = component.Quantity * item.Quantity;
+                                    if (component.ProductType == "service")
+                                    {
+                                        item.RestoredCost += component.ServiceCost * componentQuantity;
+                                        continue;
+                                    }
+                                    item.RestoredCost += RestoreFifo(conn, tx, line.Id, component.ProductId, componentQuantity);
+                                    StockLedger.Apply(conn, tx, component.ProductId, componentQuantity,
+                                        StockLedger.SaleReturn, saleReturn.Id, saleReturn.Number.ToString(), requireStock: false);
+                                }
+                            }
+                            else if (lineType == "service")
+                            {
+                                item.RestoredCost = line.BuyPrice * item.Quantity;
+                            }
+                            else
+                            {
+                                item.RestoredCost = RestoreFifo(conn, tx, line.Id, line.ProductId, item.Quantity * factor);
+                                StockLedger.Apply(conn, tx, line.ProductId, item.Quantity * factor,
+                                    StockLedger.SaleReturn, saleReturn.Id, saleReturn.Number.ToString(), requireStock: false);
+                            }
 
                             totalRefund += item.LineTotal;
                             totalRestoredCost += item.RestoredCost;
@@ -222,12 +251,12 @@ namespace PosCs.Infrastructure.Persistence
         /// line's allocations in order and restores each layer up to what that allocation still
         /// holds, marking restored amounts so later returns cannot restore them twice.</summary>
         private static double RestoreFifo(SqliteConnection conn, SqliteTransaction tx,
-            string invoiceDetailId, double baseQuantity)
+            string invoiceDetailId, string productId, double baseQuantity)
         {
             var allocations = conn.Query<AllocationRow>(
                 "SELECT id AS Id, costLayerId AS CostLayerId, quantity AS Quantity, unitCost AS UnitCost, returnedQuantity AS ReturnedQuantity " +
-                "FROM SaleCostAllocation WHERE invoiceDetailId = @invoiceDetailId ORDER BY createdAt, rowid",
-                new { invoiceDetailId }, transaction: tx).ToList();
+                "FROM SaleCostAllocation WHERE invoiceDetailId = @invoiceDetailId AND productId = @productId ORDER BY createdAt, rowid",
+                new { invoiceDetailId, productId }, transaction: tx).ToList();
 
             var remaining = baseQuantity;
             var restoredCost = 0.0;

@@ -54,7 +54,19 @@ namespace PosCs.Domain.Entities
         public double QuantityFactor { get; set; }
         /// <summary>Historical COGS captured at sale time via FIFO allocation (null for legacy rows).</summary>
         public double? TotalCost { get; set; }
+        public string BundleComponentsJson { get; set; }
+        public List<InvoiceBundleComponent> BundleComponents { get; set; }
         public string PriceEditNote { get; set; }
         public Product Product { get; set; }
+    }
+
+    public class InvoiceBundleComponent
+    {
+        public string ProductId { get; set; }
+        public string Name { get; set; }
+        public double Quantity { get; set; }
+        public double BuyPrice { get; set; }
+        public double ServiceCost { get; set; }
+        public string ProductType { get; set; }
     }
 }

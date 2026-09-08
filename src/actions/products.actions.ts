@@ -16,6 +16,9 @@ export async function createProduct(data: {
   lowStockThreshold?: number
   isHiddenFromPOS?: boolean
   notes?: string | null
+  productType?: 'product' | 'service' | 'bundle'
+  serviceCost?: number
+  bundleComponents?: Array<{ productId: string; quantity: number }>
 }) {
   const result = await request<Product>('/api/products', { method: 'POST', body: JSON.stringify(data) })
   await queryClient.invalidateQueries({ queryKey: productsKeys.all })
@@ -37,6 +40,9 @@ export async function updateProduct(
     lowStockThreshold?: number
     isHiddenFromPOS?: boolean
     notes?: string | null
+    productType?: 'product' | 'service' | 'bundle'
+    serviceCost?: number
+    bundleComponents?: Array<{ productId: string; quantity: number }>
   }
 ) {
   await request(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(data) })

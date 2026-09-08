@@ -35,6 +35,7 @@ function buildPayload(
       discountValue: item.discountValue ?? 0,
       quantityFactor: item.quantityFactor,
       priceEditNote: item.priceEditNote ?? null,
+      productType: item.productType,
     })),
     discount,
     discountType,

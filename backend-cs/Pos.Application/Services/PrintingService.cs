@@ -56,7 +56,8 @@ namespace PosCs.Application.Services
                     Quantity = d.Quantity,
                     SalePrice = d.SalePrice,
                     UnitName = d.UnitName,
-                    FinalTotal = d.FinalTotal
+                    FinalTotal = d.FinalTotal,
+                    BundleComponents = d.BundleComponents
                 }).ToList();
             }
             return items.Select(i => new ReceiptLineItem
@@ -65,7 +66,12 @@ namespace PosCs.Application.Services
                 UnitName = i.UnitName,
                 Quantity = i.Quantity,
                 SalePrice = i.SalePrice,
-                FinalTotal = i.FinalTotal
+                FinalTotal = i.FinalTotal,
+                Components = (i.BundleComponents ?? new List<PrintBundleComponentPayload>()).Select(c => new ReceiptComponent
+                {
+                    Name = c.Name,
+                    Quantity = c.Quantity
+                }).ToList()
             }).ToList();
         }
     }

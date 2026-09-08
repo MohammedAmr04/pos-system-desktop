@@ -113,6 +113,8 @@ export function POSClient() {
             discountValue: d.discountValue ?? 0,
             overridden: false,
             priceEditNote: d.priceEditNote ?? undefined,
+            productType: d.product?.productType ?? 'product',
+            bundleComponents: d.bundleComponents,
           }
         })
         loadDraft({

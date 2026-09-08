@@ -283,6 +283,30 @@ namespace PosCs.Tests.Domain
             Assert.False(LowStockPolicy.IsLowStock(new Product { LowStockThreshold = 0, StockQuantity = 0 }));
         }
 
+        [Fact]
+        public void ProductAtOrBelowThresholdIsLowStock()
+        {
+            Assert.True(LowStockPolicy.IsLowStock(new Product
+            {
+                ProductType = "product",
+                LowStockThreshold = 3,
+                StockQuantity = 3
+            }));
+        }
+
+        [Theory]
+        [InlineData("service")]
+        [InlineData("bundle")]
+        public void NonStockProductTypesAreNeverLow(string productType)
+        {
+            Assert.False(LowStockPolicy.IsLowStock(new Product
+            {
+                ProductType = productType,
+                LowStockThreshold = 10,
+                StockQuantity = 0
+            }));
+        }
+
         [Theory]
         [InlineData(5, 5, true)]
         [InlineData(5, 4, true)]

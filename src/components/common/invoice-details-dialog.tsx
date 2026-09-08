@@ -98,6 +98,15 @@ export function InvoiceDetailsDialog({
                   <TableRow key={detail.id}>
                     <TableCell className="text-center">
                       <div>{detail.product?.name || t("unknownProduct")}</div>
+                      {detail.bundleComponents && detail.bundleComponents.length > 0 && (
+                        <div className="mt-1 space-y-0.5 text-xs text-muted-foreground text-start">
+                          {detail.bundleComponents.map((component, index) => (
+                            <div key={`${component.productId}-${index}`}>
+                              {component.quantity} × {component.name}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {detail.unitName && (
                         <div className="text-xs text-muted-foreground">({detail.unitName})</div>
                       )}

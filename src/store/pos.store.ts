@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Product, ProductUnit, PriceMode, PaymentMethod } from '@/types/domain/domain.types'
+import { Product, ProductUnit, PriceMode, PaymentMethod, BundleComponent } from '@/types/domain/domain.types'
 
 export interface CartItem {
   id: string
@@ -20,6 +20,15 @@ export interface CartItem {
   discountValue?: number
   overridden: boolean
   priceEditNote?: string
+  productType?: 'product' | 'service' | 'bundle'
+  bundleComponents?: Array<{
+    productId: string
+    name: string
+    quantity: number
+    buyPrice: number
+    serviceCost: number
+    productType: 'product' | 'service' | 'bundle'
+  }>
 }
 
 export const priceFor = (unit: ProductUnit, mode: PriceMode): number => {
@@ -117,8 +126,13 @@ export const usePOSStore = create<POSStore>((set, get) => ({
 
   addItem: (product, unit) => {
     const { cartItems, priceMode } = get()
-    const unitMaxStock = unit.quantityFactor > 0 ? product.stockQuantity / unit.quantityFactor : 0
-    if (unitMaxStock <= 0) return 'out'
+    const available = product.productType === 'service'
+      ? 999999
+      : product.productType === 'bundle'
+        ? (product.availableQuantity ?? 0)
+        : product.stockQuantity
+    const unitMaxStock = unit.quantityFactor > 0 ? available / unit.quantityFactor : 0
+    if (product.productType !== 'service' && unitMaxStock <= 0) return 'out'
     const existing = cartItems.find(
       (item) => item.productId === product.id && item.productUnitId === unit.id
     )
@@ -153,6 +167,15 @@ export const usePOSStore = create<POSStore>((set, get) => ({
           discountType: null,
           discountValue: 0,
           overridden: false,
+          productType: product.productType,
+          bundleComponents: product.bundleComponents?.map((component: BundleComponent) => ({
+            productId: component.componentProductId,
+            name: component.product?.name ?? '',
+            quantity: component.quantity,
+            buyPrice: component.product?.buyPrice ?? 0,
+            serviceCost: component.product?.serviceCost ?? 0,
+            productType: component.product?.productType ?? 'product',
+          })),
         },
       ],
     })

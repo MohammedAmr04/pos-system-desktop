@@ -5,6 +5,9 @@ namespace PosCs.Application.Models
     public sealed class CreateProductRequest
     {
         public string Name { get; set; }
+        public string ProductType { get; set; }
+        public double ServiceCost { get; set; }
+        public List<BundleComponentRequest> BundleComponents { get; set; }
         public string Barcode { get; set; }
         public double BuyPrice { get; set; }
         public double SalePrice { get; set; }
@@ -24,9 +27,18 @@ namespace PosCs.Application.Models
         public string BrandId { get; set; }
     }
 
+    public sealed class BundleComponentRequest
+    {
+        public string ProductId { get; set; }
+        public double Quantity { get; set; }
+    }
+
     public sealed class UpdateProductRequest
     {
         public string Name { get; set; }
+        public string ProductType { get; set; }
+        public double? ServiceCost { get; set; }
+        public List<BundleComponentRequest> BundleComponents { get; set; }
         public string Barcode { get; set; }
         public double BuyPrice { get; set; }
         public double StockQuantity { get; set; }

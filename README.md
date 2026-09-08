@@ -43,10 +43,20 @@ built frontend. The database is a single SQLite file stored in the `data/` folde
 - **Hide from POS** — products can be marked `isHiddenFromPOS = true` to
   exclude them from POS search and cart; the backend `GET /api/products/pos`
   and search route both filter them out automatically.
-- Low Stock Report screen using each product's own threshold.
+- **Services** — sellable non-stock items with an independent selling price and
+  cost; service cost contributes to invoice profit without creating stock
+  movements.
+- **Bundles** — composite sellable items made from products and services, with
+  per-component quantities and an independent or calculated selling price.
+  Bundles are available only when all product components are in stock.
+- Low Stock Report applies only to normal inventory products; services and
+  bundles are excluded even when a legacy threshold is stored for them.
 
 ### Invoices
 - Auto-incrementing invoice numbers and full history with server-side paging.
+- Bundle sales appear as one main line with a smaller component breakdown below;
+  the component snapshot is stored with the invoice so historical receipts stay
+  accurate after a bundle is edited.
 - Search by invoice number, date-range filters with quick presets
   (today / week / month / all), revenue and discount summary cards.
 - Invoice details show real invoice number, unit names, struck-through override
@@ -433,6 +443,7 @@ to avoid serving a partially upgraded database.
 | `025_shifts` | Shift (openedBy, openingCash, openedAt, closedAt, closingCash, expectedCash, status) |
 | `026_expenses` | Expense, ExpenseCategory, shiftId FK |
 | `027_printer_settings` | PrinterSettings (printer name, paper width, copies, auto-cut, header/footer, store info) |
+| `037_bundles_services` | Product types, service costs, bundle components, and invoice component snapshots |
 
 ---
 

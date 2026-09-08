@@ -17,6 +17,7 @@ namespace PosCs.Application.Services
         private readonly IUnitRepository _masterUnits;
         private readonly ICategoryRepository _categoryRepo;
         private readonly IBrandRepository _brandRepo;
+        private readonly IBundleRepository _bundleRepo;
 
         public ProductService(IProductRepository repo, IProductUnitRepository unitRepo,
             ICategoryRepository categoryRepo, IBrandRepository brandRepo, IUnitRepository masterUnits)
@@ -26,6 +27,7 @@ namespace PosCs.Application.Services
             _categoryRepo = categoryRepo;
             _brandRepo = brandRepo;
             _masterUnits = masterUnits;
+            _bundleRepo = repo as IBundleRepository;
         }
 
         public List<Product> GetAll()
@@ -87,6 +89,10 @@ namespace PosCs.Application.Services
             if (request.WholesalePrice.HasValue && request.WholesalePrice.Value < 0)
                 throw new DomainValidationException("Wholesale price cannot be negative");
 
+            var productType = NormalizeProductType(request.ProductType);
+            var serviceCost = ValidateServiceCost(productType, request.ServiceCost);
+            var bundleComponents = ValidateBundleComponents(productType, request.BundleComponents, null);
+
             var unitName = string.IsNullOrWhiteSpace(request.UnitName) ? "Piece" : request.UnitName.Trim();
             var baseUnitId = ResolveUnitRef(request.UnitId, ref unitName);
 
@@ -99,8 +105,10 @@ namespace PosCs.Application.Services
             var product = _repo.CreateWithBaseUnit(new Product
             {
                 Name = request.Name,
-                BuyPrice = 0,
+                BuyPrice = productType == "service" ? serviceCost : 0,
                 StockQuantity = 0,
+                ProductType = productType,
+                ServiceCost = serviceCost,
                 Notes = request.Notes,
                 AllowDiscount = request.AllowDiscount,
                 LowStockThreshold = request.LowStockThreshold,
@@ -118,6 +126,12 @@ namespace PosCs.Application.Services
             }, barcode);
 
             AttachUnits(product);
+            if (productType == "bundle")
+            {
+                EnsureBundleRepository();
+                _bundleRepo.ReplaceBundleComponents(product.Id, bundleComponents);
+                product.BundleComponents = _bundleRepo.GetBundleComponents(product.Id);
+            }
             return product;
         }
 
@@ -132,6 +146,19 @@ namespace PosCs.Application.Services
 
             existing.Name = request.Name ?? existing.Name;
             existing.Notes = request.Notes ?? existing.Notes;
+            var productType = request.ProductType == null
+                ? NormalizeProductType(existing.ProductType)
+                : NormalizeProductType(request.ProductType);
+            var serviceCost = request.ServiceCost.HasValue
+                ? ValidateServiceCost(productType, request.ServiceCost)
+                : existing.ServiceCost;
+            var bundleComponents = request.BundleComponents == null
+                ? null
+                : ValidateBundleComponents(productType, request.BundleComponents, existing.Id);
+            existing.ProductType = productType;
+            existing.ServiceCost = serviceCost;
+            if (productType == "service")
+                existing.BuyPrice = serviceCost;
             if (request.AllowDiscount.HasValue)
                 existing.AllowDiscount = request.AllowDiscount.Value;
             if (request.LowStockThreshold.HasValue)
@@ -175,6 +202,17 @@ namespace PosCs.Application.Services
             }
 
             _repo.UpdateWithBaseUnit(existing, baseUnit, request.Barcode?.Trim());
+
+            if (productType == "bundle" && request.BundleComponents != null)
+            {
+                EnsureBundleRepository();
+                _bundleRepo.ReplaceBundleComponents(existing.Id, bundleComponents ?? new List<BundleComponent>());
+            }
+            else if (productType != "bundle" && existing.ProductType == "bundle")
+            {
+                EnsureBundleRepository();
+                _bundleRepo.ReplaceBundleComponents(existing.Id, new List<BundleComponent>());
+            }
 
             AttachUnits(existing);
             return existing;
@@ -377,12 +415,84 @@ namespace PosCs.Application.Services
                     ?? product.Barcodes.FirstOrDefault()?.Barcode;
                 var baseUnit = product.Units.FirstOrDefault(u => u.IsBaseUnit);
                 product.SalePrice = baseUnit?.RetailPrice ?? 0;
+                product.AvailableQuantity = product.ProductType == "bundle"
+                    ? product.BundleComponents.Count == 0
+                        ? 0
+                        : product.BundleComponents.Min(c => c.Product == null || c.Quantity <= 0
+                            ? 0
+                            : c.Product.ProductType == "service"
+                                ? double.MaxValue
+                                : Math.Floor(c.Product.StockQuantity / c.Quantity))
+                    : product.ProductType == "service" ? double.MaxValue : product.StockQuantity;
             }
         }
 
         private void AttachUnits(Product product)
         {
             AttachUnits(new[] { product });
+        }
+
+        private static string NormalizeProductType(string productType)
+        {
+            var normalized = (productType ?? "product").Trim().ToLowerInvariant();
+            if (normalized != "product" && normalized != "service" && normalized != "bundle")
+                throw new DomainValidationException("Invalid product type");
+            return normalized;
+        }
+
+        private void EnsureBundleRepository()
+        {
+            if (_bundleRepo == null)
+                throw new InvalidOperationException("Bundle repository is not configured");
+        }
+
+        private static double ValidateServiceCost(string productType, double? value)
+        {
+            var cost = value ?? 0;
+            if (cost < 0)
+                throw new DomainValidationException("Service cost cannot be negative");
+            return productType == "service" ? cost : 0;
+        }
+
+        private List<BundleComponent> ValidateBundleComponents(string productType,
+            List<BundleComponentRequest> requests, string bundleProductId)
+        {
+            if (productType != "bundle")
+            {
+                if (requests != null && requests.Count > 0)
+                    throw new DomainValidationException("Only bundles can have components");
+                return new List<BundleComponent>();
+            }
+
+            if (requests == null || requests.Count == 0)
+                throw new DomainValidationException("Bundles require at least one component");
+
+            var seen = new HashSet<string>();
+            var components = new List<BundleComponent>();
+            foreach (var request in requests)
+            {
+                if (string.IsNullOrWhiteSpace(request.ProductId) || request.Quantity <= 0)
+                    throw new DomainValidationException("Bundle components must have a product and a positive quantity");
+                if (!seen.Add(request.ProductId))
+                    throw new DomainValidationException("Bundle components cannot be duplicated");
+                if (request.ProductId == bundleProductId)
+                    throw new DomainValidationException("A bundle cannot contain itself");
+
+                var product = _repo.GetById(request.ProductId);
+                if (product == null)
+                    throw new NotFoundException("Bundle component product not found");
+                if (product.ProductType == "bundle")
+                    throw new DomainValidationException("Bundles cannot contain other bundles");
+
+                components.Add(new BundleComponent
+                {
+                    BundleProductId = bundleProductId,
+                    ComponentProductId = product.Id,
+                    Quantity = request.Quantity,
+                    Product = product
+                });
+            }
+            return components;
         }
     }
 }

@@ -92,6 +92,13 @@ export function CartPanel() {
                       )}
                       <span className="text-base font-medium">{item.unitPrice.toFixed(2)} {t("currency")} / {item.unitName}</span>
                     </div>
+                    {item.bundleComponents && item.bundleComponents.length > 0 && (
+                      <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                        {item.bundleComponents.map((component, index) => (
+                          <div key={`${component.productId}-${index}`}>{component.quantity} × {component.name}</div>
+                        ))}
+                      </div>
+                    )}
                     {ld > 0 && (
                       <div className="mt-1">
                         <span className="inline-flex items-center rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">

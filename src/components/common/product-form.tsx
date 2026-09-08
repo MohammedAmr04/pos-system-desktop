@@ -1,6 +1,7 @@
 "use client"
 
 import { useForm, Controller } from "react-hook-form"
+import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Input } from "@/components/ui/input"
@@ -20,6 +21,9 @@ import { useAllUnits } from "@/hooks/use-units"
 import { toast } from "sonner"
 import { useTranslations } from "next-intl"
 import { useApiError } from "@/lib/api-error"
+import { useAllProducts } from "@/hooks/use-products"
+import { Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface ProductFormProps {
   initialData?: Product | null
@@ -62,6 +66,8 @@ function makeProductSchema(t: (key: string) => string) {
     allowDiscount: z.boolean(),
     isHiddenFromPOS: z.boolean(),
     notes: z.string(),
+    productType: z.enum(["product", "service", "bundle"]),
+    serviceCost: optionalMoney(invalid),
   })
 }
 
@@ -80,6 +86,7 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
   const { data: categories = [] } = useAllCategories()
   const { data: brands = [] } = useAllBrands()
   const { data: units = [] } = useAllUnits()
+  const { data: allProducts = [] } = useAllProducts()
 
   const baseUnit = initialData ? baseUnitOf(initialData) : null
   const defaultUnitName = t("defaultUnitName")
@@ -90,6 +97,9 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
   const selectableBrands = brands.filter((b) => b.isActive || b.id === initialData?.brandId)
   const selectableUnits = units.filter((u) => u.isActive)
   const defaultUnitId = baseUnit?.unitId ?? selectableUnits.find((u) => u.isActive)?.id ?? ""
+  const [bundleComponents, setBundleComponents] = useState<Array<{ productId: string; quantity: string }>>(
+    () => initialData?.bundleComponents?.map((c) => ({ productId: c.componentProductId, quantity: String(c.quantity) })) ?? []
+  )
 
   const schema = makeProductSchema(t as (key: string) => string)
 
@@ -98,6 +108,7 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
     handleSubmit,
     reset,
     control,
+    watch,
     formState: { errors },
   } = useForm<ProductFormValues>({
     resolver: zodResolver(schema),
@@ -116,12 +127,24 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
       allowDiscount: initialData?.allowDiscount ?? true,
       isHiddenFromPOS: initialData?.isHiddenFromPOS ?? false,
       notes: initialData?.notes ?? "",
+      productType: initialData?.productType ?? "product",
+      serviceCost: initialData?.serviceCost ? String(initialData.serviceCost) : "",
     },
   })
+  const productType = watch("productType")
 
   async function onSubmit(values: ProductFormValues) {
     const selectedUnit = units.find((u) => u.id === values.unitId)
     const wholesaleRaw = values.wholesalePrice.trim()
+    const serviceCost = values.serviceCost.trim() ? parseFloat(values.serviceCost) : 0
+    const lowStockThreshold = values.productType === "product" ? parseInt(values.lowStockThreshold, 10) || 0 : undefined
+    const components = bundleComponents
+      .filter((component) => component.productId && parseFloat(component.quantity) > 0)
+      .map((component) => ({ productId: component.productId, quantity: parseFloat(component.quantity) }))
+    if (values.productType === "bundle" && components.length === 0) {
+      toast.error(t("bundleNeedsComponents"))
+      return
+    }
     try {
       if (initialData) {
         await updateProduct(initialData.id, {
@@ -136,7 +159,10 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
           notes: values.notes || null,
           allowDiscount: values.allowDiscount,
           isHiddenFromPOS: values.isHiddenFromPOS,
-          lowStockThreshold: parseInt(values.lowStockThreshold, 10) || 0,
+          lowStockThreshold,
+          productType: values.productType,
+          serviceCost,
+          bundleComponents: components,
         })
         toast.success(t("productUpdated"))
       } else {
@@ -152,7 +178,10 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
           notes: values.notes || null,
           allowDiscount: values.allowDiscount,
           isHiddenFromPOS: values.isHiddenFromPOS,
-          lowStockThreshold: parseInt(values.lowStockThreshold, 10) || 0,
+          lowStockThreshold,
+          productType: values.productType,
+          serviceCost,
+          bundleComponents: components,
         })
         toast.success(t("productCreated"))
         onSuccess?.(product)
@@ -169,6 +198,20 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
         <label className="text-sm font-medium">{t("name")} *</label>
         <Input {...register("name")} />
         <FieldError message={errors.name?.message} />
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">{t("productType")}</label>
+        <Controller
+          name="productType"
+          control={control}
+          render={({ field }) => (
+            <select {...field} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <option value="product">{t("productTypeProduct")}</option>
+              <option value="service">{t("productTypeService")}</option>
+              <option value="bundle">{t("productTypeBundle")}</option>
+            </select>
+          )}
+        />
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("barcode")}</label>
@@ -234,6 +277,49 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
           />
         </div>
       </div>
+      {productType === "service" ? (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">{t("serviceCost")}</label>
+            <Input {...register("serviceCost")} type="number" min="0" step="0.01" dir="ltr" />
+            <FieldError message={errors.serviceCost?.message} />
+          </div>
+        ) : productType === "bundle" ? (
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">{t("bundleComponents")}</label>
+              <Button type="button" variant="outline" size="sm" onClick={() => setBundleComponents((current) => [...current, { productId: "", quantity: "1" }])}>
+                {t("addComponent")}
+              </Button>
+            </div>
+            {bundleComponents.map((component, index) => {
+              const available = allProducts.filter((product) => product.id !== initialData?.id && product.productType !== "bundle")
+              return (
+                <div key={`${index}-${component.productId}`} className="flex items-center gap-2">
+                  <select
+                    value={component.productId}
+                    onChange={(event) => setBundleComponents((current) => current.map((item, i) => i === index ? { ...item, productId: event.target.value } : item))}
+                    className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="">{t("selectComponent")}</option>
+                    {available.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+                  </select>
+                  <Input
+                    type="number"
+                    min="0.001"
+                    step="0.001"
+                    value={component.quantity}
+                    onChange={(event) => setBundleComponents((current) => current.map((item, i) => i === index ? { ...item, quantity: event.target.value } : item))}
+                    className="w-24"
+                    dir="ltr"
+                  />
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setBundleComponents((current) => current.filter((_, i) => i !== index))}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
       <div className="space-y-2">
         <label className="text-sm font-medium">{t("unitName")}</label>
         <Controller
@@ -292,12 +378,14 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
         )}
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">{t("lowStockThreshold")}</label>
-          <Input {...register("lowStockThreshold")} type="number" min="0" dir="ltr" />
-          <FieldError message={errors.lowStockThreshold?.message} />
-        </div>
-        <div className="space-y-2 flex items-end pb-1">
+        {productType === "product" && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">{t("lowStockThreshold")}</label>
+            <Input {...register("lowStockThreshold")} type="number" min="0" dir="ltr" />
+            <FieldError message={errors.lowStockThreshold?.message} />
+          </div>
+        )}
+        <div className={productType === "product" ? "space-y-2 flex items-end pb-1" : "col-span-2 space-y-2 flex items-end pb-1"}>
           <div className="flex flex-col gap-2">
             <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
               <input

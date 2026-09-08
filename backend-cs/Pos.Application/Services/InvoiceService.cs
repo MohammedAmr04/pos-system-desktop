@@ -145,6 +145,26 @@ namespace PosCs.Application.Services
                 var lineSubtotal = InvoicePricing.Round2(unitPrice * item.Quantity);
                 var lineFinal = InvoicePricing.Round2(lineSubtotal - lineDiscountAmount);
 
+                var bundleComponents = product.ProductType == "bundle"
+                    ? product.BundleComponents.Select(c => new InvoiceBundleComponent
+                    {
+                        ProductId = c.ComponentProductId,
+                        Name = c.Product?.Name,
+                        Quantity = c.Quantity,
+                        BuyPrice = c.Product?.BuyPrice ?? 0,
+                        ServiceCost = c.Product?.ServiceCost ?? 0,
+                        ProductType = c.Product?.ProductType ?? "product"
+                    }).ToList()
+                    : new List<InvoiceBundleComponent>();
+                var costPerUnit = product.ProductType == "service"
+                    ? product.ServiceCost
+                    : product.ProductType == "bundle"
+                        ? bundleComponents.Sum(c => (c.ProductType == "service" ? c.ServiceCost : c.BuyPrice) * c.Quantity)
+                        : product.BuyPrice;
+                var totalCost = product.ProductType == "product"
+                    ? (double?)null
+                    : Math.Round(costPerUnit * item.Quantity, 2);
+
                 string priceEditNote = null;
                 if (unitPrice != originalPrice && !string.IsNullOrWhiteSpace(item.PriceEditNote))
                     priceEditNote = item.PriceEditNote.Trim();
@@ -155,7 +175,7 @@ namespace PosCs.Application.Services
                     ProductUnitId = unit.Id,
                     UnitName = unit.UnitName,
                     Quantity = item.Quantity,
-                    BuyPrice = product.BuyPrice,
+                    BuyPrice = costPerUnit,
                     OriginalUnitPrice = Math.Round(originalPrice, 2),
                     UnitPrice = Math.Round(unitPrice, 2),
                     DiscountType = lineDiscountType,
@@ -165,7 +185,9 @@ namespace PosCs.Application.Services
                     FinalTotal = lineFinal,
                     QuantityFactor = unit.QuantityFactor,
                     PriceEditNote = priceEditNote,
-                    Product = product
+                    Product = product,
+                    BundleComponents = bundleComponents,
+                    TotalCost = totalCost
                 });
                 lineFinals.Add(item.AllowDiscount ? lineFinal : 0);
             }

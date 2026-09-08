@@ -48,7 +48,8 @@ namespace PosCs.Infrastructure.Printing
                         UnitName = i.UnitName,
                         Quantity = i.Quantity,
                         SalePrice = i.SalePrice,
-                        FinalTotal = i.FinalTotal
+                        FinalTotal = i.FinalTotal,
+                        Components = i.Components.Select(c => new ReceiptComponentModel { Name = c.Name, Quantity = c.Quantity }).ToList()
                     }));
                     builder.AddTotals(new ReceiptInvoiceModel
                     {

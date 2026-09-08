@@ -8,6 +8,7 @@ using PosCs.Application.Ports;
 using PosCs.Domain.Entities;
 using PosCs.Domain.Exceptions;
 using PosCs.Domain.Rules;
+using Newtonsoft.Json;
 
 namespace PosCs.Infrastructure.Persistence
 {
@@ -307,8 +308,23 @@ namespace PosCs.Infrastructure.Persistence
                         foreach (var item in items)
                         {
                             var baseQuantity = item.Quantity * item.QuantityFactor;
-                            StockLedger.Apply(conn, (SqliteTransaction)tx, item.ProductId, baseQuantity,
-                                StockLedger.SaleReversal, invoice.Id, invoice.InvoiceNumber.ToString(), requireStock: false);
+                            var productType = conn.ExecuteScalar<string>(
+                                "SELECT productType FROM Product WHERE id = @productId", new { productId = item.ProductId }, transaction: tx) ?? "product";
+                            if (productType == "bundle")
+                            {
+                                foreach (var component in ParseBundleComponents(item.BundleComponentsJson))
+                                {
+                                    if (component.ProductType == "service") continue;
+                                    StockLedger.Apply(conn, (SqliteTransaction)tx, component.ProductId,
+                                        component.Quantity * item.Quantity, StockLedger.SaleReversal,
+                                        invoice.Id, invoice.InvoiceNumber.ToString(), requireStock: false);
+                                }
+                            }
+                            else if (productType != "service")
+                            {
+                                StockLedger.Apply(conn, (SqliteTransaction)tx, item.ProductId, baseQuantity,
+                                    StockLedger.SaleReversal, invoice.Id, invoice.InvoiceNumber.ToString(), requireStock: false);
+                            }
                         }
 
                         // Restore exactly what this sale consumed (plan Phase 4 allocations).
@@ -346,20 +362,43 @@ namespace PosCs.Infrastructure.Persistence
 
                 if (applySideEffects)
                 {
-                    // Sale side passes through the shared ledger (plan Phase 3)
-                    StockLedger.Apply(conn, tx, item.ProductId, -baseQuantity,
-                        StockLedger.Sale, invoice.Id, invoice.InvoiceNumber.ToString(), requireStock: true);
-
-                    // FIFO consumption (plan Phase 4): historical COGS captured at sale time.
-                    // Unlayered legacy stock (pre-Phase 4) is valued at the current buy price.
-                    item.TotalCost = ConsumeFifo(conn, tx, invoice.Id, detailId, item.ProductId, baseQuantity);
+                    var productType = conn.ExecuteScalar<string>(
+                        "SELECT productType FROM Product WHERE id = @productId", new { productId = item.ProductId }, transaction: tx) ?? "product";
+                    if (productType == "service")
+                    {
+                        item.TotalCost = Math.Round(item.BuyPrice * item.Quantity, 2);
+                    }
+                    else if (productType == "bundle")
+                    {
+                        var components = ParseBundleComponents(item.BundleComponentsJson);
+                        var totalCost = 0.0;
+                        foreach (var component in components)
+                        {
+                            var componentQuantity = component.Quantity * item.Quantity;
+                            if (component.ProductType == "service")
+                            {
+                                totalCost += component.ServiceCost * componentQuantity;
+                                continue;
+                            }
+                            StockLedger.Apply(conn, tx, component.ProductId, -componentQuantity,
+                                StockLedger.Sale, invoice.Id, invoice.InvoiceNumber.ToString(), requireStock: true);
+                            totalCost += ConsumeFifo(conn, tx, invoice.Id, detailId, component.ProductId, componentQuantity);
+                        }
+                        item.TotalCost = Math.Round(totalCost, 2);
+                    }
+                    else
+                    {
+                        StockLedger.Apply(conn, tx, item.ProductId, -baseQuantity,
+                            StockLedger.Sale, invoice.Id, invoice.InvoiceNumber.ToString(), requireStock: true);
+                        item.TotalCost = ConsumeFifo(conn, tx, invoice.Id, detailId, item.ProductId, baseQuantity);
+                    }
                 }
 
                 conn.Execute(@"
                     INSERT INTO InvoiceDetail (id, invoiceId, productId, productUnitId, unitName, quantity, buyPrice, salePrice,
-                        originalUnitPrice, unitPrice, discountType, discountValue, discountAmount, lineSubtotal, finalTotal, priceEditNote, quantityFactor, totalCost)
+                        originalUnitPrice, unitPrice, discountType, discountValue, discountAmount, lineSubtotal, finalTotal, priceEditNote, quantityFactor, totalCost, bundleComponentsJson)
                     VALUES (@id, @invoiceId, @productId, @productUnitId, @unitName, @quantity, @buyPrice, @salePrice,
-                        @originalUnitPrice, @unitPrice, @discountType, @discountValue, @discountAmount, @lineSubtotal, @finalTotal, @priceEditNote, @quantityFactor, @totalCost)",
+                        @originalUnitPrice, @unitPrice, @discountType, @discountValue, @discountAmount, @lineSubtotal, @finalTotal, @priceEditNote, @quantityFactor, @totalCost, @bundleComponentsJson)",
                     new
                     {
                         id = detailId,
@@ -379,9 +418,20 @@ namespace PosCs.Infrastructure.Persistence
                         finalTotal = item.FinalTotal,
                         priceEditNote = item.PriceEditNote,
                         quantityFactor = item.QuantityFactor,
-                        totalCost = item.TotalCost
+                        totalCost = item.TotalCost,
+                        bundleComponentsJson = item.BundleComponentsJson ?? (item.BundleComponents != null && item.BundleComponents.Count > 0
+                            ? JsonConvert.SerializeObject(item.BundleComponents)
+                            : null)
                     }, transaction: tx);
+                item.Id = detailId;
             }
+        }
+
+        private static List<InvoiceBundleComponent> ParseBundleComponents(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return new List<InvoiceBundleComponent>();
+            return JsonConvert.DeserializeObject<List<InvoiceBundleComponent>>(json)
+                ?? new List<InvoiceBundleComponent>();
         }
 
         /// <summary>Posted sales for one client, oldest first (account statements).</summary>
@@ -517,6 +567,7 @@ namespace PosCs.Infrastructure.Persistence
                 "SELECT * FROM InvoiceDetail WHERE invoiceId = @invoiceId", new { invoiceId = invoice.Id }).ToList();
             foreach (var detail in invoice.InvoiceDetail)
             {
+                detail.BundleComponents = ParseBundleComponents(detail.BundleComponentsJson);
                 detail.Product = conn.QueryFirstOrDefault<Product>(
                     "SELECT * FROM Product WHERE id = @id", new { id = detail.ProductId });
             }

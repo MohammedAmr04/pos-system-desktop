@@ -196,6 +196,15 @@
     "defaultUnit": "قطعة (افتراضي)",
     "pageInfo": "صفحة {page} من {pageCount}",
     "productsCount": "{count} منتج"
+    ,"productType": "نوع الصنف"
+    ,"productTypeProduct": "منتج مخزني"
+    ,"productTypeService": "خدمة"
+    ,"productTypeBundle": "Bundle / باقة"
+    ,"serviceCost": "تكلفة الخدمة"
+    ,"bundleComponents": "مكونات الباقة"
+    ,"addComponent": "إضافة مكوّن"
+    ,"selectComponent": "اختر المكوّن"
+    ,"bundleNeedsComponents": "أضف مكوّنًا واحدًا على الأقل للباقة"
   },
   "Invoices": {
     "title": "فواتير اليوم",
@@ -254,7 +263,8 @@
     "fullyReturned": "مرتجع كامل",
     "employee": "البائع",
     "employeeAll": "كل البائعين",
-    "unassigned": "بدون بائع"
+    "unassigned": "بدون بائع",
+    "bundleComponents": "مكونات الباقة"
   },
   "Sidebar": {
     "dashboard": "لوحة التحكم",

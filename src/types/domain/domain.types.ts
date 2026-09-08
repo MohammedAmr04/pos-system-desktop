@@ -27,6 +27,8 @@ export interface Product {
   barcodes?: ProductBarcode[]
   units?: ProductUnit[]
   name: string
+  productType: 'product' | 'service' | 'bundle'
+  serviceCost: number
   buyPrice: number
   salePrice: number
   stockQuantity: number
@@ -38,6 +40,16 @@ export interface Product {
   brandId?: string | null
   createdAt: string
   updatedAt: string
+  availableQuantity?: number
+  bundleComponents?: BundleComponent[]
+}
+
+export interface BundleComponent {
+  id?: string
+  bundleProductId?: string
+  componentProductId: string
+  quantity: number
+  product?: Product | null
 }
 
 export interface ProductWriteRequest {
@@ -55,6 +67,9 @@ export interface ProductWriteRequest {
   allowDiscount?: boolean
   lowStockThreshold?: number
   isHiddenFromPOS?: boolean
+  productType?: 'product' | 'service' | 'bundle'
+  serviceCost?: number
+  bundleComponents?: Array<{ productId: string; quantity: number }>
 }
 
 export type PriceMode = 'retail' | 'wholesale'
@@ -100,7 +115,17 @@ export interface InvoiceDetail {
   finalTotal?: number
   priceEditNote?: string | null
   totalCost?: number | null
+  bundleComponents?: InvoiceBundleComponent[]
   product: Product | null
+}
+
+export interface InvoiceBundleComponent {
+  productId: string
+  name: string
+  quantity: number
+  buyPrice: number
+  serviceCost: number
+  productType: 'product' | 'service' | 'bundle'
 }
 
 export interface PagedProducts {
@@ -399,6 +424,7 @@ export interface InvoiceItemPayload {
   discountValue?: number
   quantityFactor: number
   priceEditNote?: string | null
+  productType?: 'product' | 'service' | 'bundle'
 }
 
 export interface InvoiceCreatePayload {

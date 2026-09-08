@@ -1,4 +1,5 @@
 using PosCs.Domain.Entities;
+using System.Collections.Generic;
 
 namespace PosCs.Application.Ports
 {
@@ -16,5 +17,11 @@ namespace PosCs.Application.Ports
         /// <summary>Updates the product, its base unit (when provided) and optionally renames/adds the default barcode in one transaction.</summary>
         void UpdateWithBaseUnit(Product product, ProductUnit baseUnit, string newDefaultBarcode);
         bool Delete(string id);
+    }
+
+    public interface IBundleRepository
+    {
+        List<BundleComponent> GetBundleComponents(string bundleProductId);
+        void ReplaceBundleComponents(string bundleProductId, List<BundleComponent> components);
     }
 }

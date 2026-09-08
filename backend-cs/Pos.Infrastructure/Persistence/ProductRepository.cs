@@ -10,31 +10,47 @@ using PosCs.Domain.Exceptions;
 
 namespace PosCs.Infrastructure.Persistence
 {
-    public class ProductRepository : IProductRepository
+    public class ProductRepository : IProductRepository, IBundleRepository
     {
         public Product GetById(string id)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
-                return conn.QueryFirstOrDefault<Product>("SELECT * FROM Product WHERE id = @id", new { id });
+            {
+                var product = conn.QueryFirstOrDefault<Product>("SELECT * FROM Product WHERE id = @id", new { id });
+                AttachBundleComponents(conn, product);
+                return product;
+            }
         }
 
         public List<Product> GetAll()
         {
             using (var conn = DbConnectionFactory.CreateConnection())
-                return conn.Query<Product>("SELECT * FROM Product ORDER BY createdAt DESC").ToList();
+            {
+                var products = conn.Query<Product>("SELECT * FROM Product ORDER BY createdAt DESC").ToList();
+                AttachBundleComponents(conn, products);
+                return products;
+            }
         }
 
         public List<Product> GetForPOS()
         {
             using (var conn = DbConnectionFactory.CreateConnection())
-                return conn.Query<Product>(
+            {
+                var products = conn.Query<Product>(
                     "SELECT * FROM Product WHERE isHiddenFromPOS = 0 ORDER BY createdAt DESC").ToList();
+                AttachBundleComponents(conn, products);
+                return products;
+            }
         }
 
         public List<Product> Search(string query, int limit)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
-                return SearchCore(conn, null, query, limit).ToList();
+            {
+                var products = SearchCore(conn, null, query, limit).ToList();
+                AttachBundleComponents(conn, products);
+                return products;
+            }
         }
 
         public PagedResult<Product> GetPaged(int page, int pageSize, string query)
@@ -47,6 +63,7 @@ namespace PosCs.Infrastructure.Persistence
                     var items = conn.Query<Product>(
                         "SELECT * FROM Product ORDER BY createdAt DESC LIMIT @pageSize OFFSET @offset",
                         new { pageSize, offset = (page - 1) * pageSize }).ToList();
+                    AttachBundleComponents(conn, items);
                     return new PagedResult<Product> { Items = items, Total = total };
                 }
 
@@ -80,6 +97,7 @@ namespace PosCs.Infrastructure.Persistence
                     LIMIT @pageSize OFFSET @offset",
                     new { like, prefix, exact, pageSize, offset = (page - 1) * pageSize }).ToList();
 
+                AttachBundleComponents(conn, filteredItems);
                 return new PagedResult<Product> { Items = filteredItems, Total = totalFiltered };
             }
         }
@@ -194,14 +212,16 @@ namespace PosCs.Infrastructure.Persistence
                 $"Notes='{product.Notes}', CreatedAt={product.CreatedAt:O}, UpdatedAt={product.UpdatedAt:O}");
 
             conn.Execute(@"
-                INSERT INTO Product (id, name, buyPrice, stockQuantity, notes, allowDiscount, lowStockThreshold, isHiddenFromPOS, categoryId, brandId, createdAt, updatedAt)
-                VALUES (@id, @name, @buyPrice, @stockQuantity, @notes, @allowDiscount, @lowStockThreshold, @isHiddenFromPOS, @categoryId, @brandId, @createdAt, @updatedAt)",
+                INSERT INTO Product (id, name, buyPrice, stockQuantity, productType, serviceCost, notes, allowDiscount, lowStockThreshold, isHiddenFromPOS, categoryId, brandId, createdAt, updatedAt)
+                VALUES (@id, @name, @buyPrice, @stockQuantity, @productType, @serviceCost, @notes, @allowDiscount, @lowStockThreshold, @isHiddenFromPOS, @categoryId, @brandId, @createdAt, @updatedAt)",
                 new
                 {
                     id = product.Id,
                     name = product.Name,
                     buyPrice = product.BuyPrice,
                     stockQuantity = product.StockQuantity,
+                    productType = product.ProductType ?? "product",
+                    serviceCost = product.ServiceCost,
                     notes = product.Notes,
                     allowDiscount = product.AllowDiscount ? 1 : 0,
                     lowStockThreshold = product.LowStockThreshold,
@@ -225,7 +245,7 @@ namespace PosCs.Infrastructure.Persistence
             product.UpdatedAt = DateTime.Now;
             conn.Execute(@"
                 UPDATE Product SET name=@name, buyPrice=@buyPrice,
-                    stockQuantity=@stockQuantity, notes=@notes,
+                    stockQuantity=@stockQuantity, productType=@productType, serviceCost=@serviceCost, notes=@notes,
                     allowDiscount=@allowDiscount, lowStockThreshold=@lowStockThreshold,
                     isHiddenFromPOS=@isHiddenFromPOS,
                     categoryId=@categoryId, brandId=@brandId,
@@ -237,6 +257,8 @@ namespace PosCs.Infrastructure.Persistence
                     name = product.Name,
                     buyPrice = product.BuyPrice,
                     stockQuantity = product.StockQuantity,
+                    productType = product.ProductType ?? "product",
+                    serviceCost = product.ServiceCost,
                     notes = product.Notes,
                     allowDiscount = product.AllowDiscount ? 1 : 0,
                     lowStockThreshold = product.LowStockThreshold,
@@ -257,6 +279,74 @@ namespace PosCs.Infrastructure.Persistence
         private static string EscapeLike(string input)
         {
             return input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+        }
+
+        public List<BundleComponent> GetBundleComponents(string bundleProductId)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+                return GetBundleComponents(conn, bundleProductId);
+        }
+
+        public void ReplaceBundleComponents(string bundleProductId, List<BundleComponent> components)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+            using (var tx = conn.BeginTransaction())
+            {
+                try
+                {
+                    conn.Execute("DELETE FROM BundleComponent WHERE bundleProductId = @bundleProductId",
+                        new { bundleProductId }, transaction: tx);
+                    foreach (var component in components ?? new List<BundleComponent>())
+                    {
+                        conn.Execute(@"
+                            INSERT INTO BundleComponent (id, bundleProductId, componentProductId, quantity)
+                            VALUES (@id, @bundleProductId, @componentProductId, @quantity)",
+                            new
+                            {
+                                id = Guid.NewGuid().ToString("N"),
+                                bundleProductId,
+                                componentProductId = component.ComponentProductId,
+                                quantity = component.Quantity
+                            }, transaction: tx);
+                    }
+                    tx.Commit();
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        private static List<BundleComponent> GetBundleComponents(SqliteConnection conn, string bundleProductId)
+        {
+            var components = conn.Query<BundleComponent>(@"
+                SELECT bc.*, p.id AS 'Product_Id', p.name AS 'Product_Name', p.productType AS 'Product_ProductType',
+                    p.buyPrice AS 'Product_BuyPrice', p.serviceCost AS 'Product_ServiceCost', p.stockQuantity AS 'Product_StockQuantity'
+                FROM BundleComponent bc
+                INNER JOIN Product p ON p.id = bc.componentProductId
+                WHERE bc.bundleProductId = @bundleProductId
+                ORDER BY bc.rowid", new { bundleProductId }).ToList();
+            foreach (var component in components)
+            {
+                component.Product = conn.QueryFirstOrDefault<Product>(
+                    "SELECT * FROM Product WHERE id = @id", new { id = component.ComponentProductId });
+            }
+            return components;
+        }
+
+        private static void AttachBundleComponents(SqliteConnection conn, Product product)
+        {
+            if (product == null) return;
+            product.BundleComponents = product.ProductType == "bundle"
+                ? GetBundleComponents(conn, product.Id)
+                : new List<BundleComponent>();
+        }
+
+        private static void AttachBundleComponents(SqliteConnection conn, IEnumerable<Product> products)
+        {
+            foreach (var product in products) AttachBundleComponents(conn, product);
         }
     }
 }
