@@ -73,6 +73,7 @@ namespace PosCs
         private static PrintingService _printingService;
         private static IOperationsRepository _operations;
         private static OperationsService _operationsService;
+        private static BackupService _backupService;
 
         public static IClock Clock => Lazy(ref _clock, () => new SystemClock());
         public static IPasswordHasher Hasher => Lazy(ref _hasher, () => new PasswordHasher());
@@ -154,6 +155,7 @@ namespace PosCs
             () => new PrintingService(Receipts, BarcodeLabels));
         public static OperationsService OperationsService => Lazy(ref _operationsService,
             () => new OperationsService(OperationsRepo));
+        public static BackupService BackupService => Lazy(ref _backupService, () => new BackupService());
 
         private static T Lazy<T>(ref T field, System.Func<T> factory) where T : class
         {

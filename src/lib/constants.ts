@@ -56,6 +56,7 @@ export const PERMISSIONS = {
   EXPENSES_VIEW: 'expenses.view',
   EXPENSES_CREATE: 'expenses.create',
   EXPENSES_CATEGORIES: 'expenses.categories',
+  BACKUPS_MANAGE: 'backups.manage',
 } as const
 
 export const FEATURES = {
@@ -123,6 +124,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'expenses.view': 'عرض المصروفات',
   'expenses.create': 'تسجيل المصروفات',
   'expenses.categories': 'إدارة تصنيفات المصروفات',
+  'backups.manage': 'إدارة النسخ الاحتياطية',
 }
 
 export const RESOURCE_LABELS: Record<string, string> = {

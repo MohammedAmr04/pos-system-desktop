@@ -13,12 +13,16 @@ namespace PosCs.Tests.Application
     {
         public List<Invoice> Page = new List<Invoice>();
         public List<Invoice> Posted = new List<Invoice>();
+        public DateTime? LastFrom;
+        public DateTime? LastTo;
 
         public Invoice GetById(string id) { return Page.Concat(Posted).FirstOrDefault(i => i.Id == id); }
         public List<Invoice> GetRange(DateTime? from, DateTime? to) { return new List<Invoice>(); }
 
         public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null)
         {
+            LastFrom = from;
+            LastTo = to;
             return new InvoicePageResult { Items = Page.ToList(), Total = Page.Count };
         }
 
@@ -157,6 +161,26 @@ namespace PosCs.Tests.Application
 
             Assert.Equal(0, result.PaidByInvoice["d1"]);
             Assert.Equal(50, result.PaidByInvoice["w1"]);
+        }
+
+        [Fact]
+        public void GetPaged_AllRange_DoesNotDefaultToToday()
+        {
+            var invoices = new StubPagedInvoiceRepository();
+            var result = ServiceWith(invoices, new FakePaymentRepository()).GetPaged(1, 20, null, null, null, "all", "all");
+
+            Assert.Null(invoices.LastFrom);
+            Assert.Null(invoices.LastTo);
+        }
+
+        [Fact]
+        public void GetPaged_WithoutRange_DefaultsToToday()
+        {
+            var invoices = new StubPagedInvoiceRepository();
+            var result = ServiceWith(invoices, new FakePaymentRepository()).GetPaged(1, 20, null, null, null);
+
+            Assert.Equal(new DateTime(2026, 9, 5), invoices.LastFrom);
+            Assert.Equal(new DateTime(2026, 9, 5, 23, 59, 59), invoices.LastTo);
         }
     }
 }

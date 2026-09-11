@@ -7,7 +7,11 @@ $destDir = Join-Path $root "backend-cs\bin\Release\net48\wwwroot"
 Write-Host "Building static export (out/)..."
 Push-Location $root
 try {
-    npx next build
+    $nextCli = Join-Path $root "node_modules\.bin\next.cmd"
+    if (-not (Test-Path -LiteralPath $nextCli)) {
+        throw "Local Next.js CLI not found. Run npm install before building."
+    }
+    & $nextCli build --webpack
     if ($LASTEXITCODE -ne 0) {
         throw "next build failed with exit code $LASTEXITCODE"
     }

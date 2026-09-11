@@ -20,4 +20,6 @@ namespace PosCs.Application.Models
         public bool IsMatched { get; set; } public DateTime? UpdatedAt { get; set; }
     }
     public class InventoryAdjustmentDetail : InventoryAdjustmentSummary { public DateTime? PostedAt { get; set; } public DateTime? CancelledAt { get; set; } public List<InventoryAdjustmentLine> Lines { get; set; } }
+    public class BackupSummary { public string FileName { get; set; } public long SizeBytes { get; set; } public DateTime CreatedAt { get; set; } }
+    public class RestoreBackupRequest { public string FileName { get; set; } }
 }

@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "v9",
+    [string]$Version = "v2",
     [string]$OutputName,
     [string]$SecretPath = "license.secret"
 )

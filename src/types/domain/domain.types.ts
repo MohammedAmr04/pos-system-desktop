@@ -706,3 +706,4 @@ export interface PagedAlerts { items: AlertItem[]; total: number }
 export interface InventoryAdjustmentSummary { id: string; number: number; reason: string; notes: string | null; createdBy: string; createdAt: string; status: 'draft' | 'counting' | 'posted' | 'cancelled'; lineCount: number; differenceCount: number }
 export interface PagedInventoryAdjustments { items: InventoryAdjustmentSummary[]; total: number }
 export interface InventoryAdjustmentDetail extends InventoryAdjustmentSummary { postedAt: string | null; cancelledAt: string | null; lines: InventoryAdjustmentLine[] }
+export interface BackupSummary { fileName: string; sizeBytes: number; createdAt: string }

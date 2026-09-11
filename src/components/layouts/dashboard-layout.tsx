@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname } from "@/i18n/navigation"
-import { Package, ShoppingCart, FileText, LayoutDashboard, AlertTriangle, LogOut, Settings, Users, Shield, SlidersHorizontal, KeyRound, FolderTree, Tags, Ruler, Truck, UsersRound, Boxes, Wallet, Undo2, Timer, Receipt, BarChart3, Printer, ClipboardList, Bell, History, Contact } from "lucide-react"
+import { Package, ShoppingCart, FileText, LayoutDashboard, AlertTriangle, LogOut, Settings, Users, Shield, SlidersHorizontal, KeyRound, FolderTree, Tags, Ruler, Truck, UsersRound, Boxes, Wallet, Undo2, Timer, Receipt, BarChart3, Printer, ClipboardList, Bell, History, Contact, ArchiveRestore } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
 import { useAuth } from "@/components/common/auth-context"
@@ -143,6 +143,7 @@ const sidebarNavItems: SidebarNavItem[] = [
   { key: "inventoryAdjustments", href: "/inventory-adjustments/", icon: ClipboardList, permission: PERMISSIONS.INVENTORY_ADJUSTMENTS_VIEW, section: "main" },
   { key: "alerts", href: "/alerts/", icon: Bell, permission: PERMISSIONS.ALERTS_VIEW, section: "main" },
   { key: "auditLogs", href: "/audit-logs/", icon: History, permission: PERMISSIONS.AUDIT_VIEW, section: "settings" },
+  { key: "backups", href: "/settings/backups/", icon: ArchiveRestore, permission: PERMISSIONS.BACKUPS_MANAGE, section: "settings" },
   {
     key: "lowStock",
     href: "/low-stock/",

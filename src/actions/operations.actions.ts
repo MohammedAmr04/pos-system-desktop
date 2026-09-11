@@ -1,4 +1,5 @@
 import { acknowledgeAlert, cancelInventoryAdjustment, createInventoryAdjustment, deleteInventoryAdjustment, deleteInventoryAdjustmentLine, postInventoryAdjustment, saveInventoryAdjustmentLine, updateInventoryAdjustmentNotes } from "@/api/operations"
+import { createBackup, restoreBackup } from "@/api/backups"
 import { operationsKeys } from "@/hooks/use-operations"
 import { queryClient } from "@/lib/query-client"
 import { InventoryAdjustmentLineInput } from "@/types/domain/domain.types"
@@ -47,4 +48,16 @@ export async function cancelInventoryCount(id: string) {
 export async function deleteInventoryCount(id: string) {
   await deleteInventoryAdjustment(id)
   await queryClient.invalidateQueries({ queryKey: operationsKeys.all })
+}
+
+export async function createDatabaseBackup() {
+  const result = await createBackup()
+  await queryClient.invalidateQueries({ queryKey: operationsKeys.all })
+  return result
+}
+
+export async function restoreDatabaseBackup(fileName: string) {
+  const result = await restoreBackup(fileName)
+  await queryClient.invalidateQueries({ queryKey: operationsKeys.all })
+  return result
 }

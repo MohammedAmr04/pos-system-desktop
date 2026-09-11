@@ -1,5 +1,5 @@
 @echo off
-title POS Desktop Application - Version 8
+title POS Desktop Application - v2
 cd /d "%~dp0"
 
 set "SERVER_PATH=pos-server.exe"
@@ -13,7 +13,7 @@ if not exist "%SERVER_PATH%" (
 )
 
 echo =============================================
-echo POS Desktop Application - Version 8
+echo POS Desktop Application - v2
 echo =============================================
 echo.
 
