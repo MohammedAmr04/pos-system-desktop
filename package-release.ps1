@@ -64,7 +64,8 @@ $include = @(
     "*.dll",
     "runtimes",
     "Migrations",
-    "wwwroot"
+    "wwwroot",
+    ".env.example"
 )
 foreach ($pattern in $include) {
     $source = Join-Path $srcDir $pattern
@@ -72,6 +73,11 @@ foreach ($pattern in $include) {
         $dest = Join-Path $tempDir $pattern
         Copy-Item -LiteralPath $source -Destination $dest -Recurse -Force
     }
+}
+
+$envExample = Join-Path $root ".env.example"
+if (Test-Path -LiteralPath $envExample) {
+    Copy-Item -LiteralPath $envExample -Destination (Join-Path $tempDir ".env.example") -Force
 }
 
 # Create empty data directory

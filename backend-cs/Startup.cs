@@ -157,6 +157,7 @@ namespace PosCs
         {
             var url = $"http://localhost:{Environment.GetEnvironmentVariable("API_PORT") ?? "3001"}";
             using (WebApp.Start<Startup>(url))
+            using (var cloudBackupWorker = new CloudBackupWorker(CompositionRoot.BackupService, new CloudinaryBackupUploader()))
             {
                 Console.WriteLine($"[API] Listening on {url}");
                 Console.WriteLine("[API] Press Ctrl+C to stop");
