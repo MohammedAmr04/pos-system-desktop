@@ -54,27 +54,27 @@ namespace PosCs.Infrastructure.Persistence
 
                 if (from.HasValue)
                 {
-                    clauses.Add("createdAt >= @from");
+                    clauses.Add("i.createdAt >= @from");
                     parameters.Add("from", from.Value.ToString("yyyy-MM-dd HH:mm:ss"));
                 }
                 if (to.HasValue)
                 {
-                    clauses.Add("createdAt <= @to");
+                    clauses.Add("i.createdAt <= @to");
                     parameters.Add("to", to.Value.ToString("yyyy-MM-dd HH:mm:ss"));
                 }
                 if (!string.IsNullOrWhiteSpace(query))
                 {
-                    clauses.Add("CAST(invoiceNumber AS TEXT) LIKE @like");
+                    clauses.Add("CAST(i.invoiceNumber AS TEXT) LIKE @like");
                     parameters.Add("like", $"%{EscapeLike(query.Trim())}%");
                 }
                 if (!string.IsNullOrWhiteSpace(status) && status != "all")
                 {
-                    clauses.Add("status = @status");
+                    clauses.Add("i.status = @status");
                     parameters.Add("status", status);
                 }
                 if (!string.IsNullOrWhiteSpace(employeeId))
                 {
-                    clauses.Add("employeeId = @employeeId");
+                    clauses.Add("i.employeeId = @employeeId");
                     parameters.Add("employeeId", employeeId.Trim());
                 }
 
@@ -82,14 +82,18 @@ namespace PosCs.Infrastructure.Persistence
                 parameters.Add("pageSize", pageSize);
                 parameters.Add("offset", (page - 1) * pageSize);
 
-                var total = conn.ExecuteScalar<int>($"SELECT COUNT(1) FROM Invoice{where}", parameters);
+                var total = conn.ExecuteScalar<int>($"SELECT COUNT(1) FROM Invoice i{where}", parameters);
                 // Drafts are not revenue; only posted sales count toward totals.
-                var revenueWhere = where.Length > 0 ? where + " AND status = 'posted'" : " WHERE status = 'posted'";
-                var revenue = conn.ExecuteScalar<double>($"SELECT COALESCE(SUM(totalAmount), 0) FROM Invoice{revenueWhere}", parameters);
-                var discounts = conn.ExecuteScalar<double>($"SELECT COALESCE(SUM(discount), 0) FROM Invoice{revenueWhere}", parameters);
+                var revenueWhere = where.Length > 0 ? where + " AND i.status = 'posted'" : " WHERE i.status = 'posted'";
+                var revenue = conn.ExecuteScalar<double>($"SELECT COALESCE(SUM(i.totalAmount), 0) FROM Invoice i{revenueWhere}", parameters);
+                var returns = conn.ExecuteScalar<double>(
+                    $"SELECT COALESCE(SUM(r.totalAmount), 0) FROM SaleReturn r JOIN Invoice i ON i.id = r.invoiceId" +
+                    $"{revenueWhere} AND r.status = 'posted'", parameters);
+                revenue = InvoiceRevenue.Net(revenue, returns);
+                var discounts = conn.ExecuteScalar<double>($"SELECT COALESCE(SUM(i.discount), 0) FROM Invoice i{revenueWhere}", parameters);
 
                 var items = conn.Query<Invoice>(
-                    $"SELECT * FROM Invoice{where} ORDER BY createdAt DESC LIMIT @pageSize OFFSET @offset",
+                    $"SELECT i.* FROM Invoice i{where} ORDER BY i.createdAt DESC LIMIT @pageSize OFFSET @offset",
                     parameters).ToList();
 
                 foreach (var inv in items)

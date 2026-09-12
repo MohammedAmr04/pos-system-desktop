@@ -144,6 +144,21 @@ namespace PosCs.Tests.Domain
         }
     }
 
+    public class InvoiceRevenueTests
+    {
+        [Fact]
+        public void Net_SubtractsPostedReturnsFromPostedSales()
+        {
+            Assert.Equal(300.0, InvoiceRevenue.Net(480.0, 180.0));
+        }
+
+        [Fact]
+        public void Net_RoundsToTwoDecimals()
+        {
+            Assert.Equal(99.67, InvoiceRevenue.Net(100.0, 0.333));
+        }
+    }
+
     public class PriceSelectionTests
     {
         [Fact]
