@@ -1,12 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Package, ShoppingCart, DollarSign } from "lucide-react"
 import { Link } from "@/i18n/navigation"
 import { Button } from "@/components/ui/button"
-import { api } from "@/lib/api"
+import { countProducts } from "@/api/products"
+import { listInvoicesPaged } from "@/api/invoices"
+import { productsKeys } from "@/hooks/use-products"
 import { format } from "date-fns"
 import { useAuth } from "@/components/common/auth-context"
 import { PERMISSIONS } from "@/lib/constants"
@@ -17,25 +19,23 @@ export default function DashboardPage() {
   const canViewProducts = hasPermission(PERMISSIONS.PRODUCTS_VIEW)
   const canViewInvoices = hasPermission(PERMISSIONS.INVOICES_VIEW)
   const canUsePOS = hasAccess(PERMISSIONS.INVOICES_CREATE) && hasPermission(PERMISSIONS.PRODUCTS_VIEW)
-  const [productsCount, setProductsCount] = useState(0)
-  const [revenue, setRevenue] = useState(0)
-  const [salesCount, setSalesCount] = useState(0)
-  const [discountGiven, setDiscountGiven] = useState(0)
 
-  useEffect(() => {
-    if (canViewProducts) api.products.count().then(setProductsCount).catch(() => {})
-    if (canViewInvoices) {
-      // Aggregate today's stats on the backend; pageSize=1 keeps the payload tiny.
-      api.invoices
-        .listPaged(1, 1, { from: format(new Date(), "yyyy-MM-dd") })
-        .then((res) => {
-          setRevenue(res.totals.revenue)
-          setSalesCount(res.total)
-          setDiscountGiven(res.totals.discounts)
-        })
-        .catch(() => {})
-    }
-  }, [canViewProducts, canViewInvoices])
+  const { data: productsCount = 0 } = useQuery({
+    queryKey: productsKeys.count(),
+    queryFn: countProducts,
+    enabled: canViewProducts,
+  })
+
+  // Aggregate today's stats on the backend; pageSize=1 keeps the payload tiny.
+  const { data: todayInvoices } = useQuery({
+    queryKey: ["invoices", "paged", 1, 1, { from: format(new Date(), "yyyy-MM-dd") }],
+    queryFn: () => listInvoicesPaged(1, 1, { from: format(new Date(), "yyyy-MM-dd") }),
+    enabled: canViewInvoices,
+  })
+
+  const revenue = todayInvoices?.totals.revenue ?? 0
+  const salesCount = todayInvoices?.total ?? 0
+  const discountGiven = todayInvoices?.totals.discounts ?? 0
 
   return (
     <div className="flex-1 space-y-4 pt-6">

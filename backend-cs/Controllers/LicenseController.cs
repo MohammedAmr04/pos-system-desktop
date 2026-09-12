@@ -27,7 +27,12 @@ namespace PosCs.Controllers
                     {
                         status = status.Status,
                         machineId = status.MachineId,
-                        daysSinceActivation = status.DaysSinceActivation.Value
+                        daysSinceActivation = status.DaysSinceActivation.Value,
+                        licenseType = status.LicenseType,
+                        trialDays = status.TrialDays,
+                        licenseStartedAt = status.LicenseStartedAt,
+                        licenseExpiresAt = status.LicenseExpiresAt,
+                        remainingDays = status.RemainingDays
                     });
                 }
                 return Request.CreateResponse(HttpStatusCode.OK, new
@@ -40,6 +45,25 @@ namespace PosCs.Controllers
             {
                 Console.Error.WriteLine($"[API ERR] License check failed: {ex}");
                 return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "License check failed");
+            }
+        }
+
+        [Route("configuration")]
+        [HttpPut]
+        [RequirePermission("license.manage")]
+        public HttpResponseMessage SaveConfiguration([FromBody] LicenseConfigurationRequest dto)
+        {
+            try
+            {
+                var status = _service.SaveConfiguration(dto);
+                Console.WriteLine($"[API] License configuration saved: type={status.LicenseType}, expires={status.LicenseExpiresAt}");
+                return Request.CreateResponse(HttpStatusCode.OK, status);
+            }
+            catch (Exception ex)
+            {
+                if (ApiErrors.IsHandled(ex)) return ApiErrors.From(Request, ex, null);
+                Console.Error.WriteLine($"[API ERR] License configuration failed: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "License configuration failed");
             }
         }
 

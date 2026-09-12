@@ -64,7 +64,7 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
     )
   }
 
-  if (license?.status === "locked") {
+  if (license?.status === "locked" || license?.status === "first_boot") {
     // Unlock requires an authenticated user with license.manage, so ask for a
     // PIN login first when no session exists yet.
     if (!isAuthenticated) {
@@ -75,8 +75,12 @@ export function LicenseGate({ children }: { children: React.ReactNode }) {
       <div className="flex h-screen items-center justify-center bg-muted/30 p-8">
         <div className="max-w-md w-full space-y-8 text-center">
           <Lock className="mx-auto h-16 w-16 text-amber-500" />
-          <h1 className="text-2xl font-bold">{t("trialExpired")}</h1>
-          <p className="text-muted-foreground text-sm">{t("trialDescription")}</p>
+          <h1 className="text-2xl font-bold">
+            {license.status === "first_boot" ? t("activationRequired") : t("trialExpired")}
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            {license.status === "first_boot" ? t("activationDescription") : t("trialDescription")}
+          </p>
 
           <Dialog open={true} onOpenChange={() => {}}>
             <DialogContent

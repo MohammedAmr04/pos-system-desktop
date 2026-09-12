@@ -76,7 +76,7 @@ export function LineEditDialog({ initial, canPriceOverride, canLineDiscount, onC
               <Input
                 type="number"
                 min="0"
-                step="0.01"
+                step="1"
                 className="text-right text-lg h-12"
                 value={unitPrice}
                 onChange={(e) => setUnitPrice(e.target.value)}
@@ -112,7 +112,7 @@ export function LineEditDialog({ initial, canPriceOverride, canLineDiscount, onC
                 type="number"
                 min="0"
                 max={discountType === 'percentage' ? 100 : undefined}
-                step="0.01"
+                step="1"
                 className="text-right text-lg h-12"
                 value={discountValue}
                 onChange={(e) => setDiscountValue(e.target.value)}

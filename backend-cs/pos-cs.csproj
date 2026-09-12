@@ -37,8 +37,8 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
   <Target Name="CopyNativeSqlite" AfterTargets="Build">
-    <Copy SourceFiles="$(UserProfile)\.nuget\packages\SQLitePCLRaw.lib.e_sqlite3\2.1.10\runtimes\win-x64\native\e_sqlite3.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(UserProfile)\.nuget\packages\SQLitePCLRaw.lib.e_sqlite3\2.1.13\runtimes\win-x64\native\e_sqlite3.dll" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
     <MakeDir Directories="$(OutDir)runtimes\win-x64\native\" />
-    <Copy SourceFiles="$(UserProfile)\.nuget\packages\SQLitePCLRaw.lib.e_sqlite3\2.1.10\runtimes\win-x64\native\e_sqlite3.dll" DestinationFolder="$(OutDir)runtimes\win-x64\native\" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(UserProfile)\.nuget\packages\SQLitePCLRaw.lib.e_sqlite3\2.1.13\runtimes\win-x64\native\e_sqlite3.dll" DestinationFolder="$(OutDir)runtimes\win-x64\native\" SkipUnchangedFiles="true" />
   </Target>
 </Project>

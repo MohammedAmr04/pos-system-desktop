@@ -1,4 +1,5 @@
 using PosCs.Domain.Entities;
+using System;
 
 namespace PosCs.Domain.Rules
 {
@@ -10,7 +11,10 @@ namespace PosCs.Domain.Rules
     {
         public static bool IsLowStock(Product product)
         {
-            return product.LowStockThreshold > 0 && product.StockQuantity <= product.LowStockThreshold;
+            return product != null
+                && string.Equals(product.ProductType ?? "product", "product", StringComparison.OrdinalIgnoreCase)
+                && product.LowStockThreshold > 0
+                && product.StockQuantity <= product.LowStockThreshold;
         }
     }
 }

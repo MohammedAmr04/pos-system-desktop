@@ -41,6 +41,13 @@ yarn-error.log*
 .env*
 !.env.example
 
+# license signing secret
+license.secret
+
+# unrelated local files
+.md
+vitamins.pdf
+
 # vercel
 .vercel
 
@@ -50,3 +57,4 @@ yarn-error.log*
 # release packages (build output)
 /v1.0.0-fixed/
 /v1.0.1/
+/POS-App-v*.zip

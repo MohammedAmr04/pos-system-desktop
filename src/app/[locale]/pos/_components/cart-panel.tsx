@@ -3,14 +3,23 @@
 import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { Ban, Minus, Pencil, Plus, StickyNote, Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import { CartItem, usePOSStore } from "@/store/pos.store"
 import { useAuth } from "@/components/common/auth-context"
 import { FEATURES, PERMISSIONS } from "@/lib/constants"
 import { lineDiscountAmount, lineFinalTotal } from "./utils/pricing"
 import { LineEditDialog, LineEditState } from "./line-edit-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 
 export function CartPanel() {
   const t = useTranslations("POS")
@@ -23,6 +32,7 @@ export function CartPanel() {
   const removeItem = usePOSStore((s) => s.removeItem)
 
   const [editState, setEditState] = useState<LineEditState | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<CartItem | null>(null)
   const totalItems = cartItems.reduce((acc, item) => acc + item.quantity, 0)
 
   const openLineEdit = (item: CartItem) => {
@@ -82,6 +92,13 @@ export function CartPanel() {
                       )}
                       <span className="text-base font-medium">{item.unitPrice.toFixed(2)} {t("currency")} / {item.unitName}</span>
                     </div>
+                    {item.bundleComponents && item.bundleComponents.length > 0 && (
+                      <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                        {item.bundleComponents.map((component, index) => (
+                          <div key={`${component.productId}-${index}`}>{component.quantity} × {component.name}</div>
+                        ))}
+                      </div>
+                    )}
                     {ld > 0 && (
                       <div className="mt-1">
                         <span className="inline-flex items-center rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
@@ -98,12 +115,15 @@ export function CartPanel() {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity - 1)} aria-label={t("decreaseQuantity")}>
+                      <TooltipIconButton label={t("decreaseQuantity")} variant="outline" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
                         <Minus className="h-5 w-5" />
-                      </Button>
+                      </TooltipIconButton>
                       <Input
                         type="number"
+                        inputMode="decimal"
+                        dir="ltr"
                         min={1}
+                        aria-label={t("quantity")}
                         value={item.quantity}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value)
@@ -111,21 +131,21 @@ export function CartPanel() {
                         }}
                         className="w-20 h-12 text-lg text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
-                      <Button variant="outline" size="icon" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity + 1)} aria-label={t("increaseQuantity")}>
+                      <TooltipIconButton label={t("increaseQuantity")} variant="outline" className="h-10 w-10" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
                         <Plus className="h-5 w-5" />
-                      </Button>
+                      </TooltipIconButton>
                     </div>
-                    <div className="w-24 text-right text-lg font-semibold">
+                    <div className="w-24 text-right text-lg font-semibold" dir="ltr">
                       {lineFinalTotal(item).toFixed(2)}
                     </div>
                     {(canPriceOverride || canLineDiscount) && (
-                      <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => openLineEdit(item)} title={t("editLine")} aria-label={t("editLine")}>
+                      <TooltipIconButton label={t("editLine")} className="h-10 w-10" onClick={() => openLineEdit(item)}>
                         <Pencil className="h-5 w-5" />
-                      </Button>
+                      </TooltipIconButton>
                     )}
-                    <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)} className="text-destructive h-10 w-10" aria-label={t("remove")}>
+                    <TooltipIconButton label={t("remove")} className="text-destructive h-10 w-10" onClick={() => setRemoveTarget(item)}>
                       <Trash2 className="h-5 w-5" />
-                    </Button>
+                    </TooltipIconButton>
                   </div>
                 </div>
               )
@@ -142,6 +162,29 @@ export function CartPanel() {
           onClose={() => setEditState(null)}
         />
       )}
+
+      <Dialog open={!!removeTarget} onOpenChange={(open) => { if (!open) setRemoveTarget(null) }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{t("confirmRemoveTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("confirmRemoveDescription", { name: removeTarget?.name ?? "" })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveTarget(null)}>{t("cancel")}</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (removeTarget) removeItem(removeTarget.id)
+                setRemoveTarget(null)
+              }}
+            >
+              {t("confirmRemove")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

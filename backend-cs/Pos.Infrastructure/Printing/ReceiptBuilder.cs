@@ -14,6 +14,13 @@ namespace PosCs.Infrastructure.Printing
         public double Quantity { get; set; }
         public double SalePrice { get; set; }
         public double? FinalTotal { get; set; }
+        public List<ReceiptComponentModel> Components { get; set; } = new List<ReceiptComponentModel>();
+    }
+
+    public class ReceiptComponentModel
+    {
+        public string Name { get; set; }
+        public double Quantity { get; set; }
     }
 
     public class ReceiptInvoiceModel
@@ -37,6 +44,7 @@ namespace PosCs.Infrastructure.Printing
         private readonly Font _headerFont;
         private readonly Font _storeNameFont;
         private readonly Font _totalFont;
+        private readonly Font _smallFont;
         private readonly StringFormat _rtlFormat;
         private readonly StringFormat _centerFormat;
         private readonly StringFormat _ltrFormat;
@@ -55,6 +63,7 @@ namespace PosCs.Infrastructure.Printing
             _headerFont = new Font("Tahoma", 18, FontStyle.Bold);
             _storeNameFont = new Font("Tahoma", 28, FontStyle.Bold);
             _totalFont = new Font("Tahoma", 20, FontStyle.Bold);
+            _smallFont = new Font("Tahoma", 12, FontStyle.Regular);
 
             _rtlFormat = new StringFormat(StringFormatFlags.DirectionRightToLeft)
             {
@@ -100,6 +109,18 @@ namespace PosCs.Infrastructure.Printing
             }
         }
 
+        public void AddStoreInfo(string storeName, string storePhone, string storeAddress, string headerLine)
+        {
+            if (!string.IsNullOrWhiteSpace(storeName))
+                DrawStringCenter(storeName, _storeNameFont);
+            if (!string.IsNullOrWhiteSpace(storePhone))
+                DrawStringCenter(storePhone, _regularFont);
+            if (!string.IsNullOrWhiteSpace(storeAddress))
+                DrawStringCenter(storeAddress, _regularFont);
+            if (!string.IsNullOrWhiteSpace(headerLine))
+                DrawStringCenter(headerLine, _regularFont);
+        }
+
         public void AddHeader(ReceiptInvoiceModel invoice)
         {
           
@@ -123,6 +144,8 @@ namespace PosCs.Infrastructure.Printing
                 string rightText = $"{name} : {item.Quantity}";
 
                 DrawItemLine(rightText, leftText, _regularFont);
+                foreach (var component in item.Components ?? new List<ReceiptComponentModel>())
+                    DrawStringCenter($"  {component.Quantity} × {component.Name}", _smallFont);
             }
             DrawLine();
         }
@@ -149,9 +172,11 @@ namespace PosCs.Infrastructure.Printing
     DrawLine();
 }
 
-        public void AddFooter()
+        public void AddFooter(string footerText = null)
         {
-            DrawStringCenter("شكراً لزيارتكم!", _boldFont);
+            DrawStringCenter(
+                string.IsNullOrWhiteSpace(footerText) ? "شكراً لزيارتكم!" : footerText,
+                _boldFont);
             DrawStringCenter("Software by brazilyy", _regularFont);
             _currentY += 40; // Add extra padding at the bottom for tearing
         }
@@ -212,6 +237,7 @@ namespace PosCs.Infrastructure.Printing
             _regularFont?.Dispose();
             _boldFont?.Dispose();
             _headerFont?.Dispose();
+            _smallFont?.Dispose();
             _rtlFormat?.Dispose();
             _centerFormat?.Dispose();
             _ltrFormat?.Dispose();

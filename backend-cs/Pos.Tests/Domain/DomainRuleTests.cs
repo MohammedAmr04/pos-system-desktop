@@ -228,8 +228,20 @@ namespace PosCs.Tests.Domain
         }
     }
 
-    public class LicenseCodeTests
+    public class LicenseCodeTests : IDisposable
     {
+        private const string TestSecret = "test-license-secret-do-not-use-in-production";
+
+        public LicenseCodeTests()
+        {
+            Environment.SetEnvironmentVariable("POS_LICENSE_SECRET", TestSecret);
+        }
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable("POS_LICENSE_SECRET", null);
+        }
+
         [Fact]
         public void ComputeUnlockCode_IsDeterministicFourDigits()
         {
@@ -254,6 +266,94 @@ namespace PosCs.Tests.Domain
         {
             Assert.False(LicenseCode.IsValidUnlockCode("machine-123", code));
         }
+
+        [Fact]
+        public void ComputeUnlockCode_Throws_WhenSecretIsMissing()
+        {
+            Environment.SetEnvironmentVariable("POS_LICENSE_SECRET", null);
+            Assert.Throws<InvalidOperationException>(() => LicenseCode.ComputeUnlockCode("machine-123"));
+        }
+    }
+
+    public class LicenseTimeGuardTests
+    {
+        [Fact]
+        public void IsClockRollback_ReturnsTrueWhenCurrentDateIsEarlier()
+        {
+            Assert.True(LicenseTimeGuard.IsClockRollback(
+                new DateTime(2026, 9, 12), new DateTime(2026, 9, 11)));
+        }
+
+        [Fact]
+        public void IsClockRollback_ReturnsFalseWhenCurrentDateIsSameOrLater()
+        {
+            Assert.False(LicenseTimeGuard.IsClockRollback(
+                new DateTime(2026, 9, 12), new DateTime(2026, 9, 12)));
+            Assert.False(LicenseTimeGuard.IsClockRollback(
+                new DateTime(2026, 9, 12), new DateTime(2026, 9, 13)));
+        }
+
+        [Fact]
+        public void IsClockRollback_ReturnsFalseForFirstObservation()
+        {
+            Assert.False(LicenseTimeGuard.IsClockRollback(null, new DateTime(2026, 9, 12)));
+        }
+    }
+
+    public class LicenseMachineBindingTests
+    {
+        [Fact]
+        public void IsMatch_AcceptsSameMachineIdIgnoringCaseAndWhitespace()
+        {
+            Assert.True(LicenseMachineBinding.IsMatch(" machine-123 ", "MACHINE-123"));
+        }
+
+        [Fact]
+        public void IsMatch_RejectsDifferentOrMissingMachineId()
+        {
+            Assert.False(LicenseMachineBinding.IsMatch("machine-123", "machine-456"));
+            Assert.False(LicenseMachineBinding.IsMatch(null, "machine-123"));
+            Assert.False(LicenseMachineBinding.IsMatch("machine-123", " "));
+        }
+    }
+
+    public class LicensePolicyTests
+    {
+        [Fact]
+        public void CalculateExpiry_UsesConfiguredTrialDays()
+        {
+            Assert.Equal(new DateTime(2026, 9, 26), LicensePolicy.CalculateExpiry(
+                LicensePolicy.Trial, new DateTime(2026, 9, 12), 14));
+        }
+
+        [Fact]
+        public void CalculateExpiry_UsesCalendarPeriodForMonthlyAndAnnual()
+        {
+            Assert.Equal(new DateTime(2026, 10, 12), LicensePolicy.CalculateExpiry(
+                LicensePolicy.Monthly, new DateTime(2026, 9, 12), 14));
+            Assert.Equal(new DateTime(2027, 9, 12), LicensePolicy.CalculateExpiry(
+                LicensePolicy.Annual, new DateTime(2026, 9, 12), 14));
+        }
+
+        [Fact]
+        public void IsExpired_LeavesPermanentLicenseActive()
+        {
+            Assert.False(LicensePolicy.IsExpired(LicensePolicy.Permanent, null, new DateTime(2099, 1, 1)));
+        }
+
+        [Fact]
+        public void IsExpired_LocksOnExpiryDate()
+        {
+            Assert.True(LicensePolicy.IsExpired(LicensePolicy.Trial,
+                new DateTime(2026, 9, 26), new DateTime(2026, 9, 26)));
+        }
+
+        [Fact]
+        public void Validate_RejectsInvalidTrialDuration()
+        {
+            Assert.Throws<DomainValidationException>(() => LicensePolicy.Validate(
+                LicensePolicy.Trial, 0, new DateTime(2026, 9, 12), new DateTime(2026, 9, 26)));
+        }
     }
 
     public class LowStockPolicyTests
@@ -262,6 +362,30 @@ namespace PosCs.Tests.Domain
         public void ProductsWithoutThresholdAreNeverLow()
         {
             Assert.False(LowStockPolicy.IsLowStock(new Product { LowStockThreshold = 0, StockQuantity = 0 }));
+        }
+
+        [Fact]
+        public void ProductAtOrBelowThresholdIsLowStock()
+        {
+            Assert.True(LowStockPolicy.IsLowStock(new Product
+            {
+                ProductType = "product",
+                LowStockThreshold = 3,
+                StockQuantity = 3
+            }));
+        }
+
+        [Theory]
+        [InlineData("service")]
+        [InlineData("bundle")]
+        public void NonStockProductTypesAreNeverLow(string productType)
+        {
+            Assert.False(LowStockPolicy.IsLowStock(new Product
+            {
+                ProductType = productType,
+                LowStockThreshold = 10,
+                StockQuantity = 0
+            }));
         }
 
         [Theory]

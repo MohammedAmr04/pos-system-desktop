@@ -7,6 +7,7 @@ namespace PosCs
     {
         static void Main(string[] args)
         {
+            EnvironmentFile.Load();
             Console.WriteLine("=== POS C# Backend ===");
             Console.WriteLine($"[API] Data directory: {DbConnectionFactory.DbPath}");
 

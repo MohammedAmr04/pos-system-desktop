@@ -1,4 +1,4 @@
-import { Product, ProductUnit } from "@/lib/api"
+import { Product, ProductUnit } from "@/types/domain/domain.types"
 
 export const findUnitByBarcode = (product: Product, barcode: string): ProductUnit | null => {
   for (const unit of product.units ?? []) {

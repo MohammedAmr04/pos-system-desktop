@@ -1,9 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -16,7 +18,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useTranslations } from "next-intl"
-import { Invoice, InvoiceDetail } from "@/lib/api"
+import { Button } from "@/components/ui/button"
+import { Wallet } from "lucide-react"
+import { Invoice, InvoiceDetail } from "@/types/domain/domain.types"
+import { RecordPaymentDialog } from "@/components/common/record-payment-dialog"
+import { useSaleReturnsPage } from "@/hooks/use-returns"
 
 interface InvoiceDetailsDialogProps {
   open: boolean
@@ -30,9 +36,27 @@ export function InvoiceDetailsDialog({
   invoice,
 }: InvoiceDetailsDialogProps) {
   const t = useTranslations("Invoices")
+  const tr = useTranslations("Returns")
+  const [recordPaymentOpen, setRecordPaymentOpen] = useState(false)
+
+  const isReturned = !!invoice && !!invoice.returnStatus && invoice.returnStatus !== "none"
+  const { data: returnsData } = useSaleReturnsPage(
+    1,
+    100,
+    isReturned ? invoice.id : undefined,
+    { enabled: open && isReturned }
+  )
+  const returns = returnsData?.items ?? []
+
   if (!invoice) return null
 
+  const canRecordPayment = (invoice.status ?? 'posted') === 'posted' && invoice.paymentMethod === 'credit' && !!invoice.client
+
   const details: InvoiceDetail[] = invoice.InvoiceDetail ?? invoice.invoiceDetail ?? []
+  const hasCostData = details.some((d) => d.totalCost != null)
+  const totalCost = details.reduce((sum, d) => sum + (d.totalCost ?? 0), 0)
+  const totalRevenue = details.reduce((sum, d) => sum + (d.finalTotal ?? ((d.unitPrice ?? d.salePrice) * d.quantity - (d.discountAmount || 0))), 0)
+  const totalProfit = totalRevenue - totalCost
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -44,6 +68,10 @@ export function InvoiceDetailsDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto mt-4 pr-2">
+          <div className="mb-2 flex items-center justify-between text-sm text-muted-foreground">
+            <span>{t("employee")}</span>
+            <span className="font-medium text-foreground">{invoice.employee?.name ?? t("unassigned")}</span>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -52,8 +80,13 @@ export function InvoiceDetailsDialog({
                 <TableHead className="text-center">{t("price")}</TableHead>
                 <TableHead className="text-center">{t("discount")}</TableHead>
                 <TableHead className="text-center">{t("itemTotal")}</TableHead>
-              </TableRow>
-            </TableHeader>
+                {hasCostData && (
+                  <>
+                    <TableHead className="text-center">{t("cost")}</TableHead>
+                    <TableHead className="text-center">{t("profit")}</TableHead>
+                  </>
+                )}
+              </TableRow>            </TableHeader>
             <TableBody>
               {details.map((detail: InvoiceDetail) => {
                 const unitPrice = detail.unitPrice ?? detail.salePrice
@@ -65,6 +98,15 @@ export function InvoiceDetailsDialog({
                   <TableRow key={detail.id}>
                     <TableCell className="text-center">
                       <div>{detail.product?.name || t("unknownProduct")}</div>
+                      {detail.bundleComponents && detail.bundleComponents.length > 0 && (
+                        <div className="mt-1 space-y-0.5 text-xs text-muted-foreground text-start">
+                          {detail.bundleComponents.map((component, index) => (
+                            <div key={`${component.productId}-${index}`}>
+                              {component.quantity} × {component.name}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {detail.unitName && (
                         <div className="text-xs text-muted-foreground">({detail.unitName})</div>
                       )}
@@ -89,12 +131,59 @@ export function InvoiceDetailsDialog({
                       {detail.discountAmount > 0 ? `-${detail.discountAmount.toFixed(2)}` : "0.00"}
                     </TableCell>
                     <TableCell className="text-center">{itemTotal.toFixed(2)}</TableCell>
+                    {hasCostData && (
+                      <>
+                        <TableCell className="text-center text-muted-foreground">
+                          {(detail.totalCost ?? 0).toFixed(2)}
+                        </TableCell>
+                        <TableCell className={`text-center font-medium ${(itemTotal - (detail.totalCost ?? 0)) >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                          {(itemTotal - (detail.totalCost ?? 0)).toFixed(2)}
+                        </TableCell>
+                      </>
+                    )}
                   </TableRow>
                 )
               })}
             </TableBody>
           </Table>
-          
+
+          {isReturned && returns.length > 0 && (
+            <div className="mt-6">
+              <h4 className="mb-2 text-sm font-semibold">{tr("returnedItems")}</h4>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-center">{tr("returnNumber")}</TableHead>
+                    <TableHead className="text-center">{t("item")}</TableHead>
+                    <TableHead className="text-center">{t("qty")}</TableHead>
+                    <TableHead className="text-center">{t("price")}</TableHead>
+                    <TableHead className="text-center">{t("itemTotal")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {returns.flatMap((ret) =>
+                    (ret.details ?? []).map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="text-center">#{ret.number}</TableCell>
+                        <TableCell className="text-center">
+                          <div>{d.product?.name || t("unknownProduct")}</div>
+                          {d.unitName && (
+                            <div className="text-xs text-muted-foreground">({d.unitName})</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {d.quantity}{d.unitName ? ` ${d.unitName}` : ""}
+                        </TableCell>
+                        <TableCell className="text-center">{d.unitPrice.toFixed(2)}</TableCell>
+                        <TableCell className="text-center">{d.lineTotal.toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
           <div className="space-y-2 border-t pt-4 mt-4">
             <div className="flex justify-between text-muted-foreground">
               <span>{t("subtotal")}</span>
@@ -108,9 +197,38 @@ export function InvoiceDetailsDialog({
               <span>{t("total")}</span>
               <span>{invoice.totalAmount?.toFixed(2)}</span>
             </div>
+            {hasCostData && (
+              <>
+                <div className="flex justify-between text-muted-foreground border-t pt-2 mt-2">
+                  <span>{t("totalCost")}</span>
+                  <span>{totalCost.toFixed(2)}</span>
+                </div>
+                <div className={`flex justify-between font-bold ${totalProfit >= 0 ? "text-emerald-600" : "text-destructive"}`}>
+                  <span>{t("grossProfit")}</span>
+                  <span>{totalProfit.toFixed(2)}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
+        {canRecordPayment && (
+          <DialogFooter className="mt-4">
+            <Button onClick={() => setRecordPaymentOpen(true)}>
+              <Wallet className="mr-2 h-4 w-4" /> {t("recordPayment")}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
+      {canRecordPayment && (
+        <RecordPaymentDialog
+          kind="client"
+          party={invoice.client ?? null}
+          invoiceId={invoice.id}
+          invoiceLabel={`${t("invoiceNumber")} #${invoice.invoiceNumber}`}
+          open={recordPaymentOpen}
+          onOpenChange={setRecordPaymentOpen}
+        />
+      )}
     </Dialog>
   )
 }

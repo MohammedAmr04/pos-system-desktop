@@ -10,6 +10,7 @@ namespace PosCs.Domain.Entities
         public string Username { get; set; }
         public string PasswordHash { get; set; }
         public bool IsActive { get; set; }
+        public bool MustChangePassword { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

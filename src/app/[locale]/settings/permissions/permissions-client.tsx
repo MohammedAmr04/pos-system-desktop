@@ -1,95 +1,84 @@
 "use client"
 
-import { PermissionInfo, RoleSummary, api } from "@/lib/api"
-import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Loader2, Lock, ShieldCheck } from "lucide-react"
+import { useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
+import { Loader2, Lock, ShieldCheck } from "lucide-react"
+import { setRolePermissions } from "@/actions/roles.actions"
+import { adminKeys, usePermissions, useRolePermissions, useRoles } from "@/hooks/use-admin"
+import { useAuth } from "@/components/common/auth-context"
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { PERMISSION_LABELS, RESOURCE_LABELS } from "@/lib/constants"
-import { useAuth } from "@/components/common/auth-context"
 import { cn } from "@/lib/utils"
-
-interface PermissionsClientProps {
-  roles: RoleSummary[]
-  permissions: PermissionInfo[]
-  loading: boolean
-  onRefresh: () => void
-}
 
 const ADMIN_ROLE_ID = "role-admin"
 
-function groupPermissions(permissions: PermissionInfo[]) {
-  const groups = new Map<string, PermissionInfo[]>()
+export function PermissionsClient() {
+  const t = useTranslations("Permissions")
+  const resolveError = useApiError()
+  const queryClient = useQueryClient()
+  const { refreshAccess } = useAuth()
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
+  // Local edits for the selected role; null = mirror the server data.
+  const [edited, setEdited] = useState<{ roleId: string; perms: string[] } | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const { data: roles = [], isPending: rolesLoading } = useRoles()
+  const { data: permissions = [] } = usePermissions()
+
+  const selectedRole = roles.find((r) => r.id === selectedRoleId) ?? null
+  const isAdmin = selectedRoleId === ADMIN_ROLE_ID
+
+  const { data: currentPerms, isPending: loadingPerms } = useRolePermissions(
+    selectedRoleId ?? "",
+    !!selectedRoleId && !isAdmin
+  )
+
+  const selected = useMemo(() => {
+    if (!selectedRoleId || isAdmin) return []
+    if (edited && edited.roleId === selectedRoleId) return edited.perms
+    return currentPerms?.permissionIds ?? []
+  }, [selectedRoleId, isAdmin, edited, currentPerms])
+
+  const groups = new Map<string, typeof permissions>()
   for (const p of permissions) {
     const list = groups.get(p.resource) ?? []
     list.push(p)
     groups.set(p.resource, list)
   }
-  return Array.from(groups.entries())
-}
-
-export function PermissionsClient({ roles, permissions, loading, onRefresh }: PermissionsClientProps) {
-  const t = useTranslations("Permissions")
-  const { refreshAccess } = useAuth()
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string[]>([])
-  const [loadingPerms, setLoadingPerms] = useState(false)
-  const [saving, setSaving] = useState(false)
-
-  const groups = groupPermissions(permissions)
-  const selectedRole = roles.find((r) => r.id === selectedRoleId) ?? null
-  const isAdmin = selectedRoleId === ADMIN_ROLE_ID
-
-  useEffect(() => {
-    if (!selectedRoleId || isAdmin) return
-    let cancelled = false
-    api.roles
-      .getPermissions(selectedRoleId)
-      .then((res) => {
-        if (cancelled) return
-        setSelected(res.permissionIds)
-      })
-      .catch(() => {
-        if (!cancelled) toast.error(t("loadFailed"))
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingPerms(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [selectedRoleId, isAdmin, t])
 
   const selectRole = (id: string) => {
     setSelectedRoleId(id)
-    setSelected([])
-    setLoadingPerms(id !== ADMIN_ROLE_ID)
+    setEdited(null)
   }
 
   const toggle = (key: string) => {
-    setSelected((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    )
+    if (!selectedRoleId || isAdmin) return
+    const next = selected.includes(key)
+      ? selected.filter((k) => k !== key)
+      : [...selected, key]
+    setEdited({ roleId: selectedRoleId, perms: next })
   }
 
   const handleSave = async () => {
     if (!selectedRoleId || isAdmin) return
     setSaving(true)
     try {
-      await api.roles.setPermissions(selectedRoleId, selected)
+      await setRolePermissions(selectedRoleId, selected)
       await refreshAccess()
       toast.success(t("permissionsUpdated"))
-      onRefresh()
+      await queryClient.invalidateQueries({ queryKey: adminKeys.all() })
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setSaving(false)
     }
   }
 
-  if (loading) {
+  if (rolesLoading) {
     return (
       <div className="flex justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -154,7 +143,7 @@ export function PermissionsClient({ roles, permissions, loading, onRefresh }: Pe
                   <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
               ) : (
-                groups.map(([resource, perms]) => (
+                Array.from(groups.entries()).map(([resource, perms]) => (
                   <div key={resource} className={cn(isAdmin && "pointer-events-none opacity-60")}>
                     <h4 className="mb-2 text-sm font-semibold">
                       {RESOURCE_LABELS[resource] ?? resource}

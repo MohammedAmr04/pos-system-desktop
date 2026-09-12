@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { Product, ProductUnit, PriceMode } from '@/lib/api'
+import { Product, ProductUnit, PriceMode, PaymentMethod, BundleComponent } from '@/types/domain/domain.types'
 
 export interface CartItem {
   id: string
@@ -20,6 +20,15 @@ export interface CartItem {
   discountValue?: number
   overridden: boolean
   priceEditNote?: string
+  productType?: 'product' | 'service' | 'bundle'
+  bundleComponents?: Array<{
+    productId: string
+    name: string
+    quantity: number
+    buyPrice: number
+    serviceCost: number
+    productType: 'product' | 'service' | 'bundle'
+  }>
 }
 
 export const priceFor = (unit: ProductUnit, mode: PriceMode): number => {
@@ -33,6 +42,15 @@ interface POSStore {
   discountType: 'fixed' | 'percentage'
   priceMode: PriceMode
   searchQuery: string
+  clientId: string | null
+  employeeId: string | null
+  paymentMethod: PaymentMethod
+  /** Set while the cart mirrors a saved draft invoice (plan Phase 6). */
+  draftId: string | null
+  setClient: (clientId: string | null) => void
+  setEmployee: (employeeId: string | null) => void
+  setPaymentMethod: (method: PaymentMethod) => void
+  loadDraft: (draft: { id: string; clientId: string | null; employeeId: string | null; paymentMethod: string; discount: number; discountType?: 'fixed' | 'percentage'; priceMode?: PriceMode; items: CartItem[] }) => void
   setSearchQuery: (query: string) => void
   setPriceMode: (mode: PriceMode) => void
   togglePriceMode: () => void
@@ -54,6 +72,33 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   discountType: 'fixed',
   priceMode: 'retail',
   searchQuery: '',
+  clientId: null,
+  employeeId: null,
+  paymentMethod: 'cash',
+  draftId: null,
+
+  setClient: (clientId) => set({ clientId }),
+
+  setEmployee: (employeeId) => set({ employeeId }),
+
+  setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
+
+  loadDraft: (draft) => set((state) => {
+    const methods: PaymentMethod[] = ['cash', 'credit', 'card', 'bank_transfer']
+    const paymentMethod = methods.includes(draft.paymentMethod as PaymentMethod)
+      ? (draft.paymentMethod as PaymentMethod)
+      : 'cash'
+    return {
+      draftId: draft.id,
+      clientId: draft.clientId,
+      employeeId: draft.employeeId,
+      paymentMethod,
+      discount: draft.discount,
+      discountType: draft.discountType ?? state.discountType,
+      priceMode: draft.priceMode ?? state.priceMode,
+      cartItems: draft.items,
+    }
+  }),
 
   setSearchQuery: (query) => set({ searchQuery: query }),
 
@@ -81,8 +126,13 @@ export const usePOSStore = create<POSStore>((set, get) => ({
 
   addItem: (product, unit) => {
     const { cartItems, priceMode } = get()
-    const unitMaxStock = unit.quantityFactor > 0 ? product.stockQuantity / unit.quantityFactor : 0
-    if (unitMaxStock <= 0) return 'out'
+    const available = product.productType === 'service'
+      ? 999999
+      : product.productType === 'bundle'
+        ? (product.availableQuantity ?? 0)
+        : product.stockQuantity
+    const unitMaxStock = unit.quantityFactor > 0 ? available / unit.quantityFactor : 0
+    if (product.productType !== 'service' && unitMaxStock <= 0) return 'out'
     const existing = cartItems.find(
       (item) => item.productId === product.id && item.productUnitId === unit.id
     )
@@ -117,6 +167,15 @@ export const usePOSStore = create<POSStore>((set, get) => ({
           discountType: null,
           discountValue: 0,
           overridden: false,
+          productType: product.productType,
+          bundleComponents: product.bundleComponents?.map((component: BundleComponent) => ({
+            productId: component.componentProductId,
+            name: component.product?.name ?? '',
+            quantity: component.quantity,
+            buyPrice: component.product?.buyPrice ?? 0,
+            serviceCost: component.product?.serviceCost ?? 0,
+            productType: component.product?.productType ?? 'product',
+          })),
         },
       ],
     })
@@ -168,5 +227,14 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     discountType: state.discountType === 'fixed' ? 'percentage' : 'fixed'
   })),
 
-  clearCart: () => set({ cartItems: [], discount: 0, discountType: 'fixed', searchQuery: '' }),
+  clearCart: () => set({
+    cartItems: [],
+    discount: 0,
+    discountType: 'fixed',
+    searchQuery: '',
+    clientId: null,
+    employeeId: null,
+    paymentMethod: 'cash',
+    draftId: null,
+  }),
 }))

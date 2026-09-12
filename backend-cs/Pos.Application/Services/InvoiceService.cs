@@ -10,7 +10,8 @@ using PosCs.Domain.Rules;
 
 namespace PosCs.Application.Services
 {
-    /// <summary>Sales use cases: checkout with pricing rules, discounts, stock decrement and queries.</summary>
+    /// <summary>Sales use cases: checkout with pricing rules, discounts, lifecycle management
+    /// (draft/posted/cancelled — plan Phase 6) and queries.</summary>
     public class InvoiceService
     {
         private readonly IInvoiceRepository _invoices;
@@ -18,18 +19,71 @@ namespace PosCs.Application.Services
         private readonly IProductUnitRepository _units;
         private readonly IAccessControl _access;
         private readonly IClock _clock;
+        private readonly IClientRepository _clients;
+        private readonly IEmployeeRepository _employees;
+        private readonly IPaymentRepository _payments;
 
         public InvoiceService(IInvoiceRepository invoices, IProductRepository products,
-            IProductUnitRepository units, IAccessControl access, IClock clock)
+            IProductUnitRepository units, IAccessControl access, IClock clock, IClientRepository clients,
+            IEmployeeRepository employees, IPaymentRepository payments)
         {
             _invoices = invoices;
             _products = products;
             _units = units;
             _access = access;
             _clock = clock;
+            _clients = clients;
+            _employees = employees;
+            _payments = payments;
+        }
+
+        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize)
+        {
+            if (pageSize > 100) pageSize = 100;
+            if (page < 1) page = 1;
+            return WithPaid(_invoices.GetPaged(from, to, query, status, page, pageSize));
+        }
+
+        public Invoice Post(string id)
+        {
+            var invoice = _invoices.GetById(id);
+            if (invoice == null)
+                throw new NotFoundException("Invoice not found");
+            if (invoice.Status != "draft")
+                throw new DomainValidationException("Only draft invoices can be posted");
+            return _invoices.Post(id);
+        }
+
+        public Invoice Cancel(string id)
+        {
+            var invoice = _invoices.GetById(id);
+            if (invoice == null)
+                throw new NotFoundException("Invoice not found");
+            return _invoices.Cancel(id);
+        }
+
+        /// <summary>Draft-only edit; recomputes pricing exactly like creation.</summary>
+        public Invoice UpdateDraft(string id, CreateInvoiceRequest dto, string userId)
+        {
+            var existing = _invoices.GetById(id);
+            if (existing == null)
+                throw new NotFoundException("Invoice not found");
+            if (existing.Status != "draft")
+                throw new DomainValidationException("Only draft invoices can be edited");
+
+            var built = BuildInvoice(dto, userId);
+            built.Item1.Id = id;
+            return _invoices.Update(id, built.Item1, built.Item2);
         }
 
         public Invoice Create(CreateInvoiceRequest dto, string userId)
+        {
+            var built = BuildInvoice(dto, userId);
+            return _invoices.Create(built.Item1, built.Item2);
+        }
+
+        /// <summary>Shared pricing/validation pipeline for create and draft-edit (plan Phase 6).</summary>
+        private Tuple<Invoice, List<InvoiceDetail>> BuildInvoice(CreateInvoiceRequest dto, string userId)
         {
             if (dto?.Items == null || dto.Items.Count == 0)
                 throw new DomainValidationException("No items provided");
@@ -91,6 +145,26 @@ namespace PosCs.Application.Services
                 var lineSubtotal = InvoicePricing.Round2(unitPrice * item.Quantity);
                 var lineFinal = InvoicePricing.Round2(lineSubtotal - lineDiscountAmount);
 
+                var bundleComponents = product.ProductType == "bundle"
+                    ? product.BundleComponents.Select(c => new InvoiceBundleComponent
+                    {
+                        ProductId = c.ComponentProductId,
+                        Name = c.Product?.Name,
+                        Quantity = c.Quantity,
+                        BuyPrice = c.Product?.BuyPrice ?? 0,
+                        ServiceCost = c.Product?.ServiceCost ?? 0,
+                        ProductType = c.Product?.ProductType ?? "product"
+                    }).ToList()
+                    : new List<InvoiceBundleComponent>();
+                var costPerUnit = product.ProductType == "service"
+                    ? product.ServiceCost
+                    : product.ProductType == "bundle"
+                        ? bundleComponents.Sum(c => (c.ProductType == "service" ? c.ServiceCost : c.BuyPrice) * c.Quantity)
+                        : product.BuyPrice;
+                var totalCost = product.ProductType == "product"
+                    ? (double?)null
+                    : Math.Round(costPerUnit * item.Quantity, 2);
+
                 string priceEditNote = null;
                 if (unitPrice != originalPrice && !string.IsNullOrWhiteSpace(item.PriceEditNote))
                     priceEditNote = item.PriceEditNote.Trim();
@@ -101,7 +175,7 @@ namespace PosCs.Application.Services
                     ProductUnitId = unit.Id,
                     UnitName = unit.UnitName,
                     Quantity = item.Quantity,
-                    BuyPrice = product.BuyPrice,
+                    BuyPrice = costPerUnit,
                     OriginalUnitPrice = Math.Round(originalPrice, 2),
                     UnitPrice = Math.Round(unitPrice, 2),
                     DiscountType = lineDiscountType,
@@ -111,7 +185,9 @@ namespace PosCs.Application.Services
                     FinalTotal = lineFinal,
                     QuantityFactor = unit.QuantityFactor,
                     PriceEditNote = priceEditNote,
-                    Product = product
+                    Product = product,
+                    BundleComponents = bundleComponents,
+                    TotalCost = totalCost
                 });
                 lineFinals.Add(item.AllowDiscount ? lineFinal : 0);
             }
@@ -155,15 +231,57 @@ namespace PosCs.Application.Services
 
             var totalAmount = InvoicePricing.FinalizeLines(lineDetails, shares);
 
-            return _invoices.Create(new Invoice
+            var paymentMethod = (dto.PaymentMethod ?? "").ToLowerInvariant();
+            if (paymentMethod != "credit" && paymentMethod != "card" && paymentMethod != "bank_transfer")
+                paymentMethod = "cash";
+            var clientId = string.IsNullOrWhiteSpace(dto.ClientId) ? null : dto.ClientId.Trim();
+            if (paymentMethod == "credit")
+                ValidateCreditClient(clientId);
+            var employeeId = string.IsNullOrWhiteSpace(dto.EmployeeId) ? null : dto.EmployeeId.Trim();
+            if (employeeId != null)
+                ValidateEmployee(employeeId);
+
+            var status = dto.Status == "draft" ? "draft" : "posted";
+
+            var invoice = new Invoice
             {
                 TotalAmount = totalAmount,
                 Discount = invoiceDiscountAmount,
                 DiscountType = discountType,
                 DiscountValue = discountValue,
                 DiscountAmount = invoiceDiscountAmount,
-                PriceMode = priceMode
-            }, lineDetails);
+                PriceMode = priceMode,
+                Status = status,
+                PaymentMethod = paymentMethod,
+                ClientId = clientId,
+                EmployeeId = employeeId,
+                CreatedBy = userId
+            };
+
+            return Tuple.Create(invoice, lineDetails);
+        }
+
+        /// <summary>Salesperson attribution must reference an existing, active employee.
+        /// Posted invoices are immutable (only drafts pass through BuildInvoice).</summary>
+        private void ValidateEmployee(string employeeId)
+        {
+            var employee = _employees.GetById(employeeId);
+            if (employee == null)
+                throw new NotFoundException("Employee not found");
+            if (!employee.IsActive)
+                throw new DomainValidationException("Employee is inactive");
+        }
+
+        /// <summary>Credit sales must answer "who owes us?" — client required and active (spec §21).</summary>
+        private void ValidateCreditClient(string clientId)
+        {
+            if (string.IsNullOrEmpty(clientId))
+                throw new DomainValidationException("Credit sales require a client");
+            var client = _clients.GetById(clientId);
+            if (client == null)
+                throw new NotFoundException("Client not found");
+            if (!client.IsActive)
+                throw new DomainValidationException("Client is inactive");
         }
 
         public List<Invoice> GetToday()
@@ -174,16 +292,62 @@ namespace PosCs.Application.Services
 
         public List<Invoice> GetFiltered(string from, string to)
         {
-            ResolveRange(from, to, out var fromDate, out var toDate);
+            ResolveRange(from, to, false, out var fromDate, out var toDate);
             return _invoices.GetRange(fromDate, toDate);
         }
 
-        public InvoicePageResult GetPaged(int page, int pageSize, string from, string to, string q)
+        public InvoicePageResult GetPaged(int page, int pageSize, string from, string to, string q, string status = null, string range = null, string employeeId = null)
         {
             page = Math.Max(1, page);
             pageSize = Math.Max(1, Math.Min(pageSize, 100));
-            ResolveRange(from, to, out var fromDate, out var toDate);
-            return _invoices.GetPaged(fromDate, toDate, q, page, pageSize);
+            ResolveRange(from, to, range == "all", out var fromDate, out var toDate);
+            return WithAllocatedPaid(_invoices.GetPaged(fromDate, toDate, q, status, page, pageSize, employeeId));
+        }
+
+        /// <summary>Attaches invoice-linked payment totals for payment-status badges.</summary>
+        private InvoicePageResult WithPaid(InvoicePageResult result)
+        {
+            result.PaidByInvoice = _payments.SumGroupedByInvoice(result.Items.Select(i => i.Id));
+            return result;
+        }
+
+        /// <summary>
+        /// Badge math for the invoices list: invoice-linked payments plus each client's
+        /// general pool distributed oldest-first — the same display math as the
+        /// statement pages, so a client who paid in full shows paid everywhere.
+        /// Drafts/cancelled keep linked-only values (no debt to allocate against).
+        /// </summary>
+        private InvoicePageResult WithAllocatedPaid(InvoicePageResult result)
+        {
+            var paid = _payments.SumGroupedByInvoice(result.Items.Select(i => i.Id));
+            var clientIds = result.Items
+                .Where(i => !string.IsNullOrEmpty(i.ClientId))
+                .Select(i => i.ClientId)
+                .Distinct()
+                .ToList();
+            foreach (var clientId in clientIds)
+            {
+                var full = _invoices.ListPostedByClient(clientId);
+                var linked = _payments.SumGroupedByInvoice(full.Select(i => i.Id));
+                var pool = _payments.SumUnlinkedByClient(clientId);
+                var allocated = PaymentAllocation.Allocate(
+                    full.Select(i => new AllocationInput
+                    {
+                        Id = i.Id,
+                        Total = i.TotalAmount,
+                        LinkedPaid = linked.ContainsKey(i.Id) ? linked[i.Id] : 0
+                    }),
+                    pool);
+                foreach (var entry in allocated)
+                    paid[entry.Key] = entry.Value;
+            }
+            foreach (var item in result.Items)
+            {
+                if (!paid.ContainsKey(item.Id))
+                    paid[item.Id] = 0;
+            }
+            result.PaidByInvoice = paid;
+            return result;
         }
 
         public Invoice GetById(string id)
@@ -194,7 +358,7 @@ namespace PosCs.Application.Services
             return invoice;
         }
 
-        private void ResolveRange(string from, string to, out DateTime? fromDate, out DateTime? toDate)
+        private void ResolveRange(string from, string to, bool isAllRange, out DateTime? fromDate, out DateTime? toDate)
         {
             fromDate = null;
             toDate = null;
@@ -205,7 +369,7 @@ namespace PosCs.Application.Services
             if (!string.IsNullOrEmpty(to))
                 toDate = DateTime.Parse(to).Date.AddDays(1).AddSeconds(-1);
 
-            if (!fromDate.HasValue && !toDate.HasValue)
+            if (!isAllRange && !fromDate.HasValue && !toDate.HasValue)
             {
                 fromDate = _clock.Today;
                 toDate = _clock.Today.AddDays(1).AddSeconds(-1);

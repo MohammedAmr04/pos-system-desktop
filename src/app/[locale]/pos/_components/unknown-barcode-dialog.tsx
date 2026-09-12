@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Product } from "@/lib/api"
+import { Product } from "@/types/domain/domain.types"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
 import {

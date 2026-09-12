@@ -11,6 +11,7 @@ namespace PosCs.Application.Ports
         User Create(string tenantId, string name, string username, string passwordHash);
         bool Update(string userId, string name, string username, bool isActive);
         bool UpdatePassword(string userId, string passwordHash);
+        bool ChangePassword(string userId, string passwordHash);
     }
 
     public interface IRolesRepository
@@ -46,5 +47,8 @@ namespace PosCs.Application.Ports
         Settings GetFirst();
         Settings Create(string machineId, bool unlocked = false);
         void Upsert(string machineId, bool unlocked);
+        void RecordLastSeenDate(string machineId, System.DateTime date);
+        void SaveLicenseConfiguration(string machineId, string licenseType, int trialDays,
+            System.DateTime startedAt, System.DateTime? expiresAt);
     }
 }

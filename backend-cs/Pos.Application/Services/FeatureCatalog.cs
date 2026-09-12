@@ -19,7 +19,9 @@ namespace PosCs.Application.Services
             "price_override",
             "low_stock_report",
             "receipt_printing",
-            "barcode_printing"
+            "barcode_printing",
+            "categories",
+            "brands"
         };
 
         public static bool IsKnown(string key)

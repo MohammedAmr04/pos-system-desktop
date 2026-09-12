@@ -30,6 +30,13 @@ namespace PosCs.Application.Ports
         public double Quantity { get; set; }
         public double SalePrice { get; set; }
         public double? FinalTotal { get; set; }
+        public List<ReceiptComponent> Components { get; set; } = new List<ReceiptComponent>();
+    }
+
+    public sealed class ReceiptComponent
+    {
+        public string Name { get; set; }
+        public double Quantity { get; set; }
     }
 
     /// <summary>Renders the Arabic receipt as an image and sends it to the thermal printer.</summary>

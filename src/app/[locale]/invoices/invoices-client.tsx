@@ -1,69 +1,78 @@
 "use client"
 
-import { api, Invoice } from "@/lib/api"
 import { useEffect, useState } from "react"
-import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
-import { Button } from "@/components/ui/button"
-import { Eye, Loader2 } from "lucide-react"
-import {
-  ColumnDef,
-  SortingState,
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useTranslations } from "next-intl"
-import { DatePicker } from "@/components/ui/date-picker"
-import { InvoiceDetailsDialog } from "@/components/common/invoice-details-dialog"
+import { useApiError } from "@/lib/api-error"
+import { toast } from "sonner"
+import { Eye, Pencil, Upload, CircleX, Undo2 } from "lucide-react"
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns"
+import { Invoice } from "@/types/domain/domain.types"
+import { useInvoicesPage, useInvoice } from "@/hooks/use-invoices"
+import { useActiveEmployees } from "@/hooks/use-employees"
+import { postInvoice, cancelInvoice } from "@/actions/invoices.lifecycle.actions"
+import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
+import { useRouter } from "@/i18n/navigation"
+import { useAuth } from "@/components/common/auth-context"
+import { PERMISSIONS } from "@/lib/constants"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns"
+import { DatePicker } from "@/components/ui/date-picker"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { TableColumn, TableBuilder } from "@/components/common/table-builder"
+import { DataPagination } from "@/components/common/data-pagination"
+import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
+import { InvoiceDetailsDialog } from "@/components/common/invoice-details-dialog"
 
-interface InvoicesClientProps {
-  items: Invoice[]
-  total: number
-  page: number
-  pageSize: number
-  loading: boolean
-  totals: { revenue: number; discounts: number }
-  query: string
-  fromDate?: Date
-  toDate?: Date
-  onQueryChange: (query: string) => void
-  onDateChange: (from?: Date, to?: Date) => void
-  onPageChange: (page: number) => void
+const PAGE_SIZE = 20
+
+function StatusBadge({ status, t }: { status?: string; t: (key: string) => string }) {
+  const key = status === 'draft' ? 'draft' : status === 'cancelled' ? 'cancelled' : 'posted'
+  const cls =
+    key === 'posted'
+      ? "bg-emerald-500/10 text-emerald-600"
+      : key === 'cancelled'
+        ? "bg-destructive/10 text-destructive"
+        : "bg-amber-500/10 text-amber-600"
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+      {t(key)}
+    </span>
+  )
 }
 
-export function InvoicesClient({
-  items,
-  total,
-  page,
-  pageSize,
-  loading,
-  totals,
-  query,
-  fromDate,
-  toDate,
-  onQueryChange,
-  onDateChange,
-  onPageChange,
-}: InvoicesClientProps) {
+type QuickFilter = "today" | "thisWeek" | "thisMonth" | "all"
+
+export function InvoicesClient() {
   const t = useTranslations("Invoices")
   const tc = useTranslations("Common")
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [searchInput, setSearchInput] = useState(query)
-  const debouncedQueryChange = useDebouncedCallback(onQueryChange, 300)
+  const tp = useTranslations("Payments")
+  const resolveError = useApiError()
+  const router = useRouter()
+  const { hasPermission } = useAuth()
+  const canCreateReturns = hasPermission(PERMISSIONS.INVOICES_RETURN)
+
+  const [page, setPage] = useState(1)
+  const [searchInput, setSearchInput] = useState("")
+  const [query, setQuery] = useState("")
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined)
+  const [toDate, setToDate] = useState<Date | undefined>(undefined)
+  const [allRange, setAllRange] = useState(false)
+  const [status, setStatus] = useState("all")
+  const [employeeId, setEmployeeId] = useState("all")
+  const canViewEmployees = hasPermission(PERMISSIONS.EMPLOYEES_VIEW)
+  const { data: allEmployees = [] } = useActiveEmployees()
+
+  const debouncedQueryChange = useDebouncedCallback((value: string) => {
+    setQuery(value)
+    setPage(1)
+  }, 300)
 
   useEffect(() => {
     const value = searchInput.trim()
@@ -71,103 +80,211 @@ export function InvoicesClient({
     debouncedQueryChange(value)
   }, [debouncedQueryChange, query, searchInput])
 
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const filter = {
+    from: fromDate ? format(fromDate, "yyyy-MM-dd") : undefined,
+    to: toDate ? format(toDate, "yyyy-MM-dd") : undefined,
+    q: query.trim() || undefined,
+    range: allRange ? "all" as const : undefined,
+    status,
+    employeeId: canViewEmployees ? employeeId : "all",
+  }
 
-  const handleView = async (invoice: Invoice) => {
+  const { data, isPending } = useInvoicesPage(page, PAGE_SIZE, filter)
+  const items = data?.items ?? []
+  const total = data?.total ?? 0
+  const totals = data?.totals ?? { revenue: 0, discounts: 0 }
+  const paidByInvoice = data?.paidByInvoice ?? {}
+
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { data: fullInvoice } = useInvoice(selectedId ?? "", !!selectedId)
+
+  const handlePost = async (invoice: Invoice) => {
+    if (!window.confirm(t("confirmPost"))) return
     try {
-      const full = await api.invoices.get(invoice.id)
-      setSelectedInvoice(full)
-      setIsDialogOpen(true)
-    } catch {
-      // ignore
+      await postInvoice(invoice.id)
+      toast.success(t("postedDone"))
+    } catch (e) {
+      toast.error(resolveError(e) || t("saveFailed"))
     }
   }
 
-  const columns: ColumnDef<Invoice>[] = [
-    {
-      accessorKey: "invoiceNumber",
-      header: t("invoiceNumber"),
-    },
-    {
-      accessorKey: "createdAt",
-      header: t("time"),
-      cell: ({ row }) => new Date(row.original.createdAt).toLocaleTimeString(),
-    },
-    {
-      accessorKey: "totalAmount",
-      header: t("total"),
-      cell: ({ row }) => `${row.original.totalAmount.toFixed(2)}`,
-    },
-    {
-      accessorKey: "discount",
-      header: t("discount"),
-      cell: ({ row }) => {
-        const inv = row.original
-        const type = inv.discountType === 'percentage' ? '%' : inv.discountType === 'fixed' ? '' : ''
-        return `${inv.discount.toFixed(2)}${type}`
-      }
+  const handleCancelInvoice = async (invoice: Invoice) => {
+    if (!window.confirm(t("confirmCancel"))) return
+    try {
+      await cancelInvoice(invoice.id)
+      toast.success(t("cancelledDone"))
+    } catch (e) {
+      toast.error(resolveError(e) || t("saveFailed"))
+    }
+  }
 
+  const columns: TableColumn<Invoice>[] = [
+    {
+      key: "invoiceNumber",
+      header: t("invoiceNumber"),
+      cell: (inv) => inv.invoiceNumber,
     },
     {
-      id: "actions",
+      key: "createdAt",
+      header: t("time"),
+      cell: (inv) => new Date(inv.createdAt).toLocaleTimeString(),
+    },
+    {
+      key: "status",
+      header: t("status"),
+      cell: (inv) => {
+        const rs = inv.returnStatus
+        return (
+          <div className="flex items-center gap-1">
+            <StatusBadge status={inv.status} t={t} />
+            {(rs === 'partial' || rs === 'full') && (
+              <span className="inline-flex items-center rounded-full bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-600">
+                {t(rs === 'full' ? "fullyReturned" : "partiallyReturned")}
+              </span>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: "client",
+      header: <span className="block text-center">{t("client")}</span>,
+      className: "text-center",
+      cell: (inv) => inv.client?.name || t("walkIn"),
+    },
+    {
+      key: "employee",
+      header: <span className="block text-center">{t("employee")}</span>,
+      className: "text-center",
+      cell: (inv) => inv.employee?.name || t("unassigned"),
+    },
+    {
+      key: "paymentMethod",
+      header: <span className="block text-center">{t("payment")}</span>,
+      className: "text-center",
+      cell: (inv) => {
+        const m = inv.paymentMethod
+        const label =
+          m === 'credit' ? t("credit")
+            : m === 'card' ? tp("methodCard")
+              : m === 'bank_transfer' ? tp("methodBankTransfer")
+                : tp("methodCash")
+        const cls =
+          m === 'credit'
+            ? "bg-sky-500/10 text-sky-600"
+            : "bg-slate-500/10 text-slate-600"
+        return (
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+            {label}
+          </span>
+        )
+      },
+    },
+    {
+      key: "totalAmount",
+      header: t("total"),
+      cell: (inv) => inv.totalAmount.toFixed(2),
+    },
+    {
+      key: "paymentStatus",
+      header: <span className="block text-center">{t("paymentStatus")}</span>,
+      className: "text-center",
+      cell: (inv) => {
+        const paid = paidByInvoice[inv.id] ?? 0
+        let key: "paid" | "partially_paid" | "unpaid" = "unpaid"
+        if (paid >= inv.totalAmount - 0.005) key = "paid"
+        else if (paid > 0.005) key = "partially_paid"
+        const cls =
+          key === "paid"
+            ? "bg-emerald-500/10 text-emerald-600"
+            : key === "partially_paid"
+              ? "bg-amber-500/10 text-amber-600"
+              : "bg-slate-500/10 text-slate-600"
+        return (
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+            {tp(`paymentStatus.${key}`)}
+          </span>
+        )
+      },
+    },
+    {
+      key: "discount",
+      header: t("discount"),
+      cell: (inv) => {
+        const type = inv.discountType === 'percentage' ? '%' : ''
+        return `${inv.discount.toFixed(2)}${type}`
+      },
+    },
+    {
+      key: "actions",
       header: t("actions"),
-      cell: ({ row }) => (
-        <Button variant="ghost" size="icon" onClick={() => handleView(row.original)}>
-          <Eye className="h-4 w-4" />
-        </Button>
-      ),
+      headClassName: "w-44",
+      cell: (inv) => {
+        const s = inv.status ?? 'posted'
+        return (
+          <div className="flex items-center gap-1">
+            <TooltipIconButton label={t("details")} onClick={() => setSelectedId(inv.id)}>
+              <Eye className="h-4 w-4" />
+            </TooltipIconButton>
+            {s === 'draft' && (
+              <>
+                <TooltipIconButton
+                  label={t("resumeDraft")}
+                  onClick={() => router.push(`/pos/?draft=${inv.id}`)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </TooltipIconButton>
+                <TooltipIconButton label={t("post")} onClick={() => handlePost(inv)}>
+                  <Upload className="h-4 w-4" />
+                </TooltipIconButton>
+              </>
+            )}
+            {s === 'posted' && canCreateReturns && (
+              <TooltipIconButton
+                label={t("makeReturn")}
+                onClick={() => router.push(`/returns/?invoice=${inv.id}`)}
+              >
+                <Undo2 className="h-4 w-4" />
+              </TooltipIconButton>
+            )}
+            {s === 'posted' && (
+              <TooltipIconButton label={tp("cancel")} onClick={() => handleCancelInvoice(inv)}>
+                <CircleX className="h-4 w-4" />
+              </TooltipIconButton>
+            )}
+          </div>
+        )
+      },
     },
   ]
 
-  const table = useReactTable({
-    data: items,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
-    manualPagination: true,
-    pageCount,
-    state: {
-      sorting,
-      pagination: { pageIndex: page - 1, pageSize },
-    },
-    onPaginationChange: (updater) => {
-      const next =
-        typeof updater === "function"
-          ? updater({ pageIndex: page - 1, pageSize })
-          : updater
-      onPageChange(next.pageIndex + 1)
-    },
-  })
-
-  const handleFromChange = (date: Date | undefined) => {
-    onDateChange(date, toDate)
+  const handleDateChange = (from?: Date, to?: Date, range?: "all") => {
+    setFromDate(from)
+    setToDate(to)
+    setAllRange(range === "all")
+    setPage(1)
   }
 
-  const handleToChange = (date: Date | undefined) => {
-    onDateChange(fromDate, date)
-  }
-
-  const quickFilter = (preset: "today" | "thisWeek" | "thisMonth" | "all") => {
+  const quickFilter = (preset: QuickFilter) => {
     const now = new Date()
     switch (preset) {
       case "today":
-        onDateChange(now, undefined)
+        handleDateChange(now, undefined)
         break
       case "thisWeek": {
         const weekStart = startOfWeek(now, { weekStartsOn: 6 })
         const weekEnd = endOfWeek(now, { weekStartsOn: 6 })
-        onDateChange(weekStart, weekEnd)
+        handleDateChange(weekStart, weekEnd)
         break
       }
       case "thisMonth": {
         const monthStart = startOfMonth(now)
         const monthEnd = endOfMonth(now)
-        onDateChange(monthStart, monthEnd)
+        handleDateChange(monthStart, monthEnd)
         break
       }
       case "all":
-        onDateChange(undefined, undefined)
+        handleDateChange(undefined, undefined, "all")
         break
     }
   }
@@ -183,15 +300,63 @@ export function InvoicesClient({
         />
         <DatePicker
           value={fromDate}
-          onChange={handleFromChange}
+          onChange={(date) => handleDateChange(date, toDate)}
           placeholder={t("fromDate")}
         />
         <span className="text-muted-foreground text-sm">-</span>
         <DatePicker
           value={toDate}
-          onChange={handleToChange}
+          onChange={(date) => handleDateChange(fromDate, date)}
           placeholder={t("toDate")}
         />
+        <Select
+          value={status}
+          onValueChange={(v) => {
+            if (v == null) return
+            setStatus(v)
+            setPage(1)
+          }}
+          items={{
+            all: t("statusAll"),
+            draft: t("draft"),
+            posted: t("posted"),
+            cancelled: t("cancelled"),
+          }}
+        >
+          <SelectTrigger aria-label={t("status")} className="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("statusAll")}</SelectItem>
+            <SelectItem value="draft">{t("draft")}</SelectItem>
+            <SelectItem value="posted">{t("posted")}</SelectItem>
+            <SelectItem value="cancelled">{t("cancelled")}</SelectItem>
+          </SelectContent>
+        </Select>
+        {canViewEmployees && (
+          <Select
+            value={employeeId}
+            onValueChange={(v) => {
+              if (v == null) return
+              setEmployeeId(v)
+              setPage(1)
+            }}
+            items={{
+              all: t("employeeAll"),
+              ...Object.fromEntries(allEmployees.filter((e) => e.isActive).map((e) => [e.id, e.name])),
+            }}
+          >
+            <SelectTrigger aria-label={t("employee")} className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("employeeAll")}</SelectItem>
+              {allEmployees.filter((e) => e.isActive).map((e) => (
+                <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="flex gap-2 mr-auto">
           <Button variant="outline" size="sm" onClick={() => quickFilter("today")}>
             {t("today")}
@@ -227,83 +392,22 @@ export function InvoicesClient({
         </Card>
       </div>
 
-      <div className="rounded-md border bg-card">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-                </TableCell>
-              </TableRow>
-            ) : table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  {tc("noResults")}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <TableBuilder
+        columns={columns}
+        data={items}
+        rowKey={(inv) => inv.id}
+        loading={isPending}
+        emptyMessage={tc("noResults")}
+      />
 
-      <div className="flex items-center justify-between py-4">
-        <span className="text-sm text-muted-foreground">
-          {t("invoicesCount", { count: total })}
-        </span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onPageChange(page - 1)}
-            disabled={page <= 1}
-          >
-            {tc("previous")}
-          </Button>
-          <span className="text-sm text-muted-foreground whitespace-nowrap">
-            {t("pageInfo", { page, pageCount })}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onPageChange(page + 1)}
-            disabled={page >= pageCount}
-          >
-            {tc("next")}
-          </Button>
-        </div>
-      </div>
+      <DataPagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
 
       <InvoiceDetailsDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        invoice={selectedInvoice}
+        open={!!selectedId && !!fullInvoice}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null)
+        }}
+        invoice={fullInvoice ?? null}
       />
     </>
   )

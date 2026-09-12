@@ -1,26 +1,34 @@
 @echo off
-title POS Desktop Application - Version 8
+title POS Desktop Application - v2
 cd /d "%~dp0"
 
-echo =============================================
-echo POS Desktop Application - Version 8
-echo =============================================
-echo.
+set "SERVER_PATH=pos-server.exe"
+if not exist "%SERVER_PATH%" set "SERVER_PATH=backend\pos-server.exe"
+if not exist "%SERVER_PATH%" set "SERVER_PATH=backend-cs\bin\Release\net48\pos-server.exe"
 
-if not exist "backend\pos-server.exe" (
-    echo [ERROR] pos-server.exe not found in the backend folder.
+if not exist "%SERVER_PATH%" (
+    echo [ERROR] pos-server.exe not found.
     pause
     exit /b 1
 )
 
+echo =============================================
+echo POS Desktop Application - v2
+echo =============================================
+echo.
+
 echo [INFO] Starting POS server on port 3001...
+start /min "POS Server" "%SERVER_PATH%"
+
+echo [INFO] Waiting for server to start...
+timeout /t 3 /nobreak >nul
+
 echo [INFO] Opening browser...
-echo.
-
 start "" http://localhost:3001/ar
-start "" backend\pos-server.exe
 
 echo.
-echo Close this window to stop the POS server.
+echo Server is running. Press any key to stop the POS server.
 echo.
-timeout /t 60 >nul
+pause >nul
+
+taskkill /IM pos-server.exe /F >nul 2>&1

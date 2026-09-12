@@ -1,7 +1,9 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
-import { api, AUTH_EXPIRED_EVENT } from "@/lib/api"
+import { AUTH_EXPIRED_EVENT } from "@/lib/api"
+import { login as loginAction } from "@/actions/auth.actions"
+import { getMe } from "@/api/auth"
 import {
   AuthSession,
   loadStoredSession,
@@ -14,9 +16,11 @@ interface AuthContextValue {
   session: AuthSession | null
   isReady: boolean
   isAuthenticated: boolean
+  mustChangePassword: boolean
   login: (username: string, password: string) => Promise<AuthSession>
   logout: () => void
   refreshAccess: () => Promise<AuthSession | null>
+  completePasswordChange: () => Promise<void>
   hasPermission: (permissionKey: string) => boolean
   hasFeature: (featureKey: string) => boolean
   hasAccess: (permissionKey: string, featureKey?: string) => boolean
@@ -39,9 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!initial) return
 
     let cancelled = false
-    // Re-validate the stored token against the backend; drop it when invalid.
-    api.auth
-      .me()
+    getMe()
       .then((bundle) => {
         if (cancelled) return
         const fresh: AuthSession = {
@@ -69,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [initial])
 
   const login = useCallback(async (username: string, password: string) => {
-    const res = await api.auth.login(username, password)
+    const res = await loginAction(username, password)
     const next: AuthSession = {
       token: res.token,
       user: res.access.user,
@@ -91,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const token = getStoredToken()
     if (!token) return null
     try {
-      const bundle = await api.auth.me()
+      const bundle = await getMe()
       const fresh: AuthSession = {
         token,
         user: bundle.user,
@@ -106,6 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null
     }
   }, [])
+
+  const completePasswordChange = useCallback(async () => {
+    const refreshed = await refreshAccess()
+    if (refreshed?.user.mustChangePassword) {
+      throw new Error("Password change was not confirmed by the server")
+    }
+  }, [refreshAccess])
 
   const hasPermission = useCallback(
     (permissionKey: string) => session?.permissions?.includes(permissionKey) ?? false,
@@ -126,19 +135,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [hasPermission, hasFeature]
   )
 
+  const mustChangePassword = session?.user?.mustChangePassword ?? false
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       isReady,
       isAuthenticated: session !== null,
+      mustChangePassword,
       login,
       logout,
       refreshAccess,
+      completePasswordChange,
       hasPermission,
       hasFeature,
       hasAccess,
     }),
-    [session, isReady, login, logout, refreshAccess, hasPermission, hasFeature, hasAccess]
+    [session, isReady, mustChangePassword, login, logout, refreshAccess, completePasswordChange, hasPermission, hasFeature, hasAccess]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

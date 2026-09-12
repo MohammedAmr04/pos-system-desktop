@@ -27,6 +27,7 @@ namespace PosCs.Application.Models
         public double Quantity { get; set; }
         public double SalePrice { get; set; }
         public double? FinalTotal { get; set; }
+        public List<PrintBundleComponentPayload> BundleComponents { get; set; }
     }
 
     public sealed class PrintDetailPayload
@@ -37,6 +38,13 @@ namespace PosCs.Application.Models
         public string UnitName { get; set; }
         public PrintProductPayload Product { get; set; }
         public string Name { get; set; }
+        public List<PrintBundleComponentPayload> BundleComponents { get; set; }
+    }
+
+    public sealed class PrintBundleComponentPayload
+    {
+        public string Name { get; set; }
+        public double Quantity { get; set; }
     }
 
     public sealed class PrintProductPayload

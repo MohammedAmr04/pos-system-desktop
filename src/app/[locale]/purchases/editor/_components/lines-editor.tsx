@@ -1,0 +1,178 @@
+"use client"
+
+import { EditorLine } from "../editor-client"
+import { Product } from "@/types/domain/domain.types"
+import { useTranslations } from "next-intl"
+import { Button } from "@/components/ui/button"
+import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
+import { Input } from "@/components/ui/input"
+import { SearchableProductSelect } from "@/components/common/searchable-product-select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { PackagePlus, Plus, Trash2 } from "lucide-react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+interface LinesEditorProps {
+  products: Product[]
+  lines: EditorLine[]
+  disabled: boolean
+  onAdd: () => void
+  onRemove: (key: string) => void
+  onUpdate: (key: string, patch: Partial<EditorLine>) => void
+  onAddNewProduct?: () => void
+}
+
+export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpdate, onAddNewProduct }: LinesEditorProps) {
+  const t = useTranslations("Purchases")
+
+  const handleProductChange = (line: EditorLine, productId: string) => {
+    const product = products.find((p) => p.id === productId)
+    const firstUnit = product?.units?.[0]
+    onUpdate(line.key, {
+      productId,
+      productUnitId: firstUnit?.id ?? "",
+      unitCost: line.unitCost || (product?.buyPrice ? String(product.buyPrice) : ""),
+    })
+  }
+
+  const handleUnitChange = (line: EditorLine, unitId: string) => {
+    onUpdate(line.key, { productUnitId: unitId })
+  }
+
+  return (
+    <div className="rounded-lg border bg-card">
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <span className="font-medium">{t("lines")}</span>
+        <div className="flex items-center gap-2">
+          {onAddNewProduct && (
+            <Button variant="outline" size="sm" onClick={onAddNewProduct} disabled={disabled}>
+              <PackagePlus className="mr-1 h-4 w-4" /> {t("addNewProduct")}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onAdd} disabled={disabled}>
+            <Plus className="mr-1 h-4 w-4" /> {t("addLine")}
+          </Button>
+        </div>
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t("product")}</TableHead>
+            <TableHead>{t("unit")}</TableHead>
+            <TableHead>{t("quantity")}</TableHead>
+            <TableHead>{t("unitCost")}</TableHead>
+            <TableHead>{t("newRetailPrice")}</TableHead>
+            <TableHead>{t("newWholesalePrice")}</TableHead>
+            <TableHead className="w-10" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {lines.map((line) => {
+            const product = products.find((p) => p.id === line.productId)
+            return (
+              <TableRow key={line.key}>
+                <TableCell>
+                  <SearchableProductSelect
+                    products={products}
+                    value={line.productId}
+                    onValueChange={(v) => handleProductChange(line, v)}
+                    disabled={disabled}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Select
+                    value={line.productUnitId}
+                    onValueChange={(v) => v != null && handleUnitChange(line, v)}
+                    disabled={disabled || !product}
+                    items={{
+                      ...Object.fromEntries((product?.units ?? []).map((u) => [u.id, u.unitName])),
+                    }}
+                  >
+                    <SelectTrigger aria-label={t("unit")} className="w-full min-w-[100px]">
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {!product && <SelectItem value="">—</SelectItem>}
+                      {(product?.units ?? []).map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.unitName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    dir="ltr"
+                    value={line.quantity}
+                    onChange={(e) => onUpdate(line.key, { quantity: e.target.value })}
+                    disabled={disabled}
+                    className="w-20"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    dir="ltr"
+                    value={line.unitCost}
+                    onChange={(e) => onUpdate(line.key, { unitCost: e.target.value })}
+                    disabled={disabled}
+                    className="w-24"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    dir="ltr"
+                    placeholder="—"
+                    value={line.newRetailPrice}
+                    onChange={(e) => onUpdate(line.key, { newRetailPrice: e.target.value })}
+                    disabled={disabled}
+                    className="w-24"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    step="1"
+                    min="0"
+                    dir="ltr"
+                    placeholder="—"
+                    value={line.newWholesalePrice}
+                    onChange={(e) => onUpdate(line.key, { newWholesalePrice: e.target.value })}
+                    disabled={disabled}
+                    className="w-24"
+                  />
+                </TableCell>
+                <TableCell>
+                  <TooltipIconButton label={t("removeLine")} onClick={() => onRemove(line.key)} disabled={disabled}>
+                    <Trash2 className="h-4 w-4" />
+                  </TooltipIconButton>
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}

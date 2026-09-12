@@ -131,5 +131,13 @@ namespace PosCs.Infrastructure.Persistence
                 }
             }
         }
+
+        public void SyncUnitName(string unitId, string newName)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+                conn.Execute(
+                    "UPDATE ProductUnit SET unitName = @name WHERE unitId = @unitId",
+                    new { unitId, name = newName });
+        }
     }
 }

@@ -59,11 +59,19 @@ namespace PosCs.Controllers
 
         [Route("receipt")]
         [HttpPost]
-        public HttpResponseMessage ReceiptText([FromBody] ReceiptTextRequest dto) { /* legacy stub */ return Request.CreateResponse(HttpStatusCode.OK); }
+        [RequirePermission("printing.receipt", "receipt_printing")]
+        public HttpResponseMessage ReceiptText([FromBody] ReceiptTextRequest dto)
+        {
+            return Request.CreateResponse(HttpStatusCode.Gone, new { success = false, message = "This endpoint has been retired. Use /api/printing/print." });
+        }
 
         [Route("barcode")]
         [HttpPost]
-        public HttpResponseMessage BarcodeText([FromBody] BarcodeTextRequest dto) { /* legacy stub */ return Request.CreateResponse(HttpStatusCode.OK); }
+        [RequirePermission("printing.barcode", "barcode_printing")]
+        public HttpResponseMessage BarcodeText([FromBody] BarcodeTextRequest dto)
+        {
+            return Request.CreateResponse(HttpStatusCode.Gone, new { success = false, message = "This endpoint has been retired. Use /api/printing/print-barcode." });
+        }
 
         private static object ToBody(PrintOutcome outcome)
         {

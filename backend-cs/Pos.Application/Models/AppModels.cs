@@ -14,6 +14,8 @@ namespace PosCs.Application.Models
         public int Total { get; set; }
         public double Revenue { get; set; }
         public double Discounts { get; set; }
+        /// <summary>Invoice-linked payment totals by invoice id (payment-status badges).</summary>
+        public Dictionary<string, double> PaidByInvoice { get; set; } = new Dictionary<string, double>();
     }
 
     public sealed class AccessBundle
@@ -62,5 +64,18 @@ namespace PosCs.Application.Models
         public string Status { get; set; }
         public string MachineId { get; set; }
         public int? DaysSinceActivation { get; set; }
+        public string LicenseType { get; set; }
+        public int TrialDays { get; set; }
+        public System.DateTime? LicenseStartedAt { get; set; }
+        public System.DateTime? LicenseExpiresAt { get; set; }
+        public int? RemainingDays { get; set; }
+    }
+
+    public sealed class LicenseConfigurationRequest
+    {
+        public string LicenseType { get; set; }
+        public int TrialDays { get; set; }
+        public System.DateTime? LicenseStartedAt { get; set; }
+        public System.DateTime? LicenseExpiresAt { get; set; }
     }
 }

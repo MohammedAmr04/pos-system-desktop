@@ -1,29 +1,31 @@
 "use client"
 
-import { TenantFeature, api } from "@/lib/api"
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Loader2, Save } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useTranslations } from "next-intl"
+import { useApiError } from "@/lib/api-error"
 import { toast } from "sonner"
-import { Switch } from "@/components/ui/switch"
+import { Loader2, Save } from "lucide-react"
+import { TenantFeature } from "@/types/domain/domain.types"
+import { setTenantFeatures } from "@/actions/tenant.actions"
+import { adminKeys, useTenantFeatures } from "@/hooks/use-admin"
 import { useAuth } from "@/components/common/auth-context"
-import { PERMISSIONS } from "@/lib/constants"
-import { FEATURE_LABELS } from "@/lib/constants"
+import { PERMISSIONS, FEATURE_LABELS } from "@/lib/constants"
+import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { Card, CardContent } from "@/components/ui/card"
 
-interface FeaturesClientProps {
-  features: TenantFeature[]
-  loading: boolean
-  onRefresh: () => void
-}
-
-export function FeaturesClient({ features, loading, onRefresh }: FeaturesClientProps) {
+export function FeaturesClient() {
   const t = useTranslations("Features")
+  const resolveError = useApiError()
+  const queryClient = useQueryClient()
   const { hasPermission, refreshAccess } = useAuth()
   const canUpdate = hasPermission(PERMISSIONS.SETTINGS_UPDATE)
   const [draft, setDraft] = useState<Record<string, boolean> | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const { data, isPending: loading } = useTenantFeatures()
+  const features: TenantFeature[] = data?.features ?? []
 
   const current = draft ?? Object.fromEntries(features.map((f) => [f.key, f.enabled]))
 
@@ -35,15 +37,15 @@ export function FeaturesClient({ features, loading, onRefresh }: FeaturesClientP
     if (!draft) return
     setSaving(true)
     try {
-      await api.tenant.setFeatures(
+      await setTenantFeatures(
         Object.entries(draft).map(([key, enabled]) => ({ key, enabled }))
       )
       toast.success(t("saved"))
       setDraft(null)
       await refreshAccess()
-      onRefresh()
+      await queryClient.invalidateQueries({ queryKey: adminKeys.all() })
     } catch (e) {
-      toast.error((e as Error).message || t("saveFailed"))
+      toast.error(resolveError(e) || t("saveFailed"))
     } finally {
       setSaving(false)
     }

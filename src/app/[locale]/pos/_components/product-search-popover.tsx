@@ -1,12 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useImperativeHandle, useRef, useState } from "react"
-import { Product, ProductUnit, api } from "@/lib/api"
+import { Product, ProductUnit } from "@/types/domain/domain.types"
 import { usePOSStore } from "@/store/pos.store"
 import { resolveBarcode } from "@/lib/barcode"
 import { useTranslations } from "next-intl"
+import { useDebouncedCallback } from "@/hooks/use-debounced-callback"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useProductSearch } from "@/hooks/use-products"
 import {
   Command,
   CommandEmpty,
@@ -44,11 +46,15 @@ export function ProductSearchPopover({ products, onSelect, onUnknownBarcode, ref
 
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState("")
-  const [searchResults, setSearchResults] = useState<Product[]>([])
-  const [isSearching, setIsSearching] = useState(false)
+  const [query, setQuery] = useState("")
   const [triggerWidth, setTriggerWidth] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+
+  const debouncedSetQuery = useDebouncedCallback((v: string) => setQuery(v), 300)
+
+  const { data: searchResultsData, isFetching: isSearching } = useProductSearch(query, 20)
+  const searchResults: Product[] = searchResultsData ?? []
 
   const focusTrigger = useCallback(() => {
     triggerRef.current?.focus()
@@ -57,12 +63,13 @@ export function ProductSearchPopover({ products, onSelect, onUnknownBarcode, ref
   useImperativeHandle(ref, () => ({
     reset: () => {
       setInputValue("")
+      setQuery("")
       setSearchQuery("")
       setOpen(false)
       requestAnimationFrame(focusTrigger)
     },
     close: () => setOpen(false),
-  }), [setSearchQuery, focusTrigger])
+  }), [setSearchQuery, focusTrigger, debouncedSetQuery])
 
   const handleOpenChange = useCallback((next: boolean) => {
     if (!next) setInputValue("")
@@ -77,27 +84,6 @@ export function ProductSearchPopover({ products, onSelect, onUnknownBarcode, ref
       inputRef.current.focus()
     }
   }, [open])
-
-  useEffect(() => {
-    const q = inputValue.trim()
-    const controller = new AbortController()
-    const timer = setTimeout(async () => {
-      setIsSearching(true)
-      try {
-        const results = await api.products.search(q, 20, controller.signal)
-        if (!controller.signal.aborted) setSearchResults(results)
-      } catch {
-        if (!controller.signal.aborted) setSearchResults([])
-      } finally {
-        if (!controller.signal.aborted) setIsSearching(false)
-      }
-    }, 300)
-
-    return () => {
-      clearTimeout(timer)
-      controller.abort()
-    }
-  }, [inputValue])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -136,7 +122,10 @@ export function ProductSearchPopover({ products, onSelect, onUnknownBarcode, ref
                 placeholder={t("searchPlaceholder")}
                 ref={inputRef}
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={(e) => {
+                  setInputValue(e.target.value)
+                  debouncedSetQuery(e.target.value)
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     const trimmed = inputValue.trim()

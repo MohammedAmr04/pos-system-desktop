@@ -19,5 +19,6 @@ namespace PosCs.Application.Ports
         ProductBarcode AddBarcode(string unitId, string barcode, bool isDefault = false);
         bool DeleteBarcode(string barcodeId);
         bool SetDefaultBarcode(string unitId, string barcodeId);
+        void SyncUnitName(string unitId, string newName);
     }
 }

@@ -13,13 +13,33 @@ namespace PosCs.Domain.Entities
         public List<ProductBarcode> Barcodes { get; set; }
         public List<ProductUnit> Units { get; set; }
         public string Name { get; set; }
+        public string ProductType { get; set; } = "product";
+        public double ServiceCost { get; set; }
         public double BuyPrice { get; set; }
         public double SalePrice { get; set; }
         public double StockQuantity { get; set; }
+        public double AvailableQuantity { get; set; }
         public string Notes { get; set; }
         public bool AllowDiscount { get; set; } = true;
         public int LowStockThreshold { get; set; }
+        /// <summary>When true, the product is excluded from POS search results but still
+        /// shown everywhere else (e.g. the products page and historical documents).</summary>
+        public bool IsHiddenFromPOS { get; set; }
+        /// <summary>Nullable: NULL means genuinely unassigned (UI shows "Other").</summary>
+        public string CategoryId { get; set; }
+        /// <summary>Nullable: NULL means genuinely unassigned (UI shows "Other").</summary>
+        public string BrandId { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public List<BundleComponent> BundleComponents { get; set; }
+    }
+
+    public class BundleComponent
+    {
+        public string Id { get; set; }
+        public string BundleProductId { get; set; }
+        public string ComponentProductId { get; set; }
+        public double Quantity { get; set; }
+        public Product Product { get; set; }
     }
 }
