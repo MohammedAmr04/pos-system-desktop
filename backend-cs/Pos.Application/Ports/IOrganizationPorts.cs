@@ -47,5 +47,8 @@ namespace PosCs.Application.Ports
         Settings GetFirst();
         Settings Create(string machineId, bool unlocked = false);
         void Upsert(string machineId, bool unlocked);
+        void RecordLastSeenDate(string machineId, System.DateTime date);
+        void SaveLicenseConfiguration(string machineId, string licenseType, int trialDays,
+            System.DateTime startedAt, System.DateTime? expiresAt);
     }
 }

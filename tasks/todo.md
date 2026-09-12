@@ -1,0 +1,6 @@
+- [x] Add license fields and migration to Settings.
+- [x] Add backend license rules, repository methods, status response, and management endpoint.
+- [x] Add backend tests for trial and expiry behavior.
+- [x] Add typed frontend API and License Management page.
+- [x] Connect page to settings navigation and existing LicenseGate.
+- [x] Run backend tests/build and frontend static build.

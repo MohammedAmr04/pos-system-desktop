@@ -64,5 +64,18 @@ namespace PosCs.Application.Models
         public string Status { get; set; }
         public string MachineId { get; set; }
         public int? DaysSinceActivation { get; set; }
+        public string LicenseType { get; set; }
+        public int TrialDays { get; set; }
+        public System.DateTime? LicenseStartedAt { get; set; }
+        public System.DateTime? LicenseExpiresAt { get; set; }
+        public int? RemainingDays { get; set; }
+    }
+
+    public sealed class LicenseConfigurationRequest
+    {
+        public string LicenseType { get; set; }
+        public int TrialDays { get; set; }
+        public System.DateTime? LicenseStartedAt { get; set; }
+        public System.DateTime? LicenseExpiresAt { get; set; }
     }
 }

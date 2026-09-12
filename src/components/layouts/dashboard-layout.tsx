@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname } from "@/i18n/navigation"
-import { Package, ShoppingCart, FileText, LayoutDashboard, AlertTriangle, LogOut, Settings, Users, Shield, SlidersHorizontal, KeyRound, FolderTree, Tags, Ruler, Truck, UsersRound, Boxes, Wallet, Undo2, Timer, Receipt, BarChart3, Printer, ClipboardList, Bell, History, Contact, ArchiveRestore } from "lucide-react"
+import { Package, ShoppingCart, FileText, LayoutDashboard, AlertTriangle, LogOut, Settings, Users, Shield, SlidersHorizontal, KeyRound, FolderTree, Tags, Ruler, Truck, UsersRound, Boxes, Wallet, Undo2, Timer, Receipt, BarChart3, Printer, ClipboardList, Bell, History, Contact, ArchiveRestore, ShieldCheck } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
 import { useAuth } from "@/components/common/auth-context"
@@ -192,6 +192,13 @@ const sidebarNavItems: SidebarNavItem[] = [
     href: "/settings/printing/",
     icon: Printer,
     permission: PERMISSIONS.SETTINGS_VIEW,
+    section: "settings",
+  },
+  {
+    key: "settingsLicense",
+    href: "/settings/license/",
+    icon: ShieldCheck,
+    permission: PERMISSIONS.LICENSE_MANAGE,
     section: "settings",
   },
 ]

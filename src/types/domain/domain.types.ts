@@ -155,9 +155,14 @@ export interface PagedSaleReturns {
 }
 
 export interface LicenseStatus {
-  status: 'ok' | 'first_boot' | 'locked' | 'tampered'
+  status: 'ok' | 'first_boot' | 'trial' | 'locked' | 'tampered'
   machineId?: string
   daysSinceActivation?: number
+  licenseType?: 'trial' | 'monthly' | 'annual' | 'permanent' | string
+  trialDays?: number
+  licenseStartedAt?: string | null
+  licenseExpiresAt?: string | null
+  remainingDays?: number | null
 }
 
 export interface AccessBundle {

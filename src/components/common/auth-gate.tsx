@@ -2,10 +2,9 @@
 
 import { useAuth } from "@/components/common/auth-context"
 import { LoginScreen } from "@/components/common/login-screen"
-import { PasswordChangeScreen } from "@/components/common/password-change-screen"
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
-  const { isReady, isAuthenticated, mustChangePassword, completePasswordChange } = useAuth()
+  const { isReady, isAuthenticated } = useAuth()
 
   if (!isReady) {
     return (
@@ -17,10 +16,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated) {
     return <LoginScreen />
-  }
-
-  if (mustChangePassword) {
-    return <PasswordChangeScreen onSuccess={completePasswordChange} />
   }
 
   return <>{children}</>
