@@ -16,7 +16,6 @@ build
 obj
 bin
 .vs/
-.vscode/
 .idea/
 # database
 *.db
@@ -38,7 +37,6 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
-.env*
 !.env.example
 
 # license signing secret
@@ -57,3 +55,5 @@ vitamins.pdf
 # release packages (build output)
 /v1.0.0-fixed/
 /v1.0.1/
+/POS-App-v*.zip
+config.bat
