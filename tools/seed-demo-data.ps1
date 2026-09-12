@@ -87,6 +87,7 @@ $employee = New-Entity "employees" @{
 }
 
 $products = @{}
+$productUnitIds = @{}
 $productDefinitions = @(
     @{ key = "water"; name = "DEMO - Mineral Water 1.5L"; barcode = "622100000001"; buyPrice = 6; retailPrice = 10; wholesalePrice = 8; stock = 0; category = "DEMO - Beverages"; brand = "DEMO - FreshCo"; unit = "Piece"; threshold = 20; notes = "Fast-moving demo item" },
     @{ key = "juice"; name = "DEMO - Mango Juice 1L"; barcode = "622100000002"; buyPrice = 18; retailPrice = 28; wholesalePrice = 24; stock = 0; category = "DEMO - Beverages"; brand = "DEMO - Nile Foods"; unit = "Piece"; threshold = 10; notes = "Demo product with retail and wholesale prices" },
@@ -114,6 +115,7 @@ foreach ($definition in $productDefinitions) {
         brandId = $brands[$definition.brand]
     }
     $products[$definition.key] = $created
+    $productUnitIds[$definition.key] = ($created.units | Where-Object { $_.isBaseUnit })[0].id
 }
 
 $packUnit = New-Entity "products/$($products.water.id)/units" @{
@@ -169,6 +171,7 @@ $service = New-Entity "products" @{
     brandId = $brands.'DEMO - HomePro'
 }
 $products.service = $service
+$productUnitIds.service = ($service.units | Where-Object { $_.isBaseUnit })[0].id
 
 $purchase = New-Entity "purchases" @{
     supplierId = $supplier.id
@@ -180,10 +183,10 @@ $purchase = New-Entity "purchases" @{
     tax = 0
     notes = "Demo opening stock purchase"
     lines = @(
-        @{ productId = $products.water.id; quantity = 120; unitCost = 6; newRetailPrice = 10; newWholesalePrice = 8 },
-        @{ productId = $products.juice.id; quantity = 60; unitCost = 18; newRetailPrice = 28; newWholesalePrice = 24 },
-        @{ productId = $products.chips.id; quantity = 80; unitCost = 8; newRetailPrice = 15; newWholesalePrice = 12 },
-        @{ productId = $products.detergent.id; quantity = 25; unitCost = 35; newRetailPrice = 52; newWholesalePrice = 46 }
+        @{ productId = $products.water.id; productUnitId = $productUnitIds.water; quantity = 120; unitCost = 6; newRetailPrice = 10; newWholesalePrice = 8 },
+        @{ productId = $products.juice.id; productUnitId = $productUnitIds.juice; quantity = 60; unitCost = 18; newRetailPrice = 28; newWholesalePrice = 24 },
+        @{ productId = $products.chips.id; productUnitId = $productUnitIds.chips; quantity = 80; unitCost = 8; newRetailPrice = 15; newWholesalePrice = 12 },
+        @{ productId = $products.detergent.id; productUnitId = $productUnitIds.detergent; quantity = 25; unitCost = 35; newRetailPrice = 52; newWholesalePrice = 46 }
     )
 }
 
@@ -193,7 +196,7 @@ $invoice = New-Entity "invoices" @{
     items = @(
         @{ productId = $products.water.id; productUnitId = $packUnit.id; unitName = "Pack"; name = $products.water.name; buyPrice = 36; salePrice = 54; originalUnitPrice = 54; unitPrice = 50; quantity = 2; maxStock = 20; allowDiscount = $true; discountType = "fixed"; discountValue = 4; quantityFactor = 6; priceEditNote = "DEMO - customer discount" },
         @{ productId = $products.chips.id; unitName = "Piece"; name = $products.chips.name; buyPrice = 8; salePrice = 15; originalUnitPrice = 15; unitPrice = 15; quantity = 3; maxStock = 80; allowDiscount = $true; discountType = "percentage"; discountValue = 0; quantityFactor = 1 },
-        @{ productId = $products.service.id; unitName = "Piece"; name = $products.service.name; buyPrice = 2; salePrice = 10; originalUnitPrice = 10; unitPrice = 10; quantity = 1; maxStock = 0; allowDiscount = $true; discountType = "percentage"; discountValue = 0; quantityFactor = 1 }
+        @{ productId = $products.service.id; productUnitId = $productUnitIds.service; unitName = "DEMO - Piece"; name = $products.service.name; buyPrice = 2; salePrice = 10; originalUnitPrice = 10; unitPrice = 10; quantity = 1; maxStock = 0; allowDiscount = $true; discountType = "percentage"; discountValue = 0; quantityFactor = 1 }
     )
     discount = 0
     discountType = "fixed"
