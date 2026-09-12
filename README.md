@@ -153,10 +153,20 @@ server-side aggregation:
 - **Roles** — create/edit/delete roles and assign permissions.
 - **Permissions** — grouped reference of all permission keys.
 - **Features** — per-tenant feature toggles; changes apply immediately.
+- **License** — configure trial, monthly, annual or permanent local licensing;
+  view Machine ID, start date, expiry date and remaining days.
 
 ### License & Activation
-- Machine-ID-based activation with a lock screen gate on first boot.
-- Unlocking requires the `license.manage` permission and logs the acting user.
+- Local Machine-ID binding: one license is associated with one tenant and one
+  computer.
+- A new installation starts with a configurable trial (14 days by default), so
+  the administrator can open License settings and configure the plan.
+- Supported plans are trial, monthly, annual and permanent. Expired licenses
+  show the activation/support screen and block normal application use.
+- The administrator activates the machine with a vendor-generated unlock code;
+  the code is validated locally using the private license secret.
+- The application records the last valid date and detects system-clock rollback.
+- License configuration and unlocking require `license.manage` and are audited.
 
 ### Dashboard
 - Today's revenue, sales count, discounts given, and total product count with a
@@ -184,7 +194,7 @@ server-side aggregation:
 ```
 backend-cs/                  # .NET Framework 4.8 backend
   Controllers/               # Auth, Products, Invoices, Purchases, License, Printing, Health, Reports
-  Database/Migrations/       # 001_init .. 013_username_password (auto-applied on start)
+  Database/Migrations/       # Versioned migrations (auto-applied on start)
   Models/                    # User, Role, Permission, TenantFeature, Product, Invoice
   Repositories/              # Dapper data access (Auth, Users, Roles, ...)
   Services/                  # Auth, Authorization, Receipt, Printer, Barcode, License
@@ -208,6 +218,7 @@ src/                        # Next.js frontend (client components only)
 messages/                   # next-intl translations (ar.json)
 docs/                       # Feature specs and release notes
 CHANGELOG.md                # Version history
+tools/                      # Vendor license-code and secret-generation tools
 ```
 
 ---
@@ -358,6 +369,35 @@ Optional environment variables:
 |-----------------|------------|---------|
 | `API_PORT`      | `3001`     | Server port |
 | `PRINTER_NAME`  | `Xprinter` | Thermal printer name for receipts/barcodes |
+| `POS_LICENSE_SECRET` | — | Private vendor secret used to validate license codes |
+| `POS_CLOUDINARY_CLOUD_NAME` | — | Cloudinary cloud name for remote backup sync |
+| `POS_CLOUDINARY_API_KEY` | — | Cloudinary API key for remote backup sync |
+| `POS_CLOUDINARY_API_SECRET` | — | Cloudinary API secret for remote backup sync |
+| `POS_BACKUP_TENANT_ID` | `tenant-default` | Tenant identifier used in backup metadata and paths |
+| `POS_BACKUP_INTERVAL_MINUTES` | `15` | How often the backup worker checks for a new backup |
+
+Copy `.env.example` to `.env` and fill in the values needed for the
+installation. For a packaged release, keep the private `license.secret` file
+next to `pos-server.exe`; never commit it or send it to the customer.
+
+### Local backups and remote sync
+
+The backend creates one local SQLite backup per day under the database's
+`data/backups/` folder. When the network is available and the Cloudinary
+variables are configured, the worker uploads the latest local backup. The
+remote object uses the `POS/` prefix and a stable latest name containing the
+tenant identity; metadata includes the tenant ID, tenant name and backup date.
+If the network is offline, the local backup remains available and
+synchronization is retried on the next interval.
+
+To generate an activation code for the target machine:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\tools\get-license-code.ps1"
+```
+
+See [`tools/README-license.md`](tools/README-license.md) for the complete
+activation workflow and secret-handling rules.
 
 ### 2. Run the frontend (dev mode)
 
@@ -379,15 +419,26 @@ The backend serves the static frontend, so there is no separate web server.
 `npm run build` runs `next build` (output → `out/`) and automatically copies
 the result into `backend-cs/bin/Release/net48/wwwroot` (preserving `logo.jpeg`).
 
-1. Build everything:
+1. Build and verify everything:
 
    ```powershell
    npm run build
    dotnet build backend-cs/pos-cs.csproj --configuration Release
+   dotnet test backend-cs/Pos.Tests/Pos.Tests.csproj --configuration Release
    ```
 
-2. Package `pos-server.exe`, `Migrations/`, `wwwroot/` and `start.bat` together.
-   `start.bat` launches the server and opens `http://localhost:3001`.
+2. Create the v2 distributable package:
+
+   ```powershell
+   .\package-release.ps1 -Version v2
+   ```
+
+   The script rebuilds the backend and frontend, then packages the server,
+   migrations, static frontend, tools, license secret and `start.bat`. It
+   generates a release secret when one is not supplied. Keep that secret
+   private and distribute the ZIP only to the intended customer.
+
+3. `start.bat` launches the server and opens `http://localhost:3001`.
 
 > **Upgrade note:** when updating an existing installation, replace the
 > executable, `Migrations/` and `wwwroot/` but **keep the `data/` folder** — it
@@ -405,6 +456,8 @@ the result into `backend-cs/bin/Release/net48/wwwroot` (preserving `logo.jpeg`).
 | `npm run lint` | Run ESLint (0 errors required) |
 | `npm test` | Run vitest unit tests |
 | `dotnet build backend-cs/pos-cs.csproj --configuration Release` | Build the backend |
+| `dotnet test backend-cs/Pos.Tests/Pos.Tests.csproj --configuration Release` | Run backend tests |
+| `.\package-release.ps1 -Version v2` | Build and package the v2 release |
 
 ---
 
@@ -444,6 +497,10 @@ to avoid serving a partially upgraded database.
 | `026_expenses` | Expense, ExpenseCategory, shiftId FK |
 | `027_printer_settings` | PrinterSettings (printer name, paper width, copies, auto-cut, header/footer, store info) |
 | `037_bundles_services` | Product types, service costs, bundle components, and invoice component snapshots |
+| `038_backup_permission` | Backup management permission |
+| `039_license_last_seen_date` | Last-seen date used for local clock rollback detection |
+| `040_disable_forced_password_change` | Removes the legacy forced password-change gate |
+| `041_license_configuration` | Trial, plan type, start date and expiry configuration |
 
 ---
 
@@ -475,7 +532,8 @@ All endpoints live under `http://localhost:3001/api`.
 | Reports     | `GET /reports/low-stock`, `GET /reports/sales`, `GET /reports/purchases`, `GET /reports/profit`, `GET /reports/returns`, `GET /reports/expenses`, `GET /reports/inventory`, `GET /reports/cash` |
 | Printer Settings | `GET/PUT /printer-settings` |
 | Printing    | `POST /printing/print`, `POST /printing/print-barcode` |
-| License     | `GET /license`, `POST /license/unlock` |
+| License     | `GET /license`, `POST /license/unlock`, `PUT /license/configuration` |
+| Backups     | `GET /backups`, `POST /backups`, `POST /backups/restore` |
 | Health      | `GET /health` |
 
 > All endpoints except `POST /auth/login` and `GET /license` require a
@@ -511,5 +569,7 @@ Key namespaces: `App`, `Dashboard`, `POS`, `Products`, `Invoices`, `Purchases`,
 
 ## License
 
-Proprietary. The application is activated per machine via a license key flow
-implemented in the `License` API and the license lock screen.
+Proprietary. The application is activated locally per tenant and per machine via
+the `License` API and license lock screen. The v2 release does not require an
+online license server; remote backup synchronization is optional and separate
+from license validation.
