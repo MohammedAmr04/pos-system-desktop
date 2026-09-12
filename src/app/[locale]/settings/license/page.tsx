@@ -48,7 +48,9 @@ export default function LicenseSettingsPage() {
   }, [resolveError, t])
 
   useEffect(() => {
-    void load()
+    void (async () => {
+      await load()
+    })()
   }, [load])
 
   const handleSave = async () => {
