@@ -77,3 +77,18 @@ powershell -ExecutionPolicy Bypass -File ".\tools\generate-license-secret.ps1" -
 Keep the new secret next to `pos-server.exe` and use the same secret when generating unlock codes.
 
 Never commit `license.secret` or share it with the customer. It is a private vendor secret.
+
+## Seed demo data
+
+For screenshots and demonstrations, start the local POS server and run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ".\tools\seed-demo-data.ps1"
+```
+
+The script logs in with `admin` / `1234`, creates a complete demo dataset,
+and stops without changes when demo products already exist. It creates master
+data, products, multiple units, a service, a bundle, a supplier, a client, an
+employee, a posted purchase, an open shift, cash and credit invoices, payments,
+and a cash expense. Demo records are named with the `DEMO -` prefix so they can
+be recognized easily. Do not run it against a customer's production database.

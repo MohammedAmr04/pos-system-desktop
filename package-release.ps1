@@ -96,7 +96,8 @@ $toolFiles = @(
     "get-license-code.ps1",
     "get-license-code.bat",
     "README-license.md",
-    "generate-license-secret.ps1"
+    "generate-license-secret.ps1",
+    "seed-demo-data.ps1"
 )
 foreach ($file in $toolFiles) {
     $source = Join-Path $toolsSrc $file
