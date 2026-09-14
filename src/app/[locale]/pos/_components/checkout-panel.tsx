@@ -9,13 +9,6 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { TooltipIconButton } from "@/components/common/tooltip-icon-button"
 import {
   Dialog,
@@ -33,9 +26,6 @@ import { createInvoice, saveDraftInvoice } from "@/actions/invoices.actions"
 import { postInvoice } from "@/actions/invoices.lifecycle.actions"
 import { invoicesKeys } from "@/hooks/use-invoices"
 import { shiftsKeys, useActiveShift } from "@/hooks/use-shifts"
-import { useActiveClients } from "@/hooks/use-clients"
-import { useActiveEmployees } from "@/hooks/use-employees"
-import { Client, Employee } from "@/types/domain/domain.types"
 
 export function CheckoutPanel() {
   const t = useTranslations("POS")
@@ -52,9 +42,6 @@ export function CheckoutPanel() {
   const employeeId = usePOSStore((s) => s.employeeId)
   const paymentMethod = usePOSStore((s) => s.paymentMethod)
   const draftId = usePOSStore((s) => s.draftId)
-  const setClient = usePOSStore((s) => s.setClient)
-  const setEmployee = usePOSStore((s) => s.setEmployee)
-  const setPaymentMethod = usePOSStore((s) => s.setPaymentMethod)
   const setDiscount = usePOSStore((s) => s.setDiscount)
   const toggleDiscountType = usePOSStore((s) => s.toggleDiscountType)
   const clearCart = usePOSStore((s) => s.clearCart)
@@ -67,11 +54,6 @@ export function CheckoutPanel() {
   const queryClient = useQueryClient()
 
   const { data: activeShift } = useActiveShift()
-  const { data: allClients = [] } = useActiveClients()
-  const clients: Client[] = allClients
-  const { data: allEmployees = [] } = useActiveEmployees()
-  const employees: Employee[] = allEmployees
-
   const refreshAfterSale = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: invoicesKeys.all })
     if (activeShift) await queryClient.invalidateQueries({ queryKey: shiftsKeys.all })
@@ -226,78 +208,12 @@ export function CheckoutPanel() {
   }, [handleCheckout, toggleDiscountType, canCheckout, canPrintReceipt, canInvoiceDiscount])
 
   return (
-    <Card className="flex-1 flex flex-col">
+    <Card className="flex min-h-0 flex-1 flex-col">
       <CardHeader>
         <CardTitle>{t("checkout")}</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col justify-end gap-6">
+      <CardContent className="flex min-h-0 flex-1 flex-col justify-end gap-6 overflow-y-auto">
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label htmlFor="pos-client" className="text-sm font-medium">{t("client")}</label>
-              <Select
-                value={clientId ?? ""}
-                onValueChange={(v) => setClient(v || null)}
-                items={{
-                  "": t("walkIn"),
-                  ...Object.fromEntries(clients.filter((c) => c.isActive).map((c) => [c.id, c.name])),
-                }}
-              >
-                <SelectTrigger id="pos-client" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">{t("walkIn")}</SelectItem>
-                  {clients.filter((c) => c.isActive).map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label htmlFor="pos-payment" className="text-sm font-medium">{t("paymentMethod")}</label>              <Select
-                value={paymentMethod}
-                onValueChange={(v) => v && setPaymentMethod(v as 'cash' | 'credit' | 'card' | 'bank_transfer')}
-                items={{
-                  cash: t("cash"),
-                  credit: t("credit"),
-                  card: t("card"),
-                  bank_transfer: t("bankTransfer"),
-                }}
-              >
-                <SelectTrigger id="pos-payment" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">{t("cash")}</SelectItem>
-                  <SelectItem value="credit">{t("credit")}</SelectItem>
-                  <SelectItem value="card">{t("card")}</SelectItem>
-                  <SelectItem value="bank_transfer">{t("bankTransfer")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="pos-employee" className="text-sm font-medium">{t("salesperson")}</label>
-            <Select
-              value={employeeId ?? ""}
-              onValueChange={(v) => setEmployee(v || null)}
-              items={{
-                "": t("noSalesperson"),
-                ...Object.fromEntries(employees.filter((e) => e.isActive).map((e) => [e.id, e.name])),
-              }}
-            >
-              <SelectTrigger id="pos-employee" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">{t("noSalesperson")}</SelectItem>
-                {employees.filter((e) => e.isActive).map((e) => (
-                  <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           {draftId && (
             <p className="rounded-md bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-600">
               {t("editingDraft")}
@@ -379,37 +295,6 @@ export function CheckoutPanel() {
                   }}
                 />
               </div>
-              <div className="flex flex-wrap gap-2">
-                {[5, 10, 20, 50, 100, 200]
-                  .filter((n) => n < total)
-                  .map((n) => (
-                    <Button
-                      key={n}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 min-w-16"
-                      onClick={() => {
-                        paidTouched.current = true
-                        setAmountPaid(n)
-                      }}
-                    >
-                      {n.toFixed(0)}
-                    </Button>
-                  ))}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="h-9 min-w-16"
-                  onClick={() => {
-                    paidTouched.current = true
-                    setAmountPaid(total)
-                  }}
-                >
-                  {t("exactAmount")}
-                </Button>
-              </div>
               <div className="flex justify-between text-2xl font-bold">
                 <span className="text-muted-foreground">{t("changeDue")}</span>
                 <span className={changeDue > 0 ? "text-green-600" : "text-muted-foreground"}>
@@ -458,7 +343,7 @@ export function CheckoutPanel() {
             </Button>
           )}
 
-          <Button variant="outline" className="h-16 col-span-2 text-lg"
+          <Button variant="outline" className="h-16 text-lg"
             disabled={cartItems.length === 0}
             onClick={() => setConfirmClear(true)}>
             {t("clear")}

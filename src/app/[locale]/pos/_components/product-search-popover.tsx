@@ -47,6 +47,7 @@ export function ProductSearchPopover({ products, onSelect, onUnknownBarcode, ref
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const [query, setQuery] = useState("")
+  const [activeIndex, setActiveIndex] = useState(0)
   const [triggerWidth, setTriggerWidth] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -60,21 +61,30 @@ export function ProductSearchPopover({ products, onSelect, onUnknownBarcode, ref
     triggerRef.current?.focus()
   }, [])
 
+  const resetSearch = useCallback(() => {
+    setInputValue("")
+    setQuery("")
+    setActiveIndex(0)
+    setSearchQuery("")
+    setOpen(false)
+    requestAnimationFrame(focusTrigger)
+  }, [setSearchQuery, focusTrigger])
+
   useImperativeHandle(ref, () => ({
-    reset: () => {
-      setInputValue("")
-      setQuery("")
-      setSearchQuery("")
-      setOpen(false)
-      requestAnimationFrame(focusTrigger)
-    },
+    reset: resetSearch,
     close: () => setOpen(false),
-  }), [setSearchQuery, focusTrigger, debouncedSetQuery])
+  }), [resetSearch])
 
   const handleOpenChange = useCallback((next: boolean) => {
     if (!next) setInputValue("")
+    if (next) setActiveIndex(0)
     setOpen(next)
   }, [])
+
+  const handleProductSelect = useCallback((product: Product, unit?: ProductUnit) => {
+    onSelect(product, unit)
+    resetSearch()
+  }, [onSelect, resetSearch])
 
   useEffect(() => {
     if (open && triggerRef.current) {
@@ -124,15 +134,29 @@ export function ProductSearchPopover({ products, onSelect, onUnknownBarcode, ref
                 value={inputValue}
                 onChange={(e) => {
                   setInputValue(e.target.value)
+                  setActiveIndex(0)
                   debouncedSetQuery(e.target.value)
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (e.key === "ArrowDown" && searchResults.length > 0) {
+                    e.preventDefault()
+                    setActiveIndex((index) => Math.min(index + 1, searchResults.length - 1))
+                  } else if (e.key === "ArrowUp" && searchResults.length > 0) {
+                    e.preventDefault()
+                    setActiveIndex((index) => Math.max(index - 1, 0))
+                  } else if (e.key === "Home" && searchResults.length > 0) {
+                    e.preventDefault()
+                    setActiveIndex(0)
+                  } else if (e.key === "End" && searchResults.length > 0) {
+                    e.preventDefault()
+                    setActiveIndex(searchResults.length - 1)
+                  } else if (e.key === "Enter") {
+                    e.preventDefault()
                     const trimmed = inputValue.trim()
                     if (trimmed) {
                       const exact = resolveBarcode(products, trimmed)
                       if (exact) {
-                        onSelect(exact.product, exact.unit)
+                        handleProductSelect(exact.product, exact.unit)
                         return
                       }
                       if (/^\d{4,}$/.test(trimmed)) {
@@ -141,7 +165,7 @@ export function ProductSearchPopover({ products, onSelect, onUnknownBarcode, ref
                       }
                     }
                     if (searchResults.length > 0) {
-                      onSelect(searchResults[0])
+                      handleProductSelect(searchResults[activeIndex] ?? searchResults[0])
                     }
                   } else if (e.key === "Escape") {
                     setOpen(false)
@@ -159,16 +183,12 @@ export function ProductSearchPopover({ products, onSelect, onUnknownBarcode, ref
                     <CommandEmpty>{t("productNotFound")}</CommandEmpty>
                   ) : (
                     <CommandGroup>
-                      {searchResults.map((product) => (
+                      {searchResults.map((product, index) => (
                         <CommandItem
                           key={product.id}
-                          onClick={() => onSelect(product)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault()
-                              onSelect(product)
-                            }
-                          }}
+                          aria-selected={index === activeIndex}
+                          onMouseEnter={() => setActiveIndex(index)}
+                          onClick={() => handleProductSelect(product)}
                         >
                           <div className="flex flex-1 items-center justify-between">
                             <span>{product.name}</span>

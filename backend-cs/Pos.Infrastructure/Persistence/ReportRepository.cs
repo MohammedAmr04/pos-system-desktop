@@ -21,39 +21,62 @@ namespace PosCs.Infrastructure.Persistence
 
                 var totals = conn.QueryFirstOrDefault<TotalsRow>(
                     @"SELECT COUNT(1) AS InvoiceCount,
-                             COALESCE(SUM(totalAmount), 0) AS GrossSales,
-                             COALESCE(SUM(discountAmount), 0) AS Discounts
-                      FROM Invoice
-                      WHERE status = 'posted' AND createdAt BETWEEN @from AND @to", range);
+                             COALESCE(SUM(i.totalAmount), 0) AS GrossSales,
+                             COALESCE(SUM(i.totalAmount - COALESCE((
+                                 SELECT SUM(r.totalAmount) FROM SaleReturn r
+                                 WHERE r.invoiceId = i.id AND r.status = 'posted'
+                                   AND r.date BETWEEN @from AND @to
+                             ), 0)), 0) AS NetSales,
+                             COALESCE(SUM(i.discountAmount), 0) AS Discounts
+                      FROM Invoice i
+                      WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to", range);
                 report.InvoiceCount = (int)totals.InvoiceCount;
                 report.GrossSales = Math.Round((double)totals.GrossSales, 2);
                 report.Discounts = Math.Round((double)totals.Discounts, 2);
-                report.NetSales = Math.Round(report.GrossSales, 2);
+                report.NetSales = Math.Round((double)totals.NetSales, 2);
 
                 report.ByDay = conn.Query<SalesByDayRow>(
-                    @"SELECT date(createdAt) AS Day, COUNT(1) AS InvoiceCount,
-                             COALESCE(SUM(totalAmount), 0) AS NetSales,
-                             COALESCE(SUM(discountAmount), 0) AS Discounts
-                      FROM Invoice
-                      WHERE status = 'posted' AND createdAt BETWEEN @from AND @to
-                      GROUP BY date(createdAt) ORDER BY Day", range).ToList();
+                    @"SELECT date(i.createdAt) AS Day, COUNT(1) AS InvoiceCount,
+                             COALESCE(SUM(i.totalAmount - COALESCE((
+                                 SELECT SUM(r.totalAmount) FROM SaleReturn r
+                                 WHERE r.invoiceId = i.id AND r.status = 'posted'
+                                   AND r.date BETWEEN @from AND @to
+                             ), 0)), 0) AS NetSales,
+                             COALESCE(SUM(i.discountAmount), 0) AS Discounts
+                      FROM Invoice i
+                      WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                      GROUP BY date(i.createdAt) ORDER BY Day", range).ToList();
 
                 report.ByPaymentMethod = conn.Query<SalesByMethodRow>(
-                    @"SELECT paymentMethod AS PaymentMethod, COUNT(1) AS InvoiceCount,
-                             COALESCE(SUM(totalAmount), 0) AS Total
-                      FROM Invoice
-                      WHERE status = 'posted' AND createdAt BETWEEN @from AND @to
-                      GROUP BY paymentMethod ORDER BY Total DESC", range).ToList();
+                    @"SELECT i.paymentMethod AS PaymentMethod, COUNT(1) AS InvoiceCount,
+                             COALESCE(SUM(i.totalAmount - COALESCE((
+                                 SELECT SUM(r.totalAmount) FROM SaleReturn r
+                                 WHERE r.invoiceId = i.id AND r.status = 'posted'
+                                   AND r.date BETWEEN @from AND @to
+                             ), 0)), 0) AS Total
+                      FROM Invoice i
+                      WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                      GROUP BY i.paymentMethod ORDER BY Total DESC", range).ToList();
 
                 report.TopProducts = conn.Query<TopProductRow>(
                     @"SELECT d.productId AS ProductId,
                              COALESCE(p.name, d.productId) AS ProductName,
-                             COALESCE(SUM(d.quantity * d.quantityFactor), 0) AS Quantity,
-                             COALESCE(SUM(d.finalTotal), 0) AS Revenue,
-                             COALESCE(SUM(d.totalCost), 0) AS Cost
+                             COALESCE(SUM(d.quantity * d.quantityFactor - COALESCE(sr.ReturnedQuantity, 0)), 0) AS Quantity,
+                             COALESCE(SUM(d.finalTotal - COALESCE(sr.ReturnedTotal, 0)), 0) AS Revenue,
+                             COALESCE(SUM(d.totalCost - COALESCE(sr.RestoredCost, 0)), 0) AS Cost
                        FROM InvoiceDetail d
                        JOIN Invoice i ON i.id = d.invoiceId
                        LEFT JOIN Product p ON p.id = d.productId
+                       LEFT JOIN (
+                           SELECT rd.invoiceDetailId,
+                                  SUM(rd.quantity * rd.quantityFactor) AS ReturnedQuantity,
+                                  SUM(rd.lineTotal) AS ReturnedTotal,
+                                  SUM(rd.restoredCost) AS RestoredCost
+                           FROM SaleReturnDetail rd
+                           JOIN SaleReturn r ON r.id = rd.returnId
+                           WHERE r.status = 'posted' AND r.date BETWEEN @from AND @to
+                           GROUP BY rd.invoiceDetailId
+                       ) sr ON sr.invoiceDetailId = d.id
                        WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
                        GROUP BY d.productId, p.name
                        ORDER BY Revenue DESC
@@ -68,7 +91,11 @@ namespace PosCs.Infrastructure.Persistence
                 report.ByCashier = conn.Query<SalesByUserRow>(
                     @"SELECT COALESCE(u.username, i.createdBy) AS UserName,
                              COUNT(1) AS InvoiceCount,
-                             COALESCE(SUM(i.totalAmount), 0) AS Total
+                             COALESCE(SUM(i.totalAmount - COALESCE((
+                                 SELECT SUM(r.totalAmount) FROM SaleReturn r
+                                 WHERE r.invoiceId = i.id AND r.status = 'posted'
+                                   AND r.date BETWEEN @from AND @to
+                             ), 0)), 0) AS Total
                       FROM Invoice i
                       LEFT JOIN User u ON u.id = i.createdBy
                       WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
@@ -303,6 +330,7 @@ namespace PosCs.Infrastructure.Persistence
         {
             public int InvoiceCount { get; set; }
             public double GrossSales { get; set; }
+            public double NetSales { get; set; }
             public double Discounts { get; set; }
             public double Total { get; set; }
             public double Revenue { get; set; }

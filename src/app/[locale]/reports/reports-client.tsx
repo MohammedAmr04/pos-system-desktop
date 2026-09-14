@@ -44,11 +44,17 @@ type ReportKey = "sales" | "purchases" | "profit" | "inventory" | "returns" | "e
 
 const REPORT_KEYS: ReportKey[] = ["sales", "purchases", "profit", "inventory", "returns", "expenses", "cash", "employees"]
 
+const formatDate = (d: Date) => {
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${d.getFullYear()}-${month}-${day}`
+}
+
 const monthStart = () => {
   const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
+  return formatDate(new Date(d.getFullYear(), d.getMonth(), 1))
 }
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => formatDate(new Date())
 
 export function ReportsClient() {
   const t = useTranslations("Reports")
@@ -58,17 +64,26 @@ export function ReportsClient() {
   const canLowStock = hasAccess(PERMISSIONS.REPORTS_VIEW, FEATURES.LOW_STOCK_REPORT)
 
   const [tab, setTab] = useState<ReportKey>("sales")
-  const [from, setFrom] = useState(monthStart())
-  const [to, setTo] = useState(today())
+  const [from, setFrom] = useState("")
+  const [to, setTo] = useState("")
 
-  const { data: sales, isFetching: salesFetching, isError: salesError } = useSalesReport(from, to, canView && tab === "sales") as { data: SalesReport | undefined; isFetching: boolean; isError: boolean }
-  const { data: purchases, isFetching: purchasesFetching, isError: purchasesError } = usePurchasesReport(from, to, canView && tab === "purchases") as { data: PurchasesReport | undefined; isFetching: boolean; isError: boolean }
-  const { data: profit, isFetching: profitFetching, isError: profitError } = useProfitReport(from, to, canView && tab === "profit") as { data: ProfitReport | undefined; isFetching: boolean; isError: boolean }
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setFrom(monthStart())
+      setTo(today())
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  const datesReady = Boolean(from && to)
+  const { data: sales, isFetching: salesFetching, isError: salesError } = useSalesReport(from, to, datesReady && canView && tab === "sales") as { data: SalesReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: purchases, isFetching: purchasesFetching, isError: purchasesError } = usePurchasesReport(from, to, datesReady && canView && tab === "purchases") as { data: PurchasesReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: profit, isFetching: profitFetching, isError: profitError } = useProfitReport(from, to, datesReady && canView && tab === "profit") as { data: ProfitReport | undefined; isFetching: boolean; isError: boolean }
   const { data: inventory, isFetching: inventoryFetching, isError: inventoryError } = useInventoryReport(canView && tab === "inventory") as { data: InventoryValuationRow[] | undefined; isFetching: boolean; isError: boolean }
-  const { data: returns, isFetching: returnsFetching, isError: returnsError } = useReturnsReport(from, to, canView && tab === "returns") as { data: ReturnsReport | undefined; isFetching: boolean; isError: boolean }
-  const { data: expenses, isFetching: expensesFetching, isError: expensesError } = useExpensesReport(from, to, canView && tab === "expenses") as { data: ExpensesReport | undefined; isFetching: boolean; isError: boolean }
-  const { data: cash, isFetching: cashFetching, isError: cashError } = useCashReport(from, to, canView && tab === "cash") as { data: CashReport | undefined; isFetching: boolean; isError: boolean }
-  const { data: employees, isFetching: employeesFetching, isError: employeesError } = useEmployeePerformance(from, to, canView && tab === "employees") as { data: EmployeePerformanceRow[] | undefined; isFetching: boolean; isError: boolean }
+  const { data: returns, isFetching: returnsFetching, isError: returnsError } = useReturnsReport(from, to, datesReady && canView && tab === "returns") as { data: ReturnsReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: expenses, isFetching: expensesFetching, isError: expensesError } = useExpensesReport(from, to, datesReady && canView && tab === "expenses") as { data: ExpensesReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: cash, isFetching: cashFetching, isError: cashError } = useCashReport(from, to, datesReady && canView && tab === "cash") as { data: CashReport | undefined; isFetching: boolean; isError: boolean }
+  const { data: employees, isFetching: employeesFetching, isError: employeesError } = useEmployeePerformance(from, to, datesReady && canView && tab === "employees") as { data: EmployeePerformanceRow[] | undefined; isFetching: boolean; isError: boolean }
 
   const activeError = tab === "sales" ? salesError
     : tab === "purchases" ? purchasesError
@@ -79,14 +94,14 @@ export function ReportsClient() {
     : tab === "cash" ? cashError
     : employeesError
 
-  const loading = tab === "sales" ? salesFetching
+  const loading = !datesReady || (tab === "sales" ? salesFetching
     : tab === "purchases" ? purchasesFetching
     : tab === "profit" ? profitFetching
     : tab === "inventory" ? inventoryFetching
     : tab === "returns" ? returnsFetching
     : tab === "expenses" ? expensesFetching
     : tab === "cash" ? cashFetching
-    : employeesFetching
+    : employeesFetching)
 
   useEffect(() => {
     if (activeError) toast.error(t("loadFailed"))

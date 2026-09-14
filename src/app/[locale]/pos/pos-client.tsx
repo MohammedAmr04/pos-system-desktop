@@ -33,6 +33,7 @@ import { useActiveShift } from "@/hooks/use-shifts"
 import { ProductSearchHandle, ProductSearchPopover } from "./_components/product-search-popover"
 import { CartPanel } from "./_components/cart-panel"
 import { CheckoutPanel } from "./_components/checkout-panel"
+import { OrderDetailsPanel } from "./_components/order-details-panel"
 import { UnitPickerDialog, UnitPickerState } from "./_components/unit-picker-dialog"
 import { UnknownBarcodeDialog } from "./_components/unknown-barcode-dialog"
 
@@ -316,10 +317,11 @@ export function POSClient() {
             />
           </div>
 
+          <OrderDetailsPanel />
           <CartPanel />
         </div>
 
-        <div className="w-full lg:w-96 flex flex-col gap-4">
+        <div className="min-h-0 w-full lg:w-96 flex flex-col gap-4">
           <CheckoutPanel />
         </div>
       </div>
