@@ -102,7 +102,7 @@ namespace PosCs.Application.Services
             else if (_unitRepo.BarcodeExists(barcode))
                 throw new DomainValidationException("Barcode already in use");
 
-            var product = _repo.CreateWithBaseUnit(new Product
+            var product = new Product
             {
                 Name = request.Name,
                 BuyPrice = productType == "service" ? serviceCost : 0,
@@ -115,7 +115,8 @@ namespace PosCs.Application.Services
                 IsHiddenFromPOS = request.IsHiddenFromPOS,
                 CategoryId = ResolveCategoryRef(request.CategoryId, null),
                 BrandId = ResolveBrandRef(request.BrandId, null)
-            }, new ProductUnit
+            };
+            var baseUnit = new ProductUnit
             {
                 UnitName = unitName,
                 UnitId = baseUnitId,
@@ -123,15 +124,23 @@ namespace PosCs.Application.Services
                 RetailPrice = retailPrice,
                 WholesalePrice = request.WholesalePrice,
                 IsBaseUnit = true
-            }, barcode);
+            };
 
-            AttachUnits(product);
             if (productType == "bundle")
             {
                 EnsureBundleRepository();
-                _bundleRepo.ReplaceBundleComponents(product.Id, bundleComponents);
+                product = _bundleRepo.CreateWithBaseUnitAndBundleComponents(product, baseUnit, barcode, bundleComponents);
+            }
+            else
+            {
+                product = _repo.CreateWithBaseUnit(product, baseUnit, barcode);
+            }
+
+            if (productType == "bundle")
+            {
                 product.BundleComponents = _bundleRepo.GetBundleComponents(product.Id);
             }
+            AttachUnits(product);
             return product;
         }
 
@@ -143,6 +152,8 @@ namespace PosCs.Application.Services
             var existing = _repo.GetById(id);
             if (existing == null)
                 throw new NotFoundException("Product not found");
+
+            var wasBundle = NormalizeProductType(existing.ProductType) == "bundle";
 
             existing.Name = request.Name ?? existing.Name;
             existing.Notes = request.Notes ?? existing.Notes;
@@ -201,17 +212,20 @@ namespace PosCs.Application.Services
                 }
             }
 
-            _repo.UpdateWithBaseUnit(existing, baseUnit, request.Barcode?.Trim());
+            var shouldReplaceBundleComponents =
+                (productType == "bundle" && request.BundleComponents != null) ||
+                (wasBundle && productType != "bundle");
 
-            if (productType == "bundle" && request.BundleComponents != null)
+            if (shouldReplaceBundleComponents)
             {
                 EnsureBundleRepository();
-                _bundleRepo.ReplaceBundleComponents(existing.Id, bundleComponents ?? new List<BundleComponent>());
+                _bundleRepo.UpdateWithBaseUnitAndBundleComponents(existing, baseUnit, request.Barcode?.Trim(),
+                    bundleComponents ?? new List<BundleComponent>());
+                existing.BundleComponents = _bundleRepo.GetBundleComponents(existing.Id);
             }
-            else if (productType != "bundle" && existing.ProductType == "bundle")
+            else
             {
-                EnsureBundleRepository();
-                _bundleRepo.ReplaceBundleComponents(existing.Id, new List<BundleComponent>());
+                _repo.UpdateWithBaseUnit(existing, baseUnit, request.Barcode?.Trim());
             }
 
             AttachUnits(existing);

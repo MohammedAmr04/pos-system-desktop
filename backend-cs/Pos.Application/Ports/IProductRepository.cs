@@ -23,5 +23,9 @@ namespace PosCs.Application.Ports
     {
         List<BundleComponent> GetBundleComponents(string bundleProductId);
         void ReplaceBundleComponents(string bundleProductId, List<BundleComponent> components);
+        Product CreateWithBaseUnitAndBundleComponents(Product product, ProductUnit baseUnit,
+            string barcode, List<BundleComponent> components);
+        void UpdateWithBaseUnitAndBundleComponents(Product product, ProductUnit baseUnit,
+            string newDefaultBarcode, List<BundleComponent> components);
     }
 }

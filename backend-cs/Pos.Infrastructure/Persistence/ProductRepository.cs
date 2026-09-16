@@ -130,6 +130,30 @@ namespace PosCs.Infrastructure.Persistence
             return product;
         }
 
+        public Product CreateWithBaseUnitAndBundleComponents(Product product, ProductUnit baseUnit,
+            string barcode, List<BundleComponent> components)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+            using (var tx = conn.BeginTransaction())
+            {
+                try
+                {
+                    InsertProduct(conn, tx, product);
+                    baseUnit.ProductId = product.Id;
+                    var unitRow = UnitSql.InsertUnit(conn, tx, baseUnit);
+                    UnitSql.InsertBarcode(conn, tx, unitRow.Id, barcode, isDefault: false);
+                    InsertBundleComponents(conn, tx, product.Id, components);
+                    tx.Commit();
+                    return product;
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+            }
+        }
+
         public void UpdateWithBaseUnit(Product product, ProductUnit baseUnit, string newDefaultBarcode)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
@@ -159,6 +183,32 @@ namespace PosCs.Infrastructure.Persistence
                     }
 
                     UpdateProduct(conn, tx, product);
+                    tx.Commit();
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        public void UpdateWithBaseUnitAndBundleComponents(Product product, ProductUnit baseUnit,
+            string newDefaultBarcode, List<BundleComponent> components)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+            using (var tx = conn.BeginTransaction())
+            {
+                try
+                {
+                    if (baseUnit != null)
+                        UnitSql.UpdateUnit(conn, tx, baseUnit);
+
+                    UpdateDefaultBarcode(conn, tx, baseUnit, newDefaultBarcode);
+                    UpdateProduct(conn, tx, product);
+                    conn.Execute("DELETE FROM BundleComponent WHERE bundleProductId = @bundleProductId",
+                        new { bundleProductId = product.Id }, transaction: tx);
+                    InsertBundleComponents(conn, tx, product.Id, components);
                     tx.Commit();
                 }
                 catch
@@ -296,19 +346,7 @@ namespace PosCs.Infrastructure.Persistence
                 {
                     conn.Execute("DELETE FROM BundleComponent WHERE bundleProductId = @bundleProductId",
                         new { bundleProductId }, transaction: tx);
-                    foreach (var component in components ?? new List<BundleComponent>())
-                    {
-                        conn.Execute(@"
-                            INSERT INTO BundleComponent (id, bundleProductId, componentProductId, quantity)
-                            VALUES (@id, @bundleProductId, @componentProductId, @quantity)",
-                            new
-                            {
-                                id = Guid.NewGuid().ToString("N"),
-                                bundleProductId,
-                                componentProductId = component.ComponentProductId,
-                                quantity = component.Quantity
-                            }, transaction: tx);
-                    }
+                    InsertBundleComponents(conn, tx, bundleProductId, components);
                     tx.Commit();
                 }
                 catch
@@ -316,6 +354,43 @@ namespace PosCs.Infrastructure.Persistence
                     tx.Rollback();
                     throw;
                 }
+            }
+        }
+
+        private static void InsertBundleComponents(SqliteConnection conn, SqliteTransaction tx,
+            string bundleProductId, List<BundleComponent> components)
+        {
+            foreach (var component in components ?? new List<BundleComponent>())
+            {
+                conn.Execute(@"
+                    INSERT INTO BundleComponent (id, bundleProductId, componentProductId, quantity)
+                    VALUES (@id, @bundleProductId, @componentProductId, @quantity)",
+                    new
+                    {
+                        id = Guid.NewGuid().ToString("N"),
+                        bundleProductId,
+                        componentProductId = component.ComponentProductId,
+                        quantity = component.Quantity
+                    }, transaction: tx);
+            }
+        }
+
+        private static void UpdateDefaultBarcode(SqliteConnection conn, SqliteTransaction tx,
+            ProductUnit baseUnit, string newDefaultBarcode)
+        {
+            if (string.IsNullOrWhiteSpace(newDefaultBarcode)) return;
+            var currentDefault = baseUnit != null
+                ? GetBarcodesByUnit(conn, tx, baseUnit.Id).FirstOrDefault(b => b.IsDefault)
+                : null;
+            if (currentDefault == null || currentDefault.Barcode != newDefaultBarcode)
+            {
+                if (UnitSql.BarcodeExists(conn, tx, newDefaultBarcode))
+                    throw new DomainValidationException("Barcode already in use");
+                if (baseUnit != null && currentDefault != null)
+                    conn.Execute("UPDATE ProductBarcode SET barcode = @barcode WHERE id = @id",
+                        new { barcode = newDefaultBarcode, id = currentDefault.Id }, transaction: tx);
+                else if (baseUnit != null)
+                    UnitSql.InsertBarcode(conn, tx, baseUnit.Id, newDefaultBarcode, isDefault: true);
             }
         }
 

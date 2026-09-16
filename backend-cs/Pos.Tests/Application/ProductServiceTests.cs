@@ -9,13 +9,16 @@ using Xunit;
 
 namespace PosCs.Tests.Application
 {
-    public class FakeProductRepository : IProductRepository
+    public class FakeProductRepository : IProductRepository, IBundleRepository
     {
         public Product Stored;
         public Product LastCreated;
         public Product LastUpdated;
         public ProductUnit LastCreatedUnit;
         public ProductUnit LastUpdatedUnit;
+        public List<BundleComponent> LastBundleComponents;
+        public bool UsedAtomicBundleCreate;
+        public bool UsedAtomicBundleUpdate;
 
         public Product GetById(string id)
         {
@@ -50,6 +53,29 @@ namespace PosCs.Tests.Application
         }
 
         public bool Delete(string id) => true;
+
+        public List<BundleComponent> GetBundleComponents(string bundleProductId) => LastBundleComponents ?? new List<BundleComponent>();
+
+        public void ReplaceBundleComponents(string bundleProductId, List<BundleComponent> components)
+        {
+            LastBundleComponents = components;
+        }
+
+        public Product CreateWithBaseUnitAndBundleComponents(Product product, ProductUnit baseUnit,
+            string barcode, List<BundleComponent> components)
+        {
+            UsedAtomicBundleCreate = true;
+            LastBundleComponents = components;
+            return CreateWithBaseUnit(product, baseUnit, barcode);
+        }
+
+        public void UpdateWithBaseUnitAndBundleComponents(Product product, ProductUnit baseUnit,
+            string newDefaultBarcode, List<BundleComponent> components)
+        {
+            UsedAtomicBundleUpdate = true;
+            LastBundleComponents = components;
+            UpdateWithBaseUnit(product, baseUnit, newDefaultBarcode);
+        }
     }
 
     public class FakeProductUnitRepository : IProductUnitRepository
@@ -190,6 +216,28 @@ namespace PosCs.Tests.Application
             Assert.Equal(5, updated.StockQuantity);
             Assert.Equal(11, products.LastUpdated.BuyPrice);
             Assert.Equal(5, products.LastUpdated.StockQuantity);
+        }
+
+        [Fact]
+        public void CreateBundlePersistsProductAndComponentsAtomically()
+        {
+            var products = new FakeProductRepository
+            {
+                Stored = new Product { Id = "component-1", Name = "Component", ProductType = "product", StockQuantity = 5 }
+            };
+            var units = new FakeProductUnitRepository();
+            var request = CreateRequest();
+            request.Name = "Bundle";
+            request.ProductType = "bundle";
+            request.BundleComponents = new List<BundleComponentRequest>
+            {
+                new BundleComponentRequest { ProductId = "component-1", Quantity = 1 }
+            };
+
+            ServiceWith(products, units).Create(request);
+
+            Assert.True(products.UsedAtomicBundleCreate);
+            Assert.Single(products.LastBundleComponents);
         }
     }
 }
