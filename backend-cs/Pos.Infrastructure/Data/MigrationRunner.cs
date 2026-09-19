@@ -11,6 +11,11 @@ namespace PosCs.Infrastructure.Data
     {
         public static void ApplyPending(SqliteConnection conn)
         {
+            ApplyPending(conn, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Migrations"));
+        }
+
+        public static void ApplyPending(SqliteConnection conn, string migrationsDir)
+        {
             // Create tracking table
             conn.Execute(@"
                 CREATE TABLE IF NOT EXISTS __Migrations (
@@ -23,7 +28,6 @@ namespace PosCs.Infrastructure.Data
                 StringComparer.OrdinalIgnoreCase
             );
 
-            var migrationsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Migrations");
             if (!Directory.Exists(migrationsDir))
             {
                 Console.WriteLine("[MIGRATIONS] No migrations directory found");
@@ -74,16 +78,22 @@ namespace PosCs.Infrastructure.Data
         {
             var statements = new List<string>();
             var current = new System.Text.StringBuilder();
+            var inTrigger = false;
             foreach (var line in sql.Split('\n'))
             {
                 var trimmed = line.Trim();
                 if (trimmed.StartsWith("--") || trimmed.StartsWith("#"))
                     continue;
                 current.AppendLine(line);
-                if (trimmed.EndsWith(";"))
+                if (!inTrigger && trimmed.StartsWith("CREATE TRIGGER", StringComparison.OrdinalIgnoreCase))
+                    inTrigger = true;
+
+                var endsTrigger = inTrigger && string.Equals(trimmed, "END;", StringComparison.OrdinalIgnoreCase);
+                if ((!inTrigger && trimmed.EndsWith(";")) || endsTrigger)
                 {
                     statements.Add(current.ToString().Trim());
                     current.Clear();
+                    inTrigger = false;
                 }
             }
             if (current.ToString().Trim().Length > 0)

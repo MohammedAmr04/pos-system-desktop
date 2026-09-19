@@ -18,9 +18,9 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Sibling projects compile their own sources; keep them out of this project's globs. -->
-    <Compile Remove="Pos.Domain\**;Pos.Application\**;Pos.Infrastructure\**;Pos.Tests\**" />
-    <None Remove="Pos.Domain\**;Pos.Application\**;Pos.Infrastructure\**;Pos.Tests\**" />
-    <EmbeddedResource Remove="Pos.Domain\**;Pos.Application\**;Pos.Infrastructure\**;Pos.Tests\**" />
+    <Compile Remove="Pos.Domain\**;Pos.Application\**;Pos.Infrastructure\**;Pos.Tests\**;BranchAgent\**" />
+    <None Remove="Pos.Domain\**;Pos.Application\**;Pos.Infrastructure\**;Pos.Tests\**;BranchAgent\**" />
+    <EmbeddedResource Remove="Pos.Domain\**;Pos.Application\**;Pos.Infrastructure\**;Pos.Tests\**;BranchAgent\**" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Database\Migrations\*.sql">

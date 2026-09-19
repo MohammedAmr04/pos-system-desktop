@@ -74,6 +74,12 @@ namespace PosCs
         private static IOperationsRepository _operations;
         private static OperationsService _operationsService;
         private static BackupService _backupService;
+        private static IBranchRepository _branches;
+        private static ISyncRepository _sync;
+        private static BranchService _branchService;
+        private static SyncService _syncService;
+        private static IPrintQueueRepository _printQueue;
+        private static PrintQueueService _printQueueService;
 
         public static IClock Clock => Lazy(ref _clock, () => new SystemClock());
         public static IPasswordHasher Hasher => Lazy(ref _hasher, () => new PasswordHasher());
@@ -156,6 +162,12 @@ namespace PosCs
         public static OperationsService OperationsService => Lazy(ref _operationsService,
             () => new OperationsService(OperationsRepo));
         public static BackupService BackupService => Lazy(ref _backupService, () => new BackupService());
+        public static IBranchRepository BranchesRepo => Lazy(ref _branches, () => new BranchRepository());
+        public static ISyncRepository SyncRepo => Lazy(ref _sync, () => new SyncRepository());
+        public static BranchService BranchService => Lazy(ref _branchService, () => new BranchService(BranchesRepo));
+        public static SyncService SyncService => Lazy(ref _syncService, () => new SyncService(SyncRepo));
+        public static IPrintQueueRepository PrintQueueRepo => Lazy(ref _printQueue, () => new PrintQueueRepository());
+        public static PrintQueueService PrintQueueService => Lazy(ref _printQueueService, () => new PrintQueueService(PrintQueueRepo));
 
         private static T Lazy<T>(ref T field, System.Func<T> factory) where T : class
         {

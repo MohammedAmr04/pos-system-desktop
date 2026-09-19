@@ -22,5 +22,7 @@ namespace PosCs.Domain.Entities
         public string Notes { get; set; }
         /// <summary>'open' | 'closed'.</summary>
         public string Status { get; set; } = "open";
+        public string BranchId { get; set; }
+        public string TerminalId { get; set; }
     }
 }

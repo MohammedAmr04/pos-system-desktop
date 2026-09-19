@@ -27,6 +27,8 @@ namespace PosCs.Domain.Entities
         public string EmployeeId { get; set; }
         /// <summary>The shift that was open when the sale was posted (plan Phase 9).</summary>
         public string ShiftId { get; set; }
+        public string BranchId { get; set; }
+        public string TerminalId { get; set; }
 
         // Serialized under its exact legacy key by the API contract resolver.
         public List<InvoiceDetail> InvoiceDetail { get; set; } = new List<InvoiceDetail>();
