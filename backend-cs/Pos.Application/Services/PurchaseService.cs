@@ -102,7 +102,7 @@ namespace PosCs.Application.Services
                     ProductId = i.ProductId,
                     ProductUnitId = i.ProductUnitId,
                     Quantity = i.Quantity,
-                    UnitCost = i.UnitCost,
+                    UnitCost = i.UnitCost * (i.QuantityFactor > 0 ? i.QuantityFactor : 1),
                     NewRetailPrice = i.NewRetailPrice,
                     NewWholesalePrice = i.NewWholesalePrice
                 }).ToList()

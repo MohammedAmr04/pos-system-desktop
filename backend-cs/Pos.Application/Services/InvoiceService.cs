@@ -106,6 +106,8 @@ namespace PosCs.Application.Services
                 if (product == null)
                     throw new DomainValidationException($"Product not found: '{item.Name}'");
 
+                ValidateBundleAvailability(product, item.Quantity);
+
                 var unit = _units.GetById(item.ProductUnitId);
                 if (unit == null || unit.ProductId != product.Id)
                     unit = _units.GetBaseUnit(product.Id);
@@ -259,6 +261,22 @@ namespace PosCs.Application.Services
             };
 
             return Tuple.Create(invoice, lineDetails);
+        }
+
+        private static void ValidateBundleAvailability(Product product, double quantity)
+        {
+            if (product.ProductType != "bundle") return;
+            if (product.BundleComponents == null || product.BundleComponents.Count == 0)
+                throw new DomainValidationException($"Bundle '{product.Name}' is not available");
+
+            foreach (var component in product.BundleComponents)
+            {
+                if (component.Product == null || component.Quantity <= 0)
+                    throw new DomainValidationException($"Bundle '{product.Name}' is not available");
+                if (component.Product.ProductType != "service" &&
+                    component.Product.StockQuantity < component.Quantity * quantity)
+                    throw new DomainValidationException($"Bundle '{product.Name}' is not available");
+            }
         }
 
         /// <summary>Salesperson attribution must reference an existing, active employee.

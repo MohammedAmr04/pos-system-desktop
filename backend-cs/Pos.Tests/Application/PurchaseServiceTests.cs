@@ -57,6 +57,13 @@ namespace PosCs.Tests.Application
 
     public class PurchaseServiceTests
     {
+        [Fact]
+        public void PurchaseCost_ConvertsSelectedUnitCostToBaseUnitCost()
+        {
+            Assert.Equal(3, PurchaseCost.PerBaseUnit(36, 12));
+            Assert.Equal(36, PurchaseCost.LineTotal(1, 3, 12));
+        }
+
         private static SavePurchaseRequest ValidRequest(string paymentMethod = "cash", string supplierId = null, string status = "draft")
         {
             return new SavePurchaseRequest

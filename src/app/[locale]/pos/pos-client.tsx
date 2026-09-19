@@ -138,7 +138,7 @@ export function POSClient() {
   const applyAdd = useCallback((product: Product, unit: ProductUnit) => {
     const result = addItem(product, unit)
     if (result === 'out') {
-      toast.error(t("outOfStock"))
+      toast.error(product.productType === 'bundle' ? t("bundleUnavailable") : t("outOfStock"))
     } else if (result === 'max') {
       toast.error(t("maxStockReached"))
     }

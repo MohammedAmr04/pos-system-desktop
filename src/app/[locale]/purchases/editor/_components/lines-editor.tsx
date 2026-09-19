@@ -43,12 +43,24 @@ export function LinesEditor({ products, lines, disabled, onAdd, onRemove, onUpda
     onUpdate(line.key, {
       productId,
       productUnitId: firstUnit?.id ?? "",
-      unitCost: line.unitCost || (product?.buyPrice ? String(product.buyPrice) : ""),
+      unitCost: line.unitCost || (product?.buyPrice != null
+        ? String(product.buyPrice * (firstUnit?.quantityFactor || 1))
+        : ""),
     })
   }
 
   const handleUnitChange = (line: EditorLine, unitId: string) => {
-    onUpdate(line.key, { productUnitId: unitId })
+    const product = products.find((p) => p.id === line.productId)
+    const nextUnit = product?.units?.find((unit) => unit.id === unitId)
+    const currentUnit = product?.units?.find((unit) => unit.id === line.productUnitId)
+    const currentCost = Number(line.unitCost)
+    const baseCost = Number.isFinite(currentCost) && currentUnit?.quantityFactor
+      ? currentCost / currentUnit.quantityFactor
+      : currentCost
+    onUpdate(line.key, {
+      productUnitId: unitId,
+      unitCost: nextUnit && Number.isFinite(baseCost) ? String(baseCost * nextUnit.quantityFactor) : line.unitCost,
+    })
   }
 
   return (

@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 using PosCs.Application.Ports;
 using PosCs.Domain.Entities;
 using PosCs.Domain.Exceptions;
+using PosCs.Application.Services;
 
 namespace PosCs.Infrastructure.Persistence
 {
@@ -73,8 +74,6 @@ namespace PosCs.Infrastructure.Persistence
                     try
                     {
                         var now = DateTime.Now;
-                        RecalculateTotals(invoice, items);
-
                         var existing = conn.QueryFirstOrDefault<PurchaseInvoice>(
                             "SELECT * FROM PurchaseInvoice WHERE id = @id", new { id = invoice.Id }, transaction: tx);
 
@@ -93,7 +92,10 @@ namespace PosCs.Infrastructure.Persistence
                                 throw new DomainValidationException($"Invalid unit for product '{item.ProductId}'");
                             item.UnitName = unit.UnitName;
                             item.QuantityFactor = unit.QuantityFactor;
+                            item.UnitCost = PurchaseCost.PerBaseUnit(item.UnitCost, item.QuantityFactor);
                         }
+
+                        RecalculateTotals(invoice, items);
 
                         bool isNew = existing == null;
                         if (isNew)
@@ -350,7 +352,7 @@ namespace PosCs.Infrastructure.Persistence
         private static void RecalculateTotals(PurchaseInvoice invoice, List<PurchaseInvoiceItem> items)
         {
             foreach (var item in items)
-                item.LineTotal = Math.Round(item.Quantity * item.UnitCost, 2);
+                item.LineTotal = PurchaseCost.LineTotal(item.Quantity, item.UnitCost, item.QuantityFactor);
             invoice.Subtotal = Math.Round(items.Sum(i => i.LineTotal), 2);
             invoice.Total = Math.Round(invoice.Subtotal - invoice.Discount + invoice.Tax, 2);
         }
