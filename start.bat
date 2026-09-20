@@ -12,6 +12,14 @@ if not exist "%SERVER_PATH%" (
     exit /b 1
 )
 
+set "AGENT_PATH=backend-cs\BranchAgent\bin\Release\net48\pos-branch-agent.exe"
+if not exist "%AGENT_PATH%" set "AGENT_PATH=backend\pos-branch-agent.exe"
+if not exist "%AGENT_PATH%" set "AGENT_PATH=pos-branch-agent.exe"
+
+if exist "branch-agent.env" (
+    for /f "usebackq eol=# tokens=1,* delims==" %%A in ("branch-agent.env") do if not "%%A"=="" set "%%A=%%B"
+)
+
 echo =============================================
 echo POS Desktop Application - v2
 echo =============================================
@@ -19,6 +27,13 @@ echo.
 
 echo [INFO] Starting POS server on port 3001...
 start /min "POS Server" "%SERVER_PATH%"
+
+if exist "%AGENT_PATH%" if defined POS_CENTRAL_URL if defined POS_SYNC_TOKEN (
+    echo [INFO] Starting branch sync and print worker...
+    start /min "POS Branch Agent" "%AGENT_PATH%"
+) else (
+    echo [WARN] Branch agent skipped. Configure branch-agent.env with POS_CENTRAL_URL and POS_SYNC_TOKEN.
+)
 
 echo [INFO] Waiting for server to start...
 timeout /t 3 /nobreak >nul
@@ -32,3 +47,4 @@ echo.
 pause >nul
 
 taskkill /IM pos-server.exe /F >nul 2>&1
+taskkill /IM pos-branch-agent.exe /F >nul 2>&1

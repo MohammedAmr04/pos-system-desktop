@@ -46,11 +46,11 @@ namespace PosCs.Controllers
         [Route("changes")]
         [HttpGet]
         [RequirePermission]
-        public HttpResponseMessage Changes(long afterVersion = 0, int limit = 50)
+        public HttpResponseMessage Changes(long afterVersion = 0, int limit = 50, string branchId = null)
         {
             try
             {
-                return Request.CreateResponse(HttpStatusCode.OK, CompositionRoot.SyncService.GetChanges(afterVersion, limit));
+                return Request.CreateResponse(HttpStatusCode.OK, CompositionRoot.SyncService.GetChanges(afterVersion, limit, branchId));
             }
             catch (Exception ex)
             {

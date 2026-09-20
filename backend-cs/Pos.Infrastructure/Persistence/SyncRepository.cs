@@ -219,12 +219,15 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public List<SyncChange> GetChanges(long afterVersion, int limit)
+        public List<SyncChange> GetChanges(long afterVersion, int limit, string branchId = null)
         {
             using (var connection = DbConnectionFactory.CreateConnection())
             {
                 return connection.Query<SyncChange>(@"SELECT version,branchId,entityType,entityId,operationType,payload,createdAt
-                    FROM SyncChangeLog WHERE version > @afterVersion ORDER BY version LIMIT @limit", new { afterVersion, limit }).ToList();
+                    FROM SyncChangeLog
+                    WHERE version > @afterVersion
+                      AND (@branchId IS NULL OR branchId IS NULL OR branchId = @branchId)
+                    ORDER BY version LIMIT @limit", new { afterVersion, limit, branchId }).ToList();
             }
         }
 

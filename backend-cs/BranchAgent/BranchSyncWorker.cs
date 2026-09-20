@@ -37,6 +37,7 @@ namespace PosCs.BranchAgent
                 {
                     PushPending();
                     PullChanges();
+                    RetryPrintQueue();
                 }
                 catch (Exception ex)
                 {
@@ -63,7 +64,10 @@ namespace PosCs.BranchAgent
         private void PullChanges()
         {
             var cursor = ReadCursor();
-            var changes = Get<List<SyncChange>>(_config.CentralBaseUrl + "/api/sync/changes?afterVersion=" + cursor + "&limit=100");
+            var branchQuery = string.IsNullOrWhiteSpace(_config.BranchId)
+                ? string.Empty
+                : "&branchId=" + Uri.EscapeDataString(_config.BranchId);
+            var changes = Get<List<SyncChange>>(_config.CentralBaseUrl + "/api/sync/changes?afterVersion=" + cursor + "&limit=100" + branchQuery);
             if (changes == null || changes.Count == 0) return;
 
             var operations = new List<SyncOperation>();
@@ -86,6 +90,34 @@ namespace PosCs.BranchAgent
             Console.WriteLine("[AGENT] Pulled " + changes.Count + " change(s)");
         }
 
+        private void RetryPrintQueue()
+        {
+            var jobs = Get<List<PrintJob>>(_config.LocalBaseUrl + "/api/printing/queue/pending?limit=10");
+            if (jobs == null || jobs.Count == 0) return;
+
+            foreach (var job in jobs)
+            {
+                try
+                {
+                    var payload = JsonConvert.DeserializeObject<object>(job.Payload);
+                    Post(_config.LocalBaseUrl + "/api/printing/print", payload, true);
+                    Post(_config.LocalBaseUrl + "/api/printing/queue/" + Uri.EscapeDataString(job.Id) + "/printed", new { });
+                    Console.WriteLine("[AGENT] Printed queued job " + job.Id);
+                }
+                catch (Exception ex)
+                {
+                    try
+                    {
+                        Post(_config.LocalBaseUrl + "/api/printing/queue/" + Uri.EscapeDataString(job.Id) + "/failed", new { error = ex.Message });
+                    }
+                    catch (Exception markError)
+                    {
+                        Console.Error.WriteLine("[AGENT ERR] Could not mark print job: " + markError.Message);
+                    }
+                }
+            }
+        }
+
         private T Get<T>(string url)
         {
             var response = _http.GetAsync(url).GetAwaiter().GetResult();
@@ -93,13 +125,18 @@ namespace PosCs.BranchAgent
             return JsonConvert.DeserializeObject<T>(response.Content.ReadAsStringAsync().GetAwaiter().GetResult());
         }
 
-        private void Post(string url, object payload)
+        private void Post(string url, object payload, bool queueRetry = false)
         {
             var json = JsonConvert.SerializeObject(payload);
             using (var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"))
             {
-                var response = _http.PostAsync(url, content).GetAwaiter().GetResult();
-                response.EnsureSuccessStatusCode();
+                using (var request = new HttpRequestMessage(HttpMethod.Post, url))
+                {
+                    request.Content = content;
+                    if (queueRetry) request.Headers.Add("X-Print-Queue-Retry", "1");
+                    var response = _http.SendAsync(request).GetAwaiter().GetResult();
+                    response.EnsureSuccessStatusCode();
+                }
             }
         }
 

@@ -24,7 +24,8 @@ namespace PosCs.Controllers
             try
             {
                 var outcome = _service.PrintReceipt(dto);
-                if (!outcome.Success && dto != null)
+                var isQueueRetry = Request.Headers.Contains("X-Print-Queue-Retry");
+                if (!outcome.Success && dto != null && !isQueueRetry)
                     _queue.Enqueue("receipt", JsonConvert.SerializeObject(dto));
                 return Request.CreateResponse((HttpStatusCode)outcome.Status, ToBody(outcome));
             }

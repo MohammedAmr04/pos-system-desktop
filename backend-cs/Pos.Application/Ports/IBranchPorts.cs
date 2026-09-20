@@ -20,6 +20,6 @@ namespace PosCs.Application.Ports
         void MarkSynced(string id);
         void Receive(SyncOperation operation);
         void ApplyReceived(string operationId);
-        List<SyncChange> GetChanges(long afterVersion, int limit);
+        List<SyncChange> GetChanges(long afterVersion, int limit, string branchId = null);
     }
 }

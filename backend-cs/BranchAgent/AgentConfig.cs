@@ -8,6 +8,7 @@ namespace PosCs.BranchAgent
         public string LocalBaseUrl { get; private set; }
         public string CentralBaseUrl { get; private set; }
         public string Token { get; private set; }
+        public string BranchId { get; private set; }
         public string CursorPath { get; private set; }
         public int PollSeconds { get; private set; }
 
@@ -25,6 +26,7 @@ namespace PosCs.BranchAgent
                 LocalBaseUrl = (Environment.GetEnvironmentVariable("POS_BRANCH_LOCAL_URL") ?? "http://localhost:3001").TrimEnd('/'),
                 CentralBaseUrl = central.TrimEnd('/'),
                 Token = token,
+                BranchId = (Environment.GetEnvironmentVariable("POS_BRANCH_ID") ?? string.Empty).Trim(),
                 CursorPath = Path.Combine(dataDir, "sync-cursor.txt"),
                 PollSeconds = ParsePollSeconds(Environment.GetEnvironmentVariable("POS_SYNC_POLL_SECONDS"))
             };

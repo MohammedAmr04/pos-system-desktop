@@ -14,7 +14,7 @@ namespace PosCs.BranchAgent
                 worker.Stop();
             };
 
-            Console.WriteLine("[AGENT] Branch sync agent started");
+            Console.WriteLine("[AGENT] Branch sync agent started for " + (config.BranchId.Length == 0 ? "unconfigured-branch" : config.BranchId));
             worker.Run();
         }
     }

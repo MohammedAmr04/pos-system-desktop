@@ -58,7 +58,7 @@ namespace PosCs.Tests.Application
             public void MarkSynced(string id) { }
             public void Receive(SyncOperation operation) { Received.Add(operation); }
             public void ApplyReceived(string operationId) { }
-            public List<SyncChange> GetChanges(long afterVersion, int limit) { return new List<SyncChange>(); }
+            public List<SyncChange> GetChanges(long afterVersion, int limit, string branchId = null) { return new List<SyncChange>(); }
         }
 
         private sealed class FakeBranchRepository : IBranchRepository

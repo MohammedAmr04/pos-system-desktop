@@ -46,12 +46,12 @@ namespace PosCs.Application.Services
             }
         }
 
-        public List<SyncChange> GetChanges(long afterVersion, int limit)
+        public List<SyncChange> GetChanges(long afterVersion, int limit, string branchId = null)
         {
             if (afterVersion < 0) afterVersion = 0;
             if (limit < 1) limit = 1;
             if (limit > 100) limit = 100;
-            return _repository.GetChanges(afterVersion, limit);
+            return _repository.GetChanges(afterVersion, limit, branchId);
         }
     }
 }
