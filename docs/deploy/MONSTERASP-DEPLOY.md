@@ -4,7 +4,7 @@
 
 ## نظرة عامة على البنية
 
-- الواجهة: تصدير ثابت لـ Next.js يُوضع **في جذر الموقع** (httpdocs) وليس في مجلد فرعي.
+- الواجهة: تصدير ثابت لـ Next.js يُوضع **في جذر الموقع** (`wwwroot`) وليس في مجلد فرعي.
 - الخادم: مكتبة `pos-server.dll` داخل `bin/`، تعمل عبر OWIN على IIS (Microsoft.Owin.Host.SystemWeb).
 - قاعدة البيانات: SQLite في `data/dev.db` (داخل جذر الموقع).
 - الهجرات (Migrations): ملفات SQL في `Migrations/` بجذر الموقع.
@@ -68,12 +68,19 @@ npx tsc --noEmit && npm run lint && npm test && npm run build
 
 ## 3) الرفع إلى الاستضافة
 
-1. أنشئ موقعًا في لوحة تحكم MonsterASP (IIS، مجلد `httpdocs`).
-2. ارفع **محتويات** `deploy\iis\payload\` كاملة إلى `httpdocs` عبر FTP أو File Manager:
-   - `Web.config`, `bin/`, `ar/`, `_next/`, `Migrations/`, صفحة `404/` وغيرها.
-   - لا تُنشئ مجلد `wwwroot` — الواجهة في الجذر مباشرة.
-3. تأكد أن `httpdocs` قابل للكتابة لحساب موقع IIS (لإنشاء `data\dev.db`).
-4. تأكد أن مجلد `.NET CLR Version = v4.0` و`Managed Pipeline Mode = Integrated`.
+1. أنشئ الموقع من لوحة تحكم MonsterASP: **Websites ← Create Website** (اختيار الخطة Free أو Premium).
+   ملاحظة: القائمة تُسمّى "Website" وليس "IIS site" — ما تبقاش تدوّر على مصطلح IIS.
+2. ارفع **محتويات** `deploy\iis\payload\` كاملة إلى مجلد الموقع (`wwwroot`) بأحد الطريقتين:
+   - **File Manager**: أيقونة `Files` في تفاصيل الموقع ← Upload.
+   - **FTP/SFTP**: من القائمة اليسرى `Deploy (FTP/WebDeploy/Git)` —
+     Host = `siteXXXX.siteasp.net`، Username = `siteXXXX`، Port `21`.
+   - **ZIP**: `Deploy ← How to deploy Website content from ZIP file`.
+3. المحتوى النهائي لازم يكون **مباشر في `wwwroot`** (مش في مجلد فرعي داخله):
+   `Web.config`, `bin/`, `Migrations/`, `ar/`, `_next/`, صفحة `404/` وغيرها —
+   يعني لو رفعت ملف ZIP مضغوط فيه مجلد، افتحه وارفع اللي جوّاه.
+4. تأكد أن مجلد الموقع قابل للكتابة لحساب موقع IIS (لإنشاء `data\dev.db`).
+5. إعدادات الإطار: اضبط إصدار **.NET Framework 4.x** للموقع من إعدادات لوحة التحكم
+   (وضع Integrated pipeline هو الافتراضي عند MonsterASP).
 
 ## 4) ما بعد الرفع (قبل عرضه للعميل)
 
