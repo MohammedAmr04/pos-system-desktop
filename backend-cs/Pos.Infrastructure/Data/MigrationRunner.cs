@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Dapper;
 using Microsoft.Data.Sqlite;
 
@@ -9,7 +10,60 @@ namespace PosCs.Infrastructure.Data
 {
     public static class MigrationRunner
     {
+        private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(120);
+
         public static void ApplyPending(SqliteConnection conn)
+        {
+            var mutex = AcquireLock();
+            try
+            {
+                ApplyPendingLocked(conn);
+            }
+            finally
+            {
+                try
+                {
+                    mutex.ReleaseMutex();
+                }
+                catch (ApplicationException)
+                {
+                }
+                mutex.Dispose();
+            }
+        }
+
+        private static Mutex AcquireLock()
+        {
+            Mutex mutex;
+            try
+            {
+                mutex = new Mutex(false, @"Global\PosCsMigrations");
+            }
+            catch (UnauthorizedAccessException)
+            {
+                mutex = new Mutex(false, @"Local\PosCsMigrations");
+            }
+
+            bool acquired;
+            try
+            {
+                acquired = mutex.WaitOne(LockTimeout);
+            }
+            catch (AbandonedMutexException)
+            {
+                acquired = true;
+            }
+
+            if (!acquired)
+            {
+                mutex.Dispose();
+                throw new TimeoutException(
+                    "Timed out waiting for the migration lock held by another process.");
+            }
+            return mutex;
+        }
+
+        private static void ApplyPendingLocked(SqliteConnection conn)
         {
             // Create tracking table
             conn.Execute(@"

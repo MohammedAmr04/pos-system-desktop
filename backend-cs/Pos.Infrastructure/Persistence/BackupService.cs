@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using PosCs.Application.Models;
@@ -58,7 +59,7 @@ namespace PosCs.Infrastructure.Persistence
             {
                 File.Copy(source, temporary, true);
                 ValidateDatabase(temporary);
-                File.Copy(temporary, DbConnectionFactory.DbPath, true);
+                ReplaceLiveDatabase(temporary);
             }
             finally
             {
@@ -67,6 +68,28 @@ namespace PosCs.Infrastructure.Persistence
 
             WriteAudit(actorUserId, "backup.restore", fileName, "Restored database backup");
             return ToSummary(safetyBackup);
+        }
+
+        private static void ReplaceLiveDatabase(string validatedCopy)
+        {
+            var destination = DbConnectionFactory.DbPath;
+            const int attempts = 5;
+            for (var attempt = 1; ; attempt++)
+            {
+                SqliteConnection.ClearAllPools();
+                try
+                {
+                    if (File.Exists(destination))
+                        File.Replace(validatedCopy, destination, null, true);
+                    else
+                        File.Copy(validatedCopy, destination, true);
+                    return;
+                }
+                catch (Exception ex) when ((ex is IOException || ex is UnauthorizedAccessException) && attempt < attempts)
+                {
+                    Thread.Sleep(200 * attempt);
+                }
+            }
         }
 
         private string ResolveBackupPath(string fileName)
