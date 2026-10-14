@@ -16,7 +16,6 @@ build
 obj
 bin
 .vs/
-.vscode/
 .idea/
 # database
 *.db
@@ -38,7 +37,6 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
-.env*
 !.env.example
 
 # license signing secret
@@ -61,3 +59,6 @@ vitamins.pdf
 
 # iis deployment payload
 /deploy/iis/payload/
+/deploy/iis/pos-site.zip
+/deploy/iis/payload.zip
+config.bat
