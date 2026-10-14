@@ -100,8 +100,13 @@ namespace PosCs.Controllers
         {
             try
             {
-                CompositionRoot.SyncService.Receive(request == null ? null : request.Operations);
-                return Request.CreateResponse(HttpStatusCode.OK, new { success = true });
+                var result = CompositionRoot.SyncService.Receive(request == null ? null : request.Operations);
+                return Request.CreateResponse(HttpStatusCode.OK, new
+                {
+                    success = result.Success,
+                    applied = result.Applied,
+                    failed = result.Failed
+                });
             }
             catch (Exception ex)
             {

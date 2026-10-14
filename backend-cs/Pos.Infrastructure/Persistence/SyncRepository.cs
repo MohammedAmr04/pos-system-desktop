@@ -69,13 +69,22 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public void ApplyReceived(string operationId)
+        public SyncApplyOutcome ApplyReceived(string operationId)
         {
             using (var connection = DbConnectionFactory.CreateConnection())
             using (var transaction = connection.BeginTransaction())
             {
                 var operation = connection.QueryFirstOrDefault<SyncOperation>("SELECT operationId AS id,branchId,terminalId,operationType,entityType,entityId,payload,status FROM SyncInbox WHERE operationId=@operationId", new { operationId }, transaction);
-                if (operation == null || operation.Status == "applied") return;
+                if (operation == null)
+                {
+                    transaction.Rollback();
+                    return SyncApplyOutcome.Failure("Operation not found in inbox");
+                }
+                if (operation.Status == "applied")
+                {
+                    transaction.Rollback();
+                    return SyncApplyOutcome.Success();
+                }
                 try
                 {
                     if (string.Equals(operation.EntityType, "Invoice", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(operation.Payload))
@@ -346,11 +355,20 @@ namespace PosCs.Infrastructure.Persistence
 
                     connection.Execute("UPDATE SyncInbox SET status='applied',appliedAt=@at,lastError=NULL WHERE operationId=@operationId", new { operationId, at = DateTime.Now }, transaction);
                     transaction.Commit();
+                    return SyncApplyOutcome.Success();
                 }
                 catch (Exception ex)
                 {
-                    connection.Execute("UPDATE SyncInbox SET status='failed',lastError=@error WHERE operationId=@operationId", new { operationId, error = ex.Message }, transaction);
-                    transaction.Commit();
+                    try
+                    {
+                        connection.Execute("UPDATE SyncInbox SET status='failed',lastError=@error WHERE operationId=@operationId", new { operationId, error = Truncate(ex.Message, 1000) }, transaction);
+                        transaction.Commit();
+                    }
+                    catch
+                    {
+                        transaction.Rollback();
+                    }
+                    return SyncApplyOutcome.Failure(ex.Message);
                 }
             }
         }

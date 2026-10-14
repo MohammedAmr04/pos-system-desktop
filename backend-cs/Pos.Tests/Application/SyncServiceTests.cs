@@ -33,6 +33,40 @@ namespace PosCs.Tests.Application
         }
 
         [Fact]
+        public void ReceiveReportsFailedAppliesSoCallersDoNotAcknowledge()
+        {
+            var repo = new FakeSyncRepository();
+            repo.FailIds.Add("operation-2");
+            var service = new SyncService(repo);
+
+            var result = service.Receive(new[]
+            {
+                new SyncOperation { Id = "operation-1" },
+                new SyncOperation { Id = "operation-2" },
+                new SyncOperation { Id = "operation-3" }
+            });
+
+            Assert.Equal(2, result.Applied);
+            Assert.False(result.Success);
+            var failure = Assert.Single(result.Failed);
+            Assert.Equal("operation-2", failure.Id);
+            Assert.Equal("apply failed", failure.Error);
+        }
+
+        [Fact]
+        public void ReceiveTreatsUnknownApplyOutcomeAsFailure()
+        {
+            var repo = new FakeSyncRepository { ReturnNullOutcome = true };
+            var service = new SyncService(repo);
+
+            var result = service.Receive(new[] { new SyncOperation { Id = "operation-1" } });
+
+            Assert.False(result.Success);
+            Assert.Equal(0, result.Applied);
+            Assert.Single(result.Failed);
+        }
+
+        [Fact]
         public void BranchServiceRejectsUnknownNodeRole()
         {
             var repo = new FakeBranchRepository();
@@ -46,6 +80,8 @@ namespace PosCs.Tests.Application
         {
             public int LastLimit { get; private set; }
             public List<SyncOperation> Received { get; } = new List<SyncOperation>();
+            public HashSet<string> FailIds { get; } = new HashSet<string>();
+            public bool ReturnNullOutcome { get; set; }
 
             public List<SyncOperation> GetPending(int limit)
             {
@@ -57,7 +93,13 @@ namespace PosCs.Tests.Application
             public void MarkAttempt(string id, string error) { }
             public void MarkSynced(string id) { }
             public void Receive(SyncOperation operation) { Received.Add(operation); }
-            public void ApplyReceived(string operationId) { }
+            public SyncApplyOutcome ApplyReceived(string operationId)
+            {
+                if (ReturnNullOutcome) return null;
+                return FailIds.Contains(operationId)
+                    ? SyncApplyOutcome.Failure("apply failed")
+                    : SyncApplyOutcome.Success();
+            }
             public List<SyncChange> GetChanges(long afterVersion, int limit, string branchId = null) { return new List<SyncChange>(); }
         }
 

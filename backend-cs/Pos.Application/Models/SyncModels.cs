@@ -52,6 +52,35 @@ namespace PosCs.Application.Models
         public List<SyncOperation> Operations { get; set; } = new List<SyncOperation>();
     }
 
+    public sealed class SyncApplyOutcome
+    {
+        public bool Applied { get; set; }
+        public string Error { get; set; }
+
+        public static SyncApplyOutcome Success()
+        {
+            return new SyncApplyOutcome { Applied = true };
+        }
+
+        public static SyncApplyOutcome Failure(string error)
+        {
+            return new SyncApplyOutcome { Applied = false, Error = error };
+        }
+    }
+
+    public sealed class SyncOperationFailure
+    {
+        public string Id { get; set; }
+        public string Error { get; set; }
+    }
+
+    public sealed class SyncReceiveResult
+    {
+        public int Applied { get; set; }
+        public List<SyncOperationFailure> Failed { get; set; } = new List<SyncOperationFailure>();
+        public bool Success { get { return Failed.Count == 0; } }
+    }
+
     public sealed class BranchRuntimeConfigurationRequest
     {
         public string BranchId { get; set; }

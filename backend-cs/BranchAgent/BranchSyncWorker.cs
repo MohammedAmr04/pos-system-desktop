@@ -54,11 +54,37 @@ namespace PosCs.BranchAgent
             var pending = Get<List<SyncOperation>>(_config.LocalBaseUrl + "/api/sync/pending?limit=50");
             if (pending == null || pending.Count == 0) return;
 
-            Post(_config.CentralBaseUrl + "/api/sync/receive", new SyncPushRequest { Operations = pending });
-            foreach (var operation in pending)
-                Post(_config.LocalBaseUrl + "/api/sync/" + Uri.EscapeDataString(operation.Id) + "/ack", new { });
+            var result = Post<SyncReceiveResult>(_config.CentralBaseUrl + "/api/sync/receive", new SyncPushRequest { Operations = pending });
+            if (result == null)
+            {
+                Console.Error.WriteLine("[AGENT ERR] Central receive returned no result; not acknowledging " + pending.Count + " operation(s)");
+                return;
+            }
+            var failures = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (result.Failed != null)
+            {
+                foreach (var failure in result.Failed)
+                {
+                    if (failure == null || string.IsNullOrWhiteSpace(failure.Id)) continue;
+                    failures[failure.Id] = failure.Error;
+                }
+            }
 
-            Console.WriteLine("[AGENT] Pushed " + pending.Count + " operation(s)");
+            foreach (var operation in pending)
+            {
+                string error;
+                if (failures.TryGetValue(operation.Id, out error))
+                {
+                    Post(_config.LocalBaseUrl + "/api/sync/" + Uri.EscapeDataString(operation.Id) + "/attempt",
+                        new { error = string.IsNullOrWhiteSpace(error) ? "Central apply failed" : error });
+                }
+                else
+                {
+                    Post(_config.LocalBaseUrl + "/api/sync/" + Uri.EscapeDataString(operation.Id) + "/ack", new { });
+                }
+            }
+
+            Console.WriteLine("[AGENT] Pushed " + (pending.Count - failures.Count) + " operation(s), " + failures.Count + " failed");
         }
 
         private void PullChanges()
@@ -85,7 +111,13 @@ namespace PosCs.BranchAgent
                     OccurredAt = change.CreatedAt
                 });
             }
-            Post(_config.LocalBaseUrl + "/api/sync/receive", new SyncPushRequest { Operations = operations });
+            var applied = Post<SyncReceiveResult>(_config.LocalBaseUrl + "/api/sync/receive", new SyncPushRequest { Operations = operations });
+            if (applied == null || !applied.Success)
+            {
+                var failedCount = applied == null ? changes.Count : applied.Failed.Count;
+                Console.Error.WriteLine("[AGENT ERR] " + failedCount + " change(s) failed to apply locally; cursor not advanced");
+                return;
+            }
             WriteCursor(changes[changes.Count - 1].Version);
             Console.WriteLine("[AGENT] Pulled " + changes.Count + " change(s)");
         }
@@ -137,6 +169,18 @@ namespace PosCs.BranchAgent
                     var response = _http.SendAsync(request).GetAwaiter().GetResult();
                     response.EnsureSuccessStatusCode();
                 }
+            }
+        }
+
+        private T Post<T>(string url, object payload)
+        {
+            var json = JsonConvert.SerializeObject(payload);
+            using (var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json"))
+            {
+                var response = _http.PostAsync(url, content).GetAwaiter().GetResult();
+                response.EnsureSuccessStatusCode();
+                var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                return string.IsNullOrWhiteSpace(body) ? default(T) : JsonConvert.DeserializeObject<T>(body);
             }
         }
 

@@ -35,15 +35,29 @@ namespace PosCs.Application.Services
             _repository.MarkSynced(id);
         }
 
-        public void Receive(IEnumerable<SyncOperation> operations)
+        public SyncReceiveResult Receive(IEnumerable<SyncOperation> operations)
         {
-            if (operations == null) return;
+            var result = new SyncReceiveResult();
+            if (operations == null) return result;
             foreach (var operation in operations)
             {
                 if (operation == null || string.IsNullOrWhiteSpace(operation.Id)) continue;
                 _repository.Receive(operation);
-                _repository.ApplyReceived(operation.Id);
+                var outcome = _repository.ApplyReceived(operation.Id);
+                if (outcome != null && outcome.Applied)
+                {
+                    result.Applied++;
+                }
+                else
+                {
+                    result.Failed.Add(new SyncOperationFailure
+                    {
+                        Id = operation.Id,
+                        Error = outcome == null ? "Unknown apply failure" : outcome.Error
+                    });
+                }
             }
+            return result;
         }
 
         public List<SyncChange> GetChanges(long afterVersion, int limit, string branchId = null)
