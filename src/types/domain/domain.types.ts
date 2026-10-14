@@ -713,5 +713,5 @@ export interface PagedInventoryAdjustments { items: InventoryAdjustmentSummary[]
 export interface InventoryAdjustmentDetail extends InventoryAdjustmentSummary { postedAt: string | null; cancelledAt: string | null; lines: InventoryAdjustmentLine[] }
 export interface BackupSummary { fileName: string; sizeBytes: number; createdAt: string }
 
-export interface SyncStatus { pending: number; failed: number; lastSyncedAt?: string | null; lastOccurredAt?: string | null }
+export interface SyncStatus { pending: number; failed: number; dead: number; lastSyncedAt?: string | null; lastOccurredAt?: string | null }
 export interface PrintQueueStatus { pending: number; failed: number }

@@ -32,6 +32,7 @@ namespace PosCs.Application.Models
     {
         public int Pending { get; set; }
         public int Failed { get; set; }
+        public int Dead { get; set; }
         public DateTime? LastSyncedAt { get; set; }
         public DateTime? LastOccurredAt { get; set; }
     }

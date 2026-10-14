@@ -11,12 +11,15 @@ namespace PosCs.Infrastructure.Persistence
 {
     public class SyncRepository : ISyncRepository
     {
+        private const int MaxAttempts = 8;
+        private const int BaseBackoffSeconds = 10;
+        private const int MaxBackoffSeconds = 1800;
+
         public List<SyncOperation> GetPending(int limit)
         {
             using (var connection = DbConnectionFactory.CreateConnection())
             {
-                return connection.Query<SyncOperation>(@"SELECT id,branchId,terminalId,operationType,entityType,entityId,payload,occurredAt,status,attempts,lastError,syncedAt
-                    FROM SyncOutbox WHERE status IN ('pending','failed') ORDER BY occurredAt LIMIT @limit", new { limit }).ToList();
+                return connection.Query<SyncOperation>(@"SELECT id,branchId,terminalId,operationType,entityType,entityId,payload,status,attempts FROM SyncOutbox WHERE status='pending' OR (status='failed' AND (nextAttemptAt IS NULL OR nextAttemptAt <= @now)) ORDER BY occurredAt LIMIT @limit", new { limit, now = DateTime.Now }).ToList();
             }
         }
 
@@ -28,6 +31,7 @@ namespace PosCs.Infrastructure.Persistence
                 {
                     Pending = connection.ExecuteScalar<int>("SELECT COUNT(1) FROM SyncOutbox WHERE status='pending'"),
                     Failed = connection.ExecuteScalar<int>("SELECT COUNT(1) FROM SyncOutbox WHERE status='failed'"),
+                    Dead = connection.ExecuteScalar<int>("SELECT COUNT(1) FROM SyncOutbox WHERE status='dead'"),
                     LastSyncedAt = connection.ExecuteScalar<DateTime?>("SELECT MAX(syncedAt) FROM SyncOutbox WHERE status='synced'"),
                     LastOccurredAt = connection.ExecuteScalar<DateTime?>("SELECT MAX(occurredAt) FROM SyncOutbox")
                 };
@@ -38,8 +42,19 @@ namespace PosCs.Infrastructure.Persistence
         {
             using (var connection = DbConnectionFactory.CreateConnection())
             {
-                connection.Execute(@"UPDATE SyncOutbox SET status='failed', attempts=attempts+1,
-                    lastError=@error WHERE id=@id", new { id, error = Truncate(error, 1000) });
+                var attempts = connection.ExecuteScalar<int>("SELECT attempts FROM SyncOutbox WHERE id=@id", new { id }) + 1;
+                var dead = attempts >= MaxAttempts;
+                var delay = (int)Math.Min(MaxBackoffSeconds, BaseBackoffSeconds * Math.Pow(2, Math.Min(attempts - 1, 20)));
+                connection.Execute(
+                    "UPDATE SyncOutbox SET status=@status, attempts=@attempts, lastError=@error, nextAttemptAt=@nextAttemptAt WHERE id=@id",
+                    new
+                    {
+                        id,
+                        status = dead ? "dead" : "failed",
+                        attempts,
+                        error = Truncate(error, 1000),
+                        nextAttemptAt = dead ? (DateTime?)null : DateTime.Now.AddSeconds(delay)
+                    });
             }
         }
 

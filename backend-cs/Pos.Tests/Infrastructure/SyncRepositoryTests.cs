@@ -73,6 +73,94 @@ namespace PosCs.Tests.Infrastructure
             }
         }
 
+        [Fact]
+        public void FailedOperationBacksOffThenMovesToDeadAfterMaxAttempts()
+        {
+            var dbPath = CreateMigratedDatabase();
+            try
+            {
+                DbConnectionFactory.UseDatabase(dbPath);
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    InsertOutbox(connection, "op-a", "pending");
+                }
+
+                var repository = new SyncRepository();
+                var pending = repository.GetPending(10);
+                Assert.Single(pending);
+                Assert.Equal("op-a", pending[0].Id);
+
+                repository.MarkAttempt("op-a", "boom");
+
+                Assert.Empty(repository.GetPending(10));
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    Assert.Equal("failed", connection.ExecuteScalar<string>("SELECT status FROM SyncOutbox WHERE id='op-a'"));
+                    Assert.NotNull(connection.ExecuteScalar<DateTime?>("SELECT nextAttemptAt FROM SyncOutbox WHERE id='op-a'"));
+                }
+
+                for (var i = 2; i <= 8; i++)
+                    repository.MarkAttempt("op-a", "boom");
+
+                Assert.Empty(repository.GetPending(10));
+                Assert.Equal(1, repository.GetStatus().Dead);
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    Assert.Equal("dead", connection.ExecuteScalar<string>("SELECT status FROM SyncOutbox WHERE id='op-a'"));
+                    Assert.Equal(8, connection.ExecuteScalar<int>("SELECT attempts FROM SyncOutbox WHERE id='op-a'"));
+                    Assert.Null(connection.ExecuteScalar<DateTime?>("SELECT nextAttemptAt FROM SyncOutbox WHERE id='op-a'"));
+                }
+            }
+            finally
+            {
+                Cleanup(dbPath);
+            }
+        }
+
+        [Fact]
+        public void DueFailedOperationIsReturnedByGetPending()
+        {
+            var dbPath = CreateMigratedDatabase();
+            try
+            {
+                DbConnectionFactory.UseDatabase(dbPath);
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    InsertOutbox(connection, "op-b", "pending");
+                }
+
+                var repository = new SyncRepository();
+                repository.MarkAttempt("op-b", "boom");
+                Assert.Empty(repository.GetPending(10));
+
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    connection.Execute("UPDATE SyncOutbox SET nextAttemptAt=@past WHERE id='op-b'", new { past = DateTime.Now.AddMinutes(-1) });
+                }
+
+                var pending = repository.GetPending(10);
+                Assert.Single(pending);
+                Assert.Equal("op-b", pending[0].Id);
+            }
+            finally
+            {
+                Cleanup(dbPath);
+            }
+        }
+
+        private static void InsertOutbox(SqliteConnection connection, string id, string status)
+        {
+            connection.Execute(
+                "INSERT INTO SyncOutbox (id,branchId,terminalId,operationType,entityType,entityId,occurredAt,status) " +
+                "VALUES (@id,'default','default-terminal','upsert','Invoice','inv-1',@at,@status)",
+                new { id, at = DateTime.Now, status });
+        }
+
         private static SyncOperation BuildSaleReturnOperation(string operationId, string invoiceId, string invoiceReturnStatus)
         {
             var saleReturn = new PosCs.Domain.Entities.SaleReturn

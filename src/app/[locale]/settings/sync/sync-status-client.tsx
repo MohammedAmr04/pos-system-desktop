@@ -69,6 +69,12 @@ export function SyncStatusClient() {
                 value={String(sync.data?.failed ?? 0)}
                 tone={(sync.data?.failed ?? 0) > 0 ? "danger" : "default"}
               />
+              <Stat
+                label={t("dead")}
+                value={String(sync.data?.dead ?? 0)}
+                tone={(sync.data?.dead ?? 0) > 0 ? "danger" : "default"}
+              />
+              {(sync.data?.dead ?? 0) > 0 && <p className="text-xs text-destructive">{t("deadHint")}</p>}
               <Stat label={t("lastSyncedAt")} value={formatDate(sync.data?.lastSyncedAt) ?? t("never")} />
               <Stat label={t("lastOccurredAt")} value={formatDate(sync.data?.lastOccurredAt) ?? t("never")} />
             </CardContent>
