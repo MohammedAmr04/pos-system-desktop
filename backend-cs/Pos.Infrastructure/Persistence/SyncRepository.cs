@@ -58,12 +58,12 @@ namespace PosCs.Infrastructure.Persistence
                     VALUES (@id,@branchId,@terminalId,@operationType,@entityType,@entityId,@payload,@receivedAt,'received')", new
                 {
                     id = operation.Id,
-                    operation.BranchId,
-                    operation.TerminalId,
-                    operation.OperationType,
-                    operation.EntityType,
-                    operation.EntityId,
-                    operation.Payload,
+                    branchId = operation.BranchId,
+                    terminalId = operation.TerminalId,
+                    operationType = operation.OperationType,
+                    entityType = operation.EntityType,
+                    entityId = operation.EntityId,
+                    payload = operation.Payload,
                     receivedAt = DateTime.Now
                 });
             }
@@ -310,6 +310,11 @@ namespace PosCs.Infrastructure.Persistence
                         if (returnPayload != null && returnPayload.SaleReturn != null)
                         {
                             var saleReturn = returnPayload.SaleReturn;
+                            var invoiceExists = connection.ExecuteScalar<int>(
+                                "SELECT COUNT(1) FROM Invoice WHERE id=@id", new { id = saleReturn.InvoiceId }, transaction) > 0;
+                            if (!invoiceExists)
+                                throw new InvalidOperationException("Referenced invoice has not synced yet");
+
                             connection.Execute(@"INSERT OR IGNORE INTO SaleReturn
                                 (id,number,invoiceId,date,totalAmount,restoredCost,paymentMethod,notes,status,createdBy,createdAt,branchId,terminalId)
                                 VALUES (@id,@number,@invoiceId,@date,@totalAmount,@restoredCost,@paymentMethod,@notes,@status,@createdBy,@createdAt,@branchId,@terminalId)", new
@@ -350,6 +355,10 @@ namespace PosCs.Infrastructure.Persistence
                                     }, transaction);
                                 }
                             }
+
+                            if (!string.IsNullOrWhiteSpace(returnPayload.InvoiceReturnStatus))
+                                connection.Execute("UPDATE Invoice SET returnStatus=@status WHERE id=@invoiceId",
+                                    new { status = returnPayload.InvoiceReturnStatus, invoiceId = saleReturn.InvoiceId }, transaction);
                         }
                     }
 
@@ -417,6 +426,7 @@ namespace PosCs.Infrastructure.Persistence
         {
             public SaleReturn SaleReturn { get; set; }
             public List<SaleReturnDetail> Details { get; set; }
+            public string InvoiceReturnStatus { get; set; }
         }
     }
 }

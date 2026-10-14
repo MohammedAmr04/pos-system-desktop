@@ -178,10 +178,10 @@ namespace PosCs.Infrastructure.Persistence
                                 }, transaction: tx);
                         }
 
-                        UpdateReturnStatus(conn, tx, invoice);
+                        var invoiceReturnStatus = UpdateReturnStatus(conn, tx, invoice);
 
                         SyncOutboxWriter.Enqueue(conn, tx, "upsert", "SaleReturn", saleReturn.Id,
-                            new { saleReturn, details });
+                            new { saleReturn, details, invoiceReturnStatus });
 
                         tx.Commit();
                     }
@@ -286,7 +286,7 @@ namespace PosCs.Infrastructure.Persistence
 
         /// <summary>'partial' when some sellable quantity remains out, 'full' when every line
         /// has been completely returned.</summary>
-        private static void UpdateReturnStatus(SqliteConnection conn, SqliteTransaction tx, Invoice invoice)
+        private static string UpdateReturnStatus(SqliteConnection conn, SqliteTransaction tx, Invoice invoice)
         {
             var rows = conn.Query<StatusRow>(
                 "SELECT d.quantity AS Sold, " +
@@ -303,6 +303,7 @@ namespace PosCs.Infrastructure.Persistence
             if (status != null)
                 conn.Execute("UPDATE Invoice SET returnStatus = @status WHERE id = @id",
                     new { status, id = invoice.Id }, transaction: tx);
+            return status;
         }
 
         private static List<SaleReturnDetail> AttachDetails(SqliteConnection conn, SaleReturn saleReturn)

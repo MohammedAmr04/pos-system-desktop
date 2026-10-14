@@ -25,6 +25,11 @@ namespace PosCs.Infrastructure.Persistence
 
         public static string ConnectionString => $"Data Source={DbPath}";
 
+        public static void UseDatabase(string path)
+        {
+            _dbPath = path;
+        }
+
         public static SqliteConnection CreateConnection()
         {
             var conn = new SqliteConnection(ConnectionString);
