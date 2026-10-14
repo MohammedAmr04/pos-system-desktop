@@ -83,6 +83,17 @@ namespace PosCs.Tests.Infrastructure
                     Assert.Contains("sale", movementPayload);
                     Assert.Equal(4, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM SyncOutbox WHERE status='pending'"));
 
+                    Assert.Equal(0, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='trigger' AND name='trg_sale_return_sync_insert'"));
+                    using (var tx = connection.BeginTransaction())
+                    {
+                        PosCs.Infrastructure.Persistence.SyncOutboxWriter.Enqueue(connection, tx, "upsert", "SaleReturn", "ret-1",
+                            new { saleReturn = new { id = "ret-1", totalAmount = 5.0 }, details = new[] { new { id = "d-1" } } });
+                        tx.Commit();
+                    }
+                    var returnPayload = connection.ExecuteScalar<string>("SELECT payload FROM SyncOutbox WHERE entityType='SaleReturn' AND entityId='ret-1'");
+                    Assert.Contains("\"saleReturn\"", returnPayload);
+                    Assert.Contains("\"details\"", returnPayload);
+
                     connection.Execute("UPDATE BranchRuntimeConfig SET nodeRole='central' WHERE id=1");
                     connection.Execute("DELETE FROM SyncOutbox");
                     connection.Execute("INSERT INTO Payment (id,amount,paymentMethod,date,createdAt) VALUES ('pay-2',10,'cash',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");

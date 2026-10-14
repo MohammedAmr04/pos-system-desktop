@@ -180,6 +180,9 @@ namespace PosCs.Infrastructure.Persistence
 
                         UpdateReturnStatus(conn, tx, invoice);
 
+                        SyncOutboxWriter.Enqueue(conn, tx, "upsert", "SaleReturn", saleReturn.Id,
+                            new { saleReturn, details });
+
                         tx.Commit();
                     }
                     catch

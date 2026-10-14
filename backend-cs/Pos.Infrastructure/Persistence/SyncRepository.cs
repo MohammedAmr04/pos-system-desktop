@@ -295,6 +295,54 @@ namespace PosCs.Infrastructure.Persistence
                                 terminalId = operation.TerminalId
                             }, transaction);
                     }
+                    else if (string.Equals(operation.EntityType, "SaleReturn", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(operation.Payload))
+                    {
+                        var returnPayload = JsonConvert.DeserializeObject<SaleReturnSyncPayload>(operation.Payload);
+                        if (returnPayload != null && returnPayload.SaleReturn != null)
+                        {
+                            var saleReturn = returnPayload.SaleReturn;
+                            connection.Execute(@"INSERT OR IGNORE INTO SaleReturn
+                                (id,number,invoiceId,date,totalAmount,restoredCost,paymentMethod,notes,status,createdBy,createdAt,branchId,terminalId)
+                                VALUES (@id,@number,@invoiceId,@date,@totalAmount,@restoredCost,@paymentMethod,@notes,@status,@createdBy,@createdAt,@branchId,@terminalId)", new
+                            {
+                                id = saleReturn.Id,
+                                number = saleReturn.Number,
+                                invoiceId = saleReturn.InvoiceId,
+                                date = saleReturn.Date,
+                                totalAmount = saleReturn.TotalAmount,
+                                restoredCost = saleReturn.RestoredCost,
+                                paymentMethod = saleReturn.PaymentMethod ?? "cash",
+                                notes = saleReturn.Notes,
+                                status = saleReturn.Status ?? "posted",
+                                createdBy = saleReturn.CreatedBy,
+                                createdAt = saleReturn.CreatedAt,
+                                branchId = operation.BranchId,
+                                terminalId = operation.TerminalId
+                            }, transaction);
+
+                            if (returnPayload.Details != null)
+                            {
+                                foreach (var detail in returnPayload.Details)
+                                {
+                                    connection.Execute(@"INSERT OR IGNORE INTO SaleReturnDetail
+                                        (id,returnId,invoiceDetailId,productId,unitName,quantity,quantityFactor,unitPrice,lineTotal,restoredCost)
+                                        VALUES (@id,@returnId,@invoiceDetailId,@productId,@unitName,@quantity,@quantityFactor,@unitPrice,@lineTotal,@restoredCost)", new
+                                    {
+                                        id = string.IsNullOrEmpty(detail.Id) ? Guid.NewGuid().ToString("N") : detail.Id,
+                                        returnId = saleReturn.Id,
+                                        invoiceDetailId = detail.InvoiceDetailId,
+                                        productId = detail.ProductId,
+                                        unitName = detail.UnitName,
+                                        quantity = detail.Quantity,
+                                        quantityFactor = detail.QuantityFactor,
+                                        unitPrice = detail.UnitPrice,
+                                        lineTotal = detail.LineTotal,
+                                        restoredCost = detail.RestoredCost
+                                    }, transaction);
+                                }
+                            }
+                        }
+                    }
 
                     connection.Execute("UPDATE SyncInbox SET status='applied',appliedAt=@at,lastError=NULL WHERE operationId=@operationId", new { operationId, at = DateTime.Now }, transaction);
                     transaction.Commit();
@@ -345,6 +393,12 @@ namespace PosCs.Infrastructure.Persistence
             public string CreatedBy { get; set; }
             public string ShiftId { get; set; }
             public DateTime CreatedAt { get; set; }
+        }
+
+        private sealed class SaleReturnSyncPayload
+        {
+            public SaleReturn SaleReturn { get; set; }
+            public List<SaleReturnDetail> Details { get; set; }
         }
     }
 }
