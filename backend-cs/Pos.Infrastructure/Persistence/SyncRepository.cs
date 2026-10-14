@@ -207,6 +207,94 @@ namespace PosCs.Infrastructure.Persistence
                                 createdAt = brand.CreatedAt, updatedAt = brand.UpdatedAt
                             }, transaction);
                     }
+                    else if (string.Equals(operation.EntityType, "Payment", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(operation.Payload))
+                    {
+                        var payment = JsonConvert.DeserializeObject<PaymentSyncPayload>(operation.Payload);
+                        if (payment != null)
+                            connection.Execute(@"INSERT OR IGNORE INTO Payment
+                                (id,amount,paymentMethod,date,invoiceId,clientId,supplierId,reference,notes,createdBy,shiftId,branchId,terminalId,createdAt)
+                                VALUES (@id,@amount,@paymentMethod,@date,@invoiceId,@clientId,@supplierId,@reference,@notes,@createdBy,@shiftId,@branchId,@terminalId,@createdAt)", new
+                            {
+                                id = payment.Id,
+                                amount = payment.Amount,
+                                paymentMethod = payment.PaymentMethod ?? "cash",
+                                date = payment.Date,
+                                invoiceId = payment.InvoiceId,
+                                clientId = payment.ClientId,
+                                supplierId = payment.SupplierId,
+                                reference = payment.Reference,
+                                notes = payment.Notes,
+                                createdBy = payment.CreatedBy,
+                                shiftId = payment.ShiftId,
+                                branchId = operation.BranchId,
+                                terminalId = operation.TerminalId,
+                                createdAt = payment.CreatedAt
+                            }, transaction);
+                    }
+                    else if (string.Equals(operation.EntityType, "Shift", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(operation.Payload))
+                    {
+                        var shift = JsonConvert.DeserializeObject<Shift>(operation.Payload);
+                        if (shift != null)
+                            connection.Execute(@"INSERT OR IGNORE INTO Shift
+                                (id,number,openedBy,openingCash,openedAt,closedAt,countedCash,expectedCash,difference,notes,status,branchId,terminalId)
+                                VALUES (@id,@number,@openedBy,@openingCash,@openedAt,@closedAt,@countedCash,@expectedCash,@difference,@notes,@status,@branchId,@terminalId)", new
+                            {
+                                id = shift.Id,
+                                number = shift.Number,
+                                openedBy = shift.OpenedBy,
+                                openingCash = shift.OpeningCash,
+                                openedAt = shift.OpenedAt,
+                                closedAt = shift.ClosedAt,
+                                countedCash = shift.CountedCash,
+                                expectedCash = shift.ExpectedCash,
+                                difference = shift.Difference,
+                                notes = shift.Notes,
+                                status = shift.Status ?? "open",
+                                branchId = operation.BranchId,
+                                terminalId = operation.TerminalId
+                            }, transaction);
+                    }
+                    else if (string.Equals(operation.EntityType, "Expense", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(operation.Payload))
+                    {
+                        var expense = JsonConvert.DeserializeObject<Expense>(operation.Payload);
+                        if (expense != null)
+                            connection.Execute(@"INSERT OR IGNORE INTO Expense
+                                (id,categoryId,amount,paymentMethod,date,description,reference,shiftId,createdBy,createdAt,branchId,terminalId)
+                                VALUES (@id,@categoryId,@amount,@paymentMethod,@date,@description,@reference,@shiftId,@createdBy,@createdAt,@branchId,@terminalId)", new
+                            {
+                                id = expense.Id,
+                                categoryId = expense.CategoryId,
+                                amount = expense.Amount,
+                                paymentMethod = expense.PaymentMethod ?? "cash",
+                                date = expense.Date,
+                                description = expense.Description,
+                                reference = expense.Reference,
+                                shiftId = expense.ShiftId,
+                                createdBy = expense.CreatedBy,
+                                createdAt = expense.CreatedAt,
+                                branchId = operation.BranchId,
+                                terminalId = operation.TerminalId
+                            }, transaction);
+                    }
+                    else if (string.Equals(operation.EntityType, "StockMovement", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(operation.Payload))
+                    {
+                        var movement = JsonConvert.DeserializeObject<StockMovement>(operation.Payload);
+                        if (movement != null)
+                            connection.Execute(@"INSERT OR IGNORE INTO StockMovement
+                                (id,productId,quantity,type,referenceId,referenceNumber,createdAt,branchId,terminalId)
+                                VALUES (@id,@productId,@quantity,@type,@referenceId,@referenceNumber,@createdAt,@branchId,@terminalId)", new
+                            {
+                                id = movement.Id,
+                                productId = movement.ProductId,
+                                quantity = movement.Quantity,
+                                type = movement.Type,
+                                referenceId = movement.ReferenceId,
+                                referenceNumber = movement.ReferenceNumber,
+                                createdAt = movement.CreatedAt,
+                                branchId = operation.BranchId,
+                                terminalId = operation.TerminalId
+                            }, transaction);
+                    }
 
                     connection.Execute("UPDATE SyncInbox SET status='applied',appliedAt=@at,lastError=NULL WHERE operationId=@operationId", new { operationId, at = DateTime.Now }, transaction);
                     transaction.Commit();
@@ -241,6 +329,22 @@ namespace PosCs.Infrastructure.Persistence
         {
             public Invoice Invoice { get; set; }
             public List<InvoiceDetail> Lines { get; set; }
+        }
+
+        private sealed class PaymentSyncPayload
+        {
+            public string Id { get; set; }
+            public double Amount { get; set; }
+            public string PaymentMethod { get; set; }
+            public DateTime Date { get; set; }
+            public string InvoiceId { get; set; }
+            public string ClientId { get; set; }
+            public string SupplierId { get; set; }
+            public string Reference { get; set; }
+            public string Notes { get; set; }
+            public string CreatedBy { get; set; }
+            public string ShiftId { get; set; }
+            public DateTime CreatedAt { get; set; }
         }
     }
 }
