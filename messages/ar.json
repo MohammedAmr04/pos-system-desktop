@@ -292,12 +292,25 @@
     "reports": "التقارير",
     "reportsHub": "مركز التقارير",
     "settingsPrinting": "الطباعة",
+    "settingsSync": "المزامنة",
     "settingsLicense": "الترخيص",
     "inventoryAdjustments": "تسويات المخزون",
     "alerts": "التنبيهات",
     "auditLogs": "سجل التدقيق",
     "backups": "النسخ الاحتياطية",
     "employees": "الموظفين"
+  },
+  "SyncStatus": {
+    "title": "حالة المزامنة",
+    "branchSync": "مزامنة الفرع",
+    "printQueue": "قائمة الطباعة",
+    "pending": "قيد الانتظار",
+    "failed": "فشل",
+    "lastSyncedAt": "آخر مزامنة",
+    "lastOccurredAt": "آخر عملية",
+    "never": "لا يوجد",
+    "refresh": "تحديث",
+    "loadFailed": "تعذر تحميل حالة المزامنة"
   },
   "License": {
     "tamperDetected": "تم اكتشاف تلاعب في وقت النظام",

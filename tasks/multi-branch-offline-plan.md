@@ -50,7 +50,7 @@ Extend the current POS so a central VPS manages all branches while each branch k
 - [ ] Task 11: Add push worker with retry/backoff, batching, resumable progress, and safe recovery after process/device restart.
 - [ ] Task 12: Add pull worker with cursor advancement only after successful local application and validation.
 - [ ] Task 13: Move/route printing through a durable local `PrintQueue`; print locally and mark jobs complete only after a successful printer response.
-- [ ] Task 14: Add an operator status screen/log export for connectivity, pending sync count, last successful push/pull, and printer errors.
+- [x] Task 14: Add an operator status screen/log export for connectivity, pending sync count, last successful push/pull, and printer errors.
 
 ### Checkpoint: Offline operations
 

@@ -712,3 +712,6 @@ export interface InventoryAdjustmentSummary { id: string; number: number; reason
 export interface PagedInventoryAdjustments { items: InventoryAdjustmentSummary[]; total: number }
 export interface InventoryAdjustmentDetail extends InventoryAdjustmentSummary { postedAt: string | null; cancelledAt: string | null; lines: InventoryAdjustmentLine[] }
 export interface BackupSummary { fileName: string; sizeBytes: number; createdAt: string }
+
+export interface SyncStatus { pending: number; failed: number; lastSyncedAt?: string | null; lastOccurredAt?: string | null }
+export interface PrintQueueStatus { pending: number; failed: number }
