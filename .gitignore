@@ -61,3 +61,5 @@ vitamins.pdf
 
 # iis deployment payload
 /deploy/iis/payload/
+/deploy/iis/pos-site.zip
+/deploy/iis/payload.zip
