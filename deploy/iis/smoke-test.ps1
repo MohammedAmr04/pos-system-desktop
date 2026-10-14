@@ -30,8 +30,12 @@ $outLog = Join-Path $env:TEMP "pos-iis-smoke.out.log"
 $errLog = Join-Path $env:TEMP "pos-iis-smoke.err.log"
 Remove-Item -LiteralPath $outLog, $errLog -ErrorAction SilentlyContinue
 
+$hadData = Test-Path -LiteralPath (Join-Path $Payload "data\dev.db")
+$hadLogs = Test-Path -LiteralPath (Join-Path $Payload "data\logs")
+
 Write-Output "Starting: $IisExpress"
 Write-Output "Payload:  $Payload"
+if ($hadData) { Write-Output "Pre-migrated database present; expecting migrations to be skipped." }
 $p = Start-Process -FilePath $IisExpress -ArgumentList "/path:$Payload", "/port:$Port" -PassThru -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog
 
 Add-Type -AssemblyName System.Net.Http
@@ -72,6 +76,19 @@ try {
 
     $r = $client.GetAsync("$base/api/products").Result
     Add-Result "GET /api/products (no token -> 401)" ($r.StatusCode.value__ -eq 401) ([string]$r.StatusCode)
+
+    # Regression guard: IIS maps extensionless URLs to StaticFile for verbs it does not
+    # know about, which yields 404.0 instead of reaching the API. PUT/DELETE must reach
+    # the auth middleware (401 without a token), never 404.
+    foreach ($verb in @("PUT", "DELETE", "PATCH")) {
+        $m = New-Object System.Net.Http.HttpMethod($verb)
+        $req = New-Object System.Net.Http.HttpRequestMessage($m, "$base/api/products/verb-probe")
+        $req.Content = New-Object System.Net.Http.StringContent('{}', [System.Text.Encoding]::UTF8, "application/json")
+        $r = $client.SendAsync($req).Result
+        $b = $r.Content.ReadAsStringAsync().Result
+        $ok = ($r.StatusCode.value__ -eq 401 -or $r.StatusCode.value__ -eq 403) -and $b.Contains("{")
+        Add-Result "$verb /api/products/{id} reaches API (not IIS 404)" $ok "$($r.StatusCode) body=$b"
+    }
 
     $req = New-Object System.Net.Http.HttpRequestMessage([System.Net.Http.HttpMethod]::Post, "$base/api/auth/login")
     $req.Content = New-Object System.Net.Http.StringContent('{"username":"__smoke__","password":"wrong"}', [System.Text.Encoding]::UTF8, "application/json")
@@ -120,11 +137,23 @@ try {
     $blocked = ($r.StatusCode.value__ -eq 403 -or $r.StatusCode.value__ -eq 404)
     Add-Result "GET /Migrations/001_init.sql blocked" $blocked "$($r.StatusCode)"
 
-    Add-Result "data/dev.db created" (Test-Path -LiteralPath (Join-Path $Payload "data\dev.db")) ""
+    Add-Result "data/dev.db present" (Test-Path -LiteralPath (Join-Path $Payload "data\dev.db")) ""
 
     $logFiles = @(Get-ChildItem -Path (Join-Path $Payload "data\logs\pos-*.log") -ErrorAction SilentlyContinue)
     $logOk = $logFiles.Count -gt 0 -and $logFiles[0].Length -gt 0
     Add-Result "file log under data\logs" $logOk "$(if ($logFiles) { $logFiles[0].Name + ' ' + $logFiles[0].Length + 'B' } else { 'not found' })"
+
+    $migrationLog = ""
+    if ($logFiles.Count -gt 0) { $migrationLog = Get-Content -LiteralPath $logFiles[0].FullName -Raw }
+    $migRan = $migrationLog -match "\[MIGRATIONS\] Applied:"
+    $migSkipped = $migrationLog -match "\[MIGRATIONS\] Skipping already applied:"
+
+    if ($hadData) {
+        Add-Result "pre-migrated database reused (no re-migration)" ($migSkipped -and -not $migRan) `
+            "skipped=$migSkipped applied=$migRan"
+    } else {
+        Add-Result "fresh database migrated on startup" $migRan "applied=$migRan skipped=$migSkipped"
+    }
 }
 finally {
     Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
@@ -136,19 +165,34 @@ finally {
     }
 
     $testData = Join-Path $Payload "data"
-    if (Test-Path -LiteralPath $testData) {
-        foreach ($i in 1..5) {
-            Remove-Item -Path (Join-Path $testData "*") -Force -Recurse -ErrorAction SilentlyContinue
-            if (-not (Get-ChildItem -LiteralPath $testData -Force -ErrorAction SilentlyContinue)) { break }
-            Start-Sleep -Milliseconds 500
+    if (-not $hadData) {
+        if (Test-Path -LiteralPath $testData) {
+            foreach ($i in 1..5) {
+                Remove-Item -Path (Join-Path $testData "*") -Force -Recurse -ErrorAction SilentlyContinue
+                if (-not (Get-ChildItem -LiteralPath $testData -Force -ErrorAction SilentlyContinue)) { break }
+                Start-Sleep -Milliseconds 500
+            }
+            Remove-Item -LiteralPath $testData -Force -Recurse -ErrorAction SilentlyContinue
         }
-        Remove-Item -LiteralPath $testData -Force -Recurse -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath $testData) {
+            Write-Warning "Could not remove '$testData' from the payload. Delete it manually before uploading."
+        }
+        else {
+            Write-Output "Removed smoke-test data folder from payload (do not upload it)."
+        }
     }
-    if (Test-Path -LiteralPath $testData) {
-        Write-Warning "Could not remove '$testData' from the payload. Delete it manually before uploading."
-    }
-    else {
-        Write-Output "Removed smoke-test data folder from payload (do not upload it)."
+    elseif (-not $hadLogs) {
+        $testLogs = Join-Path $testData "logs"
+        if (Test-Path -LiteralPath $testLogs) {
+            Remove-Item -Path (Join-Path $testLogs "*") -Force -Recurse -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $testLogs -Force -Recurse -ErrorAction SilentlyContinue
+        }
+        if (Test-Path -LiteralPath $testLogs) {
+            Write-Warning "Could not remove '$testLogs' from the payload."
+        }
+        else {
+            Write-Output "Kept the pre-migrated database; removed smoke-test logs."
+        }
     }
 }
 

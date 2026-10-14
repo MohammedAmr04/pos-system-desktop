@@ -157,9 +157,14 @@ Evidence-based review of the complete POS application to determine whether it ca
   behaviour, and the `data\logs` location.
 - **Tests** — `PosConfigTests` (19 cases) covers `GetBool` parsing, env-over-`appSettings` precedence,
   value trimming, and the `SyncToEnvironment` copy/skip rules.
+- **Pre-migrated database** — `prepare-db.ps1` creates `payload\data\dev.db` with all 41 migrations
+  applied on the dev machine; `make-site-zip.ps1` packs the payload with a zip root that *is* the site
+  root (no wrapper folder, forward-slash entry names) and asserts both. The smoke test now detects a
+  pre-existing database and verifies IIS reuses it instead of re-running migrations.
 - **Verification** — `dotnet build` (0 warnings/0 errors), `dotnet test` (213/213), `npx tsc --noEmit`,
   `npm run lint` (0 errors), `npm test` (15/15), `npm run build` (35 pages),
-  `package.ps1`, `smoke-test.ps1` on both 64-bit and 32-bit IIS Express (13/13 checks).
+  `package.ps1` → `smoke-test.ps1` → `prepare-db.ps1` → `make-site-zip.ps1`,
+  smoke test on both 64-bit and 32-bit IIS Express (14/14 checks each).
 
 ### Deferred by decision
 

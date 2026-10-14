@@ -105,4 +105,4 @@ if ($chunk) {
 
 Write-Host ""
 Write-Host "Payload ready: $payload"
-Write-Host "Upload its CONTENTS to the site root (httpdocs) of your MonsterASP account."
+Write-Host "Upload its CONTENTS to the site root (wwwroot) of your MonsterASP account."
