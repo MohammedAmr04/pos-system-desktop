@@ -37,11 +37,11 @@ namespace PosCs.Application.Services
             _payments = payments;
         }
 
-        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize)
+        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string branchId = null)
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return WithPaid(_invoices.GetPaged(from, to, query, status, page, pageSize));
+            return WithPaid(_invoices.GetPaged(from, to, query, status, page, pageSize, null, branchId));
         }
 
         public Invoice Post(string id)
@@ -314,12 +314,12 @@ namespace PosCs.Application.Services
             return _invoices.GetRange(fromDate, toDate);
         }
 
-        public InvoicePageResult GetPaged(int page, int pageSize, string from, string to, string q, string status = null, string range = null, string employeeId = null)
+        public InvoicePageResult GetPaged(int page, int pageSize, string from, string to, string q, string status = null, string range = null, string employeeId = null, string branchId = null)
         {
             page = Math.Max(1, page);
             pageSize = Math.Max(1, Math.Min(pageSize, 100));
             ResolveRange(from, to, range == "all", out var fromDate, out var toDate);
-            return WithAllocatedPaid(_invoices.GetPaged(fromDate, toDate, q, status, page, pageSize, employeeId));
+            return WithAllocatedPaid(_invoices.GetPaged(fromDate, toDate, q, status, page, pageSize, employeeId, branchId));
         }
 
         /// <summary>Attaches invoice-linked payment totals for payment-status badges.</summary>

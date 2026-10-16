@@ -32,7 +32,18 @@ namespace PosCs.Tests.Infrastructure
                     Assert.Equal(0, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM SyncOutbox"));
                     Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name='PrintQueue'"));
                     Assert.True(connection.Query("PRAGMA table_info('Invoice')").Any(x => (string)x.name == "branchId"));
+                    Assert.True(connection.Query("PRAGMA table_info('Branch')").Any(x => (string)x.name == "secretHash"));
                     Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='trigger' AND name='trg_invoice_branch_context'"));
+
+                    // Migration 051: branch/terminal administration + switch audit.
+                    Assert.True(connection.Query("PRAGMA table_info('BranchRuntimeConfig')").Any(x => (string)x.name == "centralToken"));
+                    Assert.True(connection.Query("PRAGMA table_info('BranchRuntimeConfig')").Any(x => (string)x.name == "centralBranchKey"));
+                    Assert.True(connection.Query("PRAGMA table_info('BranchRuntimeConfig')").Any(x => (string)x.name == "status"));
+                    Assert.True(connection.Query("PRAGMA table_info('Terminal')").Any(x => (string)x.name == "lastSeenAt"));
+                    Assert.True(connection.Query("PRAGMA table_info('Terminal')").Any(x => (string)x.name == "notes"));
+                    Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='table' AND name='BranchAssignmentHistory'"));
+                    Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='index' AND name='idx_branch_assignment_terminal'"));
+                    Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='index' AND name='idx_terminal_branch'"));
 
                     connection.Execute(@"INSERT INTO Product (id,name,productType,serviceCost,buyPrice,stockQuantity,notes,allowDiscount,lowStockThreshold,isHiddenFromPOS,categoryId,brandId,createdAt,updatedAt)
                         VALUES ('product-test','Test', 'product',0,1,2,NULL,1,0,0,NULL,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
@@ -98,6 +109,54 @@ namespace PosCs.Tests.Infrastructure
                     connection.Execute("DELETE FROM SyncOutbox");
                     connection.Execute("INSERT INTO Payment (id,amount,paymentMethod,date,createdAt) VALUES ('pay-2',10,'cash',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
                     Assert.Equal(0, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM SyncOutbox"));
+                }
+            }
+            finally
+            {
+                SqliteConnection.ClearAllPools();
+                if (Directory.Exists(root))
+                {
+                    try { Directory.Delete(root, true); }
+                    catch (IOException) { }
+                }
+            }
+        }
+
+        [Fact]
+        public void DocumentNumbersAreUniquePerBranch()
+        {
+            var root = Path.Combine(Path.GetTempPath(), "pos-numbering-" + Guid.NewGuid().ToString("N"));
+            var migrations = Path.Combine(root, "Migrations");
+            Directory.CreateDirectory(migrations);
+            var source = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "Database", "Migrations"));
+            foreach (var file in Directory.GetFiles(source, "*.sql"))
+                File.Copy(file, Path.Combine(migrations, Path.GetFileName(file)));
+
+            try
+            {
+                var dbPath = Path.Combine(root, "test.db");
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    MigrationRunner.ApplyPending(connection, migrations);
+
+                    // Rebuilt triggers must survive the table rebuild (048).
+                    Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='trigger' AND name='trg_shift_sync_insert'"));
+                    Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='trigger' AND name='trg_shift_branch_context'"));
+                    Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='trigger' AND name='trg_inventory_adjustment_branch_context'"));
+
+                    // Same number on two different branches must both persist.
+                    connection.Execute("INSERT INTO PurchaseReturn (id,number,purchaseInvoiceId,date,totalAmount,createdAt,branchId) VALUES ('pr-a',1,'p1',CURRENT_TIMESTAMP,10,CURRENT_TIMESTAMP,'branch-a')");
+                    connection.Execute("INSERT INTO PurchaseReturn (id,number,purchaseInvoiceId,date,totalAmount,createdAt,branchId) VALUES ('pr-b',1,'p2',CURRENT_TIMESTAMP,10,CURRENT_TIMESTAMP,'branch-b')");
+                    Assert.Equal(2, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM PurchaseReturn WHERE number=1"));
+
+                    connection.Execute("INSERT INTO Shift (id,number,openedBy,openingCash,openedAt,branchId) VALUES ('s-a',1,'u',0,CURRENT_TIMESTAMP,'branch-a')");
+                    connection.Execute("INSERT INTO Shift (id,number,openedBy,openingCash,openedAt,branchId) VALUES ('s-b',1,'u',0,CURRENT_TIMESTAMP,'branch-b')");
+                    Assert.Equal(2, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM Shift WHERE number=1"));
+
+                    // The same number on the same branch is still rejected.
+                    Assert.Throws<SqliteException>(() =>
+                        connection.Execute("INSERT INTO PurchaseReturn (id,number,purchaseInvoiceId,date,totalAmount,createdAt,branchId) VALUES ('pr-c',1,'p3',CURRENT_TIMESTAMP,10,CURRENT_TIMESTAMP,'branch-a')"));
                 }
             }
             finally

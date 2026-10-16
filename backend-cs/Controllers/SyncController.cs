@@ -5,6 +5,7 @@ using System.Web.Http;
 using PosCs.Api;
 using PosCs.Application.Models;
 using PosCs.Attributes;
+using PosCs.Domain.Exceptions;
 
 namespace PosCs.Controllers
 {
@@ -46,10 +47,14 @@ namespace PosCs.Controllers
         [Route("changes")]
         [HttpGet]
         [RequirePermission]
+        [RequireBranchKey]
         public HttpResponseMessage Changes(long afterVersion = 0, int limit = 50, string branchId = null)
         {
             try
             {
+                var authenticatedBranch = AuthenticatedBranch();
+                if (!string.IsNullOrEmpty(authenticatedBranch))
+                    branchId = authenticatedBranch;
                 return Request.CreateResponse(HttpStatusCode.OK, CompositionRoot.SyncService.GetChanges(afterVersion, limit, branchId));
             }
             catch (Exception ex)
@@ -96,11 +101,14 @@ namespace PosCs.Controllers
         [Route("receive")]
         [HttpPost]
         [RequirePermission]
+        [RequireBranchKey]
         public HttpResponseMessage Receive([FromBody] SyncPushRequest request)
         {
             try
             {
-                var result = CompositionRoot.SyncService.Receive(request == null ? null : request.Operations);
+                var operations = request == null ? null : request.Operations;
+                CompositionRoot.BranchAuthService.EnsureOperationsBelongToBranch(operations, AuthenticatedBranch());
+                var result = CompositionRoot.SyncService.Receive(operations);
                 return Request.CreateResponse(HttpStatusCode.OK, new
                 {
                     success = result.Success,
@@ -108,11 +116,23 @@ namespace PosCs.Controllers
                     failed = result.Failed
                 });
             }
+            catch (DomainValidationException v)
+            {
+                return Request.CreateErrorResponse(HttpStatusCode.BadRequest, v.Message);
+            }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[API ERR] Failed to receive sync operations: {ex}");
                 return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to receive sync operations");
             }
+        }
+
+        private string AuthenticatedBranch()
+        {
+            object value;
+            return Request.Properties.TryGetValue(RequireBranchKeyAttribute.BranchIdProperty, out value)
+                ? value as string
+                : null;
         }
 
         public sealed class SyncAttemptRequest

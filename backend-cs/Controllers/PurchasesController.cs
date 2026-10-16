@@ -18,11 +18,11 @@ namespace PosCs.Controllers
         [HttpGet]
         [RequirePermission("purchases.view")]
         public HttpResponseMessage GetPaged([FromUri] string status = null, [FromUri] int page = 1,
-            [FromUri] int pageSize = 20, [FromUri] string q = null)
+            [FromUri] int pageSize = 20, [FromUri] string q = null, [FromUri] string branchId = null)
         {
             try
             {
-                var result = _service.GetPaged(status, q, page, pageSize);
+                var result = _service.GetPaged(status, q, page, pageSize, branchId);
                 return Request.CreateResponse(HttpStatusCode.OK, new
                 {
                     items = result.Items,

@@ -715,3 +715,73 @@ export interface BackupSummary { fileName: string; sizeBytes: number; createdAt:
 
 export interface SyncStatus { pending: number; failed: number; dead: number; lastSyncedAt?: string | null; lastOccurredAt?: string | null }
 export interface PrintQueueStatus { pending: number; failed: number }
+
+export interface Branch {
+  id: string
+  code: string
+  name: string
+  address: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Terminal {
+  id: string
+  branchId: string
+  name: string
+  isActive: boolean
+  notes: string | null
+  lastSeenAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BranchRuntimeContext {
+  branch: Branch | null
+  terminal: Terminal | null
+  nodeRole: string | null
+  centralBaseUrl: string | null
+  status: string | null
+}
+
+export interface BranchAgentConfig {
+  centralBaseUrl: string | null
+  centralToken: string | null
+  branchId: string | null
+  branchKey: string | null
+  nodeRole: string | null
+}
+
+export interface PagedBranches { items: Branch[]; total: number }
+export interface PagedTerminals { items: Terminal[]; total: number }
+
+export interface BranchAssignmentHistory {
+  id: string
+  terminalId: string
+  fromBranchId: string | null
+  toBranchId: string
+  changedBy: string | null
+  nodeRole: string | null
+  requestId: string
+  outcome: string
+  createdAt: string
+}
+
+export interface BranchAssignmentResult {
+  requestId: string
+  terminalId: string
+  branchId: string
+  branchCode: string | null
+  branchName: string | null
+  fromBranchId: string | null
+  outcome: string
+}
+
+export interface CreateBranchInput { code: string; name: string; address?: string | null }
+export interface UpdateBranchInput { code: string; name: string; address?: string | null }
+export interface CreateTerminalInput { branchId: string; name: string; notes?: string | null }
+export interface UpdateTerminalInput { name: string; notes?: string | null; branchId?: string }
+export interface BranchSwitchInput { requestId?: string; terminalId?: string; targetBranchId: string; targetBranchKey?: string | null }
+export interface BranchRuntimeInput { branchId: string; terminalId: string; nodeRole: 'branch' | 'central'; centralBaseUrl?: string | null }
+export interface BranchCredentialsInput { centralToken?: string | null; centralBranchKey?: string | null }

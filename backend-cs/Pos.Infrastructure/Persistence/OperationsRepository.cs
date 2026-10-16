@@ -164,7 +164,9 @@ namespace PosCs.Infrastructure.Persistence
                 }
                 connection.Execute("UPDATE InventoryAdjustment SET status='posted',postedAt=@at,postedBy=@user WHERE id=@id", new { id = adjustmentId, at = Now(), user }, transaction);
                 WriteAudit(connection, transaction, user, "inventory.adjustment.posted", adjustmentId, "Posted inventory count #" + adjustment.Number);
-                transaction.Commit(); return GetAdjustmentCore(connection, adjustmentId);
+                var posted = GetAdjustmentCore(connection, adjustmentId);
+                SyncOutboxWriter.Enqueue(connection, transaction, "upsert", "InventoryAdjustment", adjustmentId, posted);
+                transaction.Commit(); return posted;
             }
         }
 

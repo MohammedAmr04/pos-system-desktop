@@ -16,7 +16,7 @@ namespace PosCs.Application.Ports
 
         Shift GetById(string id);
 
-        ShiftPageResult GetPaged(string status, int page, int pageSize);
+        ShiftPageResult GetPaged(string status, int page, int pageSize, string branchId = null);
 
         /// <summary>Closes an open shift: derives expected cash from its stamped cash
         /// payments and stores counted/difference atomically.</summary>

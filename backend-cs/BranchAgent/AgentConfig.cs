@@ -9,8 +9,19 @@ namespace PosCs.BranchAgent
         public string CentralBaseUrl { get; private set; }
         public string Token { get; private set; }
         public string BranchId { get; private set; }
+        public string BranchKey { get; private set; }
         public string CursorPath { get; private set; }
         public int PollSeconds { get; private set; }
+
+        /// <summary>Applies identity/credentials resolved from the local backend so a terminal
+        /// branch switch takes effect without editing environment variables or restarting.</summary>
+        public void Apply(string centralBaseUrl, string token, string branchId, string branchKey)
+        {
+            if (!string.IsNullOrWhiteSpace(centralBaseUrl)) CentralBaseUrl = centralBaseUrl.TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(token)) Token = token;
+            if (branchId != null) BranchId = branchId.Trim();
+            if (branchKey != null) BranchKey = branchKey.Trim();
+        }
 
         public static AgentConfig FromEnvironment()
         {
@@ -27,6 +38,7 @@ namespace PosCs.BranchAgent
                 CentralBaseUrl = central.TrimEnd('/'),
                 Token = token,
                 BranchId = (Environment.GetEnvironmentVariable("POS_BRANCH_ID") ?? string.Empty).Trim(),
+                BranchKey = (Environment.GetEnvironmentVariable("POS_BRANCH_KEY") ?? string.Empty).Trim(),
                 CursorPath = Path.Combine(dataDir, "sync-cursor.txt"),
                 PollSeconds = ParsePollSeconds(Environment.GetEnvironmentVariable("POS_SYNC_POLL_SECONDS"))
             };

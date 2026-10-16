@@ -16,6 +16,7 @@ const DYNAMIC_KEYS: Array<[RegExp, string]> = [
   [/^invalid return quantity; maximum available is .+$/i, "invalid-return-quantity"],
   [/^invalid unit for product .+$/i, "invalid-unit-for-product"],
   [/^invalid return quantity for product .+$/i, "invalid-return-quantity-for-product"],
+  [/^cannot switch branches while \d+ sync operation\(s\) are still pending$/i, "cannot-switch-while-pending"],
   [/^failed to .+/i, "failed"],
 ]
 

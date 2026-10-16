@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Dapper;
+using Microsoft.Data.Sqlite;
 using PosCs.Application.Models;
 using PosCs.Application.Ports;
 using PosCs.Domain.Entities;
@@ -376,6 +377,171 @@ namespace PosCs.Infrastructure.Persistence
                                     new { status = returnPayload.InvoiceReturnStatus, invoiceId = saleReturn.InvoiceId }, transaction);
                         }
                     }
+                    else if (string.Equals(operation.EntityType, "PurchaseInvoice", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(operation.Payload))
+                    {
+                        var payload = JsonConvert.DeserializeObject<PurchaseInvoiceSyncPayload>(operation.Payload);
+                        if (payload != null && payload.PurchaseInvoice != null)
+                        {
+                            var purchase = payload.PurchaseInvoice;
+                            connection.Execute(@"INSERT INTO PurchaseInvoice
+                                (id,invoiceNumber,supplierInvoiceNumber,supplierId,date,paymentMethod,status,subtotal,discount,tax,total,notes,createdBy,createdAt,updatedAt,branchId,terminalId)
+                                VALUES (@id,@invoiceNumber,@supplierInvoiceNumber,@supplierId,@date,@paymentMethod,@status,@subtotal,@discount,@tax,@total,@notes,@createdBy,@createdAt,@updatedAt,@branchId,@terminalId)
+                                ON CONFLICT(id) DO UPDATE SET supplierInvoiceNumber=@supplierInvoiceNumber,supplierId=@supplierId,
+                                    date=@date,paymentMethod=@paymentMethod,status=@status,subtotal=@subtotal,discount=@discount,
+                                    tax=@tax,total=@total,notes=@notes,updatedAt=@updatedAt", new
+                            {
+                                id = purchase.Id,
+                                invoiceNumber = purchase.InvoiceNumber,
+                                supplierInvoiceNumber = purchase.SupplierInvoiceNumber,
+                                supplierId = purchase.SupplierId,
+                                date = purchase.Date,
+                                paymentMethod = purchase.PaymentMethod,
+                                status = purchase.Status ?? "posted",
+                                subtotal = purchase.Subtotal,
+                                discount = purchase.Discount,
+                                tax = purchase.Tax,
+                                total = purchase.Total,
+                                notes = purchase.Notes,
+                                createdBy = purchase.CreatedBy,
+                                createdAt = purchase.CreatedAt,
+                                updatedAt = purchase.UpdatedAt,
+                                branchId = operation.BranchId,
+                                terminalId = operation.TerminalId
+                            }, transaction);
+
+                            connection.Execute("DELETE FROM PurchaseInvoiceItem WHERE purchaseInvoiceId=@id",
+                                new { id = purchase.Id }, transaction);
+                            if (payload.Items != null)
+                            {
+                                foreach (var item in payload.Items)
+                                {
+                                    connection.Execute(@"INSERT INTO PurchaseInvoiceItem
+                                        (id,purchaseInvoiceId,productId,productUnitId,unitName,quantityFactor,quantity,unitCost,lineTotal,newRetailPrice,newWholesalePrice)
+                                        VALUES (@id,@purchaseInvoiceId,@productId,@productUnitId,@unitName,@quantityFactor,@quantity,@unitCost,@lineTotal,@newRetailPrice,@newWholesalePrice)", new
+                                    {
+                                        id = string.IsNullOrEmpty(item.Id) ? Guid.NewGuid().ToString("N") : item.Id,
+                                        purchaseInvoiceId = purchase.Id,
+                                        productId = item.ProductId,
+                                        productUnitId = item.ProductUnitId,
+                                        unitName = item.UnitName,
+                                        quantityFactor = item.QuantityFactor,
+                                        quantity = item.Quantity,
+                                        unitCost = item.UnitCost,
+                                        lineTotal = item.LineTotal,
+                                        newRetailPrice = item.NewRetailPrice,
+                                        newWholesalePrice = item.NewWholesalePrice
+                                    }, transaction);
+                                }
+                            }
+                        }
+                    }
+                    else if (string.Equals(operation.EntityType, "PurchaseReturn", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(operation.Payload))
+                    {
+                        var payload = JsonConvert.DeserializeObject<PurchaseReturnSyncPayload>(operation.Payload);
+                        if (payload != null && payload.PurchaseReturn != null)
+                        {
+                            var purchaseReturn = payload.PurchaseReturn;
+                            var purchaseExists = connection.ExecuteScalar<int>(
+                                "SELECT COUNT(1) FROM PurchaseInvoice WHERE id=@id",
+                                new { id = purchaseReturn.PurchaseInvoiceId }, transaction) > 0;
+                            if (!purchaseExists)
+                                throw new InvalidOperationException("Referenced purchase invoice has not synced yet");
+
+                            connection.Execute(@"INSERT OR IGNORE INTO PurchaseReturn
+                                (id,number,purchaseInvoiceId,date,totalAmount,paymentMethod,notes,status,createdBy,createdAt,branchId,terminalId)
+                                VALUES (@id,@number,@purchaseInvoiceId,@date,@totalAmount,@paymentMethod,@notes,@status,@createdBy,@createdAt,@branchId,@terminalId)", new
+                            {
+                                id = purchaseReturn.Id,
+                                number = purchaseReturn.Number,
+                                purchaseInvoiceId = purchaseReturn.PurchaseInvoiceId,
+                                date = purchaseReturn.Date,
+                                totalAmount = purchaseReturn.TotalAmount,
+                                paymentMethod = purchaseReturn.PaymentMethod ?? "cash",
+                                notes = purchaseReturn.Notes,
+                                status = purchaseReturn.Status ?? "posted",
+                                createdBy = purchaseReturn.CreatedBy,
+                                createdAt = purchaseReturn.CreatedAt,
+                                branchId = operation.BranchId,
+                                terminalId = operation.TerminalId
+                            }, transaction);
+
+                            if (payload.Details != null)
+                            {
+                                foreach (var detail in payload.Details)
+                                {
+                                    connection.Execute(@"INSERT OR IGNORE INTO PurchaseReturnDetail
+                                        (id,returnId,purchaseItemId,productId,unitName,quantity,quantityFactor,unitCost,lineTotal)
+                                        VALUES (@id,@returnId,@purchaseItemId,@productId,@unitName,@quantity,@quantityFactor,@unitCost,@lineTotal)", new
+                                    {
+                                        id = string.IsNullOrEmpty(detail.Id) ? Guid.NewGuid().ToString("N") : detail.Id,
+                                        returnId = purchaseReturn.Id,
+                                        purchaseItemId = detail.PurchaseItemId,
+                                        productId = detail.ProductId,
+                                        unitName = detail.UnitName,
+                                        quantity = detail.Quantity,
+                                        quantityFactor = detail.QuantityFactor,
+                                        unitCost = detail.UnitCost,
+                                        lineTotal = detail.LineTotal
+                                    }, transaction);
+                                }
+                            }
+
+                            UpdateCentralPurchaseReturnStatus(connection, transaction, purchaseReturn.PurchaseInvoiceId);
+                        }
+                    }
+                    else if (string.Equals(operation.EntityType, "InventoryAdjustment", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(operation.Payload))
+                    {
+                        var detail = JsonConvert.DeserializeObject<InventoryAdjustmentDetail>(operation.Payload);
+                        if (detail != null && !string.IsNullOrWhiteSpace(detail.Id))
+                        {
+                            connection.Execute(@"INSERT INTO InventoryAdjustment
+                                (id,number,reason,createdBy,createdAt,status,postedAt,cancelledAt,notes,branchId,terminalId)
+                                VALUES (@id,@number,@reason,@createdBy,@createdAt,@status,@postedAt,@cancelledAt,@notes,@branchId,@terminalId)
+                                ON CONFLICT(id) DO UPDATE SET reason=@reason,status=@status,postedAt=@postedAt,
+                                    cancelledAt=@cancelledAt,notes=@notes", new
+                            {
+                                id = detail.Id,
+                                number = detail.Number,
+                                reason = detail.Reason,
+                                createdBy = detail.CreatedBy,
+                                createdAt = detail.CreatedAt,
+                                status = detail.Status ?? "posted",
+                                postedAt = detail.PostedAt,
+                                cancelledAt = detail.CancelledAt,
+                                notes = detail.Notes,
+                                branchId = operation.BranchId,
+                                terminalId = operation.TerminalId
+                            }, transaction);
+
+                            connection.Execute("DELETE FROM InventoryAdjustmentLine WHERE adjustmentId=@id",
+                                new { id = detail.Id }, transaction);
+                            if (detail.Lines != null)
+                            {
+                                foreach (var line in detail.Lines)
+                                {
+                                    connection.Execute(@"INSERT INTO InventoryAdjustmentLine
+                                        (id,adjustmentId,productId,systemQuantity,actualQuantity,differenceQuantity,unitCost,productUnitId,unitName,quantityFactor,countedQuantity,countedBaseQuantity,isMatched,updatedAt)
+                                        VALUES (@id,@adjustmentId,@productId,@systemQuantity,@actualQuantity,@differenceQuantity,@unitCost,@productUnitId,@unitName,@quantityFactor,@countedQuantity,@countedBaseQuantity,@isMatched,@updatedAt)", new
+                                    {
+                                        id = string.IsNullOrEmpty(line.Id) ? Guid.NewGuid().ToString("N") : line.Id,
+                                        adjustmentId = detail.Id,
+                                        productId = line.ProductId,
+                                        systemQuantity = line.SystemQuantity,
+                                        actualQuantity = line.CountedBaseQuantity,
+                                        differenceQuantity = line.DifferenceQuantity,
+                                        unitCost = line.UnitCost,
+                                        productUnitId = line.ProductUnitId,
+                                        unitName = line.UnitName,
+                                        quantityFactor = line.QuantityFactor,
+                                        countedQuantity = line.CountedQuantity,
+                                        countedBaseQuantity = line.CountedBaseQuantity,
+                                        isMatched = line.IsMatched ? 1 : 0,
+                                        updatedAt = line.UpdatedAt
+                                    }, transaction);
+                                }
+                            }
+                        }
+                    }
 
                     connection.Execute("UPDATE SyncInbox SET status='applied',appliedAt=@at,lastError=NULL WHERE operationId=@operationId", new { operationId, at = DateTime.Now }, transaction);
                     transaction.Commit();
@@ -407,6 +573,26 @@ namespace PosCs.Infrastructure.Persistence
                       AND (@branchId IS NULL OR branchId IS NULL OR branchId = @branchId)
                     ORDER BY version LIMIT @limit", new { afterVersion, limit, branchId }).ToList();
             }
+        }
+
+        /// <summary>Recomputes the central purchase's returnStatus from the purchase-return
+        /// details that have been applied so far (mirrors the branch-side rule).</summary>
+        private static void UpdateCentralPurchaseReturnStatus(SqliteConnection conn, SqliteTransaction transaction, string purchaseInvoiceId)
+        {
+            var rows = conn.Query<PurchaseReturnStatusRow>(
+                "SELECT i.quantity AS Purchased, " +
+                "(SELECT COALESCE(SUM(rd.quantity), 0) FROM PurchaseReturnDetail rd " +
+                " JOIN PurchaseReturn r ON r.id = rd.returnId " +
+                " WHERE rd.purchaseItemId = i.id AND r.status = 'posted') AS Returned " +
+                "FROM PurchaseInvoiceItem i WHERE i.purchaseInvoiceId = @id",
+                new { id = purchaseInvoiceId }, transaction).ToList();
+
+            var allFullyReturned = rows.Count > 0 && rows.All(x => x.Returned >= x.Purchased - 1e-9);
+            var anyReturned = rows.Any(x => x.Returned > 0);
+            var status = allFullyReturned ? "full" : (anyReturned ? "partial" : (string)null);
+            if (status != null)
+                conn.Execute("UPDATE PurchaseInvoice SET returnStatus=@status WHERE id=@id",
+                    new { status, id = purchaseInvoiceId }, transaction);
         }
 
         private static string Truncate(string value, int max)
@@ -442,6 +628,24 @@ namespace PosCs.Infrastructure.Persistence
             public SaleReturn SaleReturn { get; set; }
             public List<SaleReturnDetail> Details { get; set; }
             public string InvoiceReturnStatus { get; set; }
+        }
+
+        private sealed class PurchaseInvoiceSyncPayload
+        {
+            public PurchaseInvoice PurchaseInvoice { get; set; }
+            public List<PurchaseInvoiceItem> Items { get; set; }
+        }
+
+        private sealed class PurchaseReturnSyncPayload
+        {
+            public PurchaseReturn PurchaseReturn { get; set; }
+            public List<PurchaseReturnDetail> Details { get; set; }
+        }
+
+        private sealed class PurchaseReturnStatusRow
+        {
+            public double Purchased { get; set; }
+            public double Returned { get; set; }
         }
     }
 }

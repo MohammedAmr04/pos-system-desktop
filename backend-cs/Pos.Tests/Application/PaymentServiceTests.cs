@@ -20,7 +20,7 @@ namespace PosCs.Tests.Application
             return payment;
         }
 
-        public PaymentPageResult GetPaged(string clientId, string supplierId, string invoiceId, int page, int pageSize)
+        public PaymentPageResult GetPaged(string clientId, string supplierId, string invoiceId, int page, int pageSize, string branchId = null)
         {
             IEnumerable<Payment> query = Stored;
             if (clientId != null) query = query.Where(p => p.ClientId == clientId);
@@ -100,7 +100,7 @@ namespace PosCs.Tests.Application
 
         public List<Invoice> GetRange(DateTime? from, DateTime? to) => new List<Invoice>();
 
-        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null) =>
+        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null, string branchId = null) =>
             new InvoicePageResult { Items = new List<Invoice>(), Total = 0 };
 
         public Invoice Update(string id, Invoice invoice, List<InvoiceDetail> lines) => invoice;

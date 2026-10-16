@@ -33,7 +33,7 @@ namespace PosCs.Tests.Application
 
         public Shift GetById(string id) => Stored.FirstOrDefault(s => s.Id == id);
 
-        public ShiftPageResult GetPaged(string status, int page, int pageSize)
+        public ShiftPageResult GetPaged(string status, int page, int pageSize, string branchId = null)
         {
             var items = string.IsNullOrWhiteSpace(status) || status == "all"
                 ? Stored.ToList()

@@ -17,11 +17,11 @@ namespace PosCs.Controllers
         [HttpGet]
         [RequirePermission("shifts.view")]
         public IHttpActionResult GetPaged([FromUri] string status = null, [FromUri] int page = 1,
-            [FromUri] int pageSize = 20)
+            [FromUri] int pageSize = 20, [FromUri] string branchId = null)
         {
             try
             {
-                return Ok(_service.GetPaged(status, page, pageSize));
+                return Ok(_service.GetPaged(status, page, pageSize, branchId));
             }
             catch (Exception ex)
             {

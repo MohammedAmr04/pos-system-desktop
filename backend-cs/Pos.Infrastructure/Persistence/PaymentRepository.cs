@@ -41,7 +41,7 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public PaymentPageResult GetPaged(string clientId, string supplierId, string invoiceId, int page, int pageSize)
+        public PaymentPageResult GetPaged(string clientId, string supplierId, string invoiceId, int page, int pageSize, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
@@ -58,11 +58,16 @@ namespace PosCs.Infrastructure.Persistence
                 {
                     clauses.Add("invoiceId = @invoiceId");
                 }
+                if (!string.IsNullOrWhiteSpace(branchId))
+                {
+                    clauses.Add("branchId = @branchId");
+                }
 
                 var parameters = new DynamicParameters();
                 parameters.Add("clientId", clientId);
                 parameters.Add("supplierId", supplierId);
                 parameters.Add("invoiceId", invoiceId);
+                parameters.Add("branchId", branchId);
                 parameters.Add("pageSize", pageSize);
                 parameters.Add("offset", (page - 1) * pageSize);
 

@@ -15,7 +15,7 @@ namespace PosCs.Infrastructure.Persistence
         private const string Columns =
             "id, invoiceNumber, supplierInvoiceNumber, supplierId, date, paymentMethod, status, subtotal, discount, tax, total, notes, createdBy, createdAt, updatedAt";
 
-        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize)
+        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
@@ -31,6 +31,11 @@ namespace PosCs.Infrastructure.Persistence
                 {
                     clauses.Add("(CAST(invoiceNumber AS TEXT) LIKE @like OR supplierInvoiceNumber LIKE @like)");
                     parameters.Add("like", $"%{EscapeLike(query.Trim())}%");
+                }
+                if (!string.IsNullOrWhiteSpace(branchId))
+                {
+                    clauses.Add("branchId = @branchId");
+                    parameters.Add("branchId", branchId.Trim());
                 }
 
                 var where = clauses.Count > 0 ? " WHERE " + string.Join(" AND ", clauses) : "";
@@ -202,6 +207,9 @@ namespace PosCs.Infrastructure.Persistence
                             }
                         }
 
+                        SyncOutboxWriter.Enqueue(conn, tx, "upsert", "PurchaseInvoice", invoice.Id,
+                            new { purchaseInvoice = invoice, items });
+
                         tx.Commit();
                     }
                     catch
@@ -244,6 +252,13 @@ namespace PosCs.Infrastructure.Persistence
                             "SELECT DISTINCT productId FROM PurchaseInvoiceItem WHERE purchaseInvoiceId = @id",
                             new { id }, transaction: tx))
                             SyncBuyPrice(conn, tx, pid);
+
+                        invoice.Status = "cancelled";
+                        var cancelItems = conn.Query<PurchaseInvoiceItem>(
+                            "SELECT * FROM PurchaseInvoiceItem WHERE purchaseInvoiceId = @id",
+                            new { id }, transaction: tx).ToList();
+                        SyncOutboxWriter.Enqueue(conn, tx, "upsert", "PurchaseInvoice", invoice.Id,
+                            new { purchaseInvoice = invoice, items = cancelItems });
 
                         tx.Commit();
                     }

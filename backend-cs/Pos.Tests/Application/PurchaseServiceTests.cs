@@ -15,7 +15,7 @@ namespace PosCs.Tests.Application
         public PurchaseInvoice LastSavedInvoice;
         public List<PurchaseInvoiceItem> LastSavedItems;
 
-        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize) =>
+        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize, string branchId = null) =>
             new PurchaseInvoicePageResult { Items = new List<PurchaseInvoice>(), Total = 0 };
 
         public PurchaseInvoice GetById(string id)

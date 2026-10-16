@@ -10,6 +10,16 @@ namespace PosCs.Application.Models
         public Terminal Terminal { get; set; }
         public string NodeRole { get; set; }
         public string CentralBaseUrl { get; set; }
+        public string Status { get; set; }
+    }
+
+    public sealed class BranchAgentConfig
+    {
+        public string CentralBaseUrl { get; set; }
+        public string CentralToken { get; set; }
+        public string BranchId { get; set; }
+        public string BranchKey { get; set; }
+        public string NodeRole { get; set; }
     }
 
     public sealed class SyncOperation
@@ -88,5 +98,10 @@ namespace PosCs.Application.Models
         public string TerminalId { get; set; }
         public string NodeRole { get; set; }
         public string CentralBaseUrl { get; set; }
+    }
+
+    public sealed class BranchSecretRequest
+    {
+        public string Key { get; set; }
     }
 }

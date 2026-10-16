@@ -29,11 +29,11 @@ namespace PosCs.Application.Services
             _purchases = purchases;
         }
 
-        public PaymentPageResult GetPaged(string clientId, string supplierId, string invoiceId, int page, int pageSize)
+        public PaymentPageResult GetPaged(string clientId, string supplierId, string invoiceId, int page, int pageSize, string branchId = null)
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return _payments.GetPaged(clientId, supplierId, invoiceId, page, pageSize);
+            return _payments.GetPaged(clientId, supplierId, invoiceId, page, pageSize, branchId);
         }
 
         /// <summary>Paid totals per invoice/purchase id; remaining + status are derived by callers

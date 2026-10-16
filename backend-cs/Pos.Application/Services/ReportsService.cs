@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using PosCs.Application.Ports;
 using PosCs.Domain.Entities;
+using PosCs.Domain.Exceptions;
 using PosCs.Domain.Rules;
 
 namespace PosCs.Application.Services
@@ -28,20 +29,27 @@ namespace PosCs.Application.Services
                 .ToList();
         }
 
-        public SalesReport Sales(DateTime from, DateTime to) => _reports.GetSalesReport(from, to);
+        public SalesReport Sales(DateTime from, DateTime to, string branchId = null) => _reports.GetSalesReport(from, to, branchId);
 
-        public PurchasesReport Purchases(DateTime from, DateTime to) => _reports.GetPurchasesReport(from, to);
+        public PurchasesReport Purchases(DateTime from, DateTime to, string branchId = null) => _reports.GetPurchasesReport(from, to, branchId);
 
-        public ProfitReport Profit(DateTime from, DateTime to) => _reports.GetProfitReport(from, to);
+        public ProfitReport Profit(DateTime from, DateTime to, string branchId = null) => _reports.GetProfitReport(from, to, branchId);
 
         public List<InventoryValuationRow> InventoryValuation() => _reports.GetInventoryValuation();
 
-        public ReturnsReport Returns(DateTime from, DateTime to) => _reports.GetReturnsReport(from, to);
+        public List<BranchStockRow> BranchStock(string branchId)
+        {
+            if (string.IsNullOrWhiteSpace(branchId))
+                throw new DomainValidationException("Branch is required");
+            return _reports.GetBranchStock(branchId.Trim());
+        }
 
-        public ExpensesReport Expenses(DateTime from, DateTime to) => _reports.GetExpensesReport(from, to);
+        public ReturnsReport Returns(DateTime from, DateTime to, string branchId = null) => _reports.GetReturnsReport(from, to, branchId);
 
-        public CashReport Cash(DateTime from, DateTime to) => _reports.GetCashReport(from, to);
+        public ExpensesReport Expenses(DateTime from, DateTime to, string branchId = null) => _reports.GetExpensesReport(from, to, branchId);
 
-        public List<EmployeePerformanceRow> EmployeePerformance(DateTime from, DateTime to) => _reports.GetEmployeePerformance(from, to);
+        public CashReport Cash(DateTime from, DateTime to, string branchId = null) => _reports.GetCashReport(from, to, branchId);
+
+        public List<EmployeePerformanceRow> EmployeePerformance(DateTime from, DateTime to, string branchId = null) => _reports.GetEmployeePerformance(from, to, branchId);
     }
 }

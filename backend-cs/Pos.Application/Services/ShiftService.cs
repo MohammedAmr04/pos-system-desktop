@@ -52,11 +52,11 @@ namespace PosCs.Application.Services
             return _shifts.GetById(id);
         }
 
-        public ShiftPageResult GetPaged(string status, int page, int pageSize)
+        public ShiftPageResult GetPaged(string status, int page, int pageSize, string branchId = null)
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return _shifts.GetPaged(status, page, pageSize);
+            return _shifts.GetPaged(status, page, pageSize, branchId);
         }
 
         public ShiftReport GetReport(string id)

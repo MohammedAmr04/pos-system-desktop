@@ -57,6 +57,8 @@ export const PERMISSIONS = {
   EXPENSES_CREATE: 'expenses.create',
   EXPENSES_CATEGORIES: 'expenses.categories',
   BACKUPS_MANAGE: 'backups.manage',
+  BRANCHES_VIEW: 'branches.view',
+  BRANCHES_MANAGE: 'branches.manage',
 } as const
 
 export const FEATURES = {
@@ -125,6 +127,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'expenses.create': 'تسجيل المصروفات',
   'expenses.categories': 'إدارة تصنيفات المصروفات',
   'backups.manage': 'إدارة النسخ الاحتياطية',
+  'branches.view': 'عرض الفروع',
+  'branches.manage': 'إدارة الفروع والأجهزة',
 }
 
 export const RESOURCE_LABELS: Record<string, string> = {
@@ -148,6 +152,7 @@ export const RESOURCE_LABELS: Record<string, string> = {
   payments: 'الدفعات',
   shifts: 'الورديات',
   expenses: 'المصروفات',
+  branches: 'الفروع',
 }
 
 export const FEATURE_LABELS: Record<string, { name: string; description: string }> = {

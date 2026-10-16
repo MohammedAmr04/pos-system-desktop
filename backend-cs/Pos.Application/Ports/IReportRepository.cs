@@ -8,14 +8,15 @@ namespace PosCs.Application.Ports
     /// refund/restored-cost totals. No live recalculation.</summary>
     public interface IReportRepository
     {
-        SalesReport GetSalesReport(DateTime from, DateTime to);
-        PurchasesReport GetPurchasesReport(DateTime from, DateTime to);
-        ProfitReport GetProfitReport(DateTime from, DateTime to);
+        SalesReport GetSalesReport(DateTime from, DateTime to, string branchId = null);
+        PurchasesReport GetPurchasesReport(DateTime from, DateTime to, string branchId = null);
+        ProfitReport GetProfitReport(DateTime from, DateTime to, string branchId = null);
         List<InventoryValuationRow> GetInventoryValuation();
-        ReturnsReport GetReturnsReport(DateTime from, DateTime to);
-        ExpensesReport GetExpensesReport(DateTime from, DateTime to);
-        CashReport GetCashReport(DateTime from, DateTime to);
-        List<EmployeePerformanceRow> GetEmployeePerformance(DateTime from, DateTime to);
+        List<BranchStockRow> GetBranchStock(string branchId);
+        ReturnsReport GetReturnsReport(DateTime from, DateTime to, string branchId = null);
+        ExpensesReport GetExpensesReport(DateTime from, DateTime to, string branchId = null);
+        CashReport GetCashReport(DateTime from, DateTime to, string branchId = null);
+        List<EmployeePerformanceRow> GetEmployeePerformance(DateTime from, DateTime to, string branchId = null);
     }
 
     public sealed class SalesByDayRow
@@ -114,6 +115,16 @@ namespace PosCs.Application.Ports
         public double UnitCost { get; set; }
         public double Value { get; set; }
         public string CategoryName { get; set; }
+    }
+
+    /// <summary>Per-branch stock derived from the immutable StockMovement ledger on the central
+    /// node. Quantity is the signed sum of a product's movements for one branch.</summary>
+    public sealed class BranchStockRow
+    {
+        public string ProductId { get; set; }
+        public string ProductName { get; set; }
+        public string BranchId { get; set; }
+        public double Quantity { get; set; }
     }
 
     public sealed class ReturnsReport

@@ -19,11 +19,11 @@ namespace PosCs.Application.Services
             _purchases = purchases;
         }
 
-        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize)
+        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize, string branchId = null)
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return _purchases.GetPaged(status, query, page, pageSize);
+            return _purchases.GetPaged(status, query, page, pageSize, branchId);
         }
 
         public PurchaseInvoice GetById(string id)

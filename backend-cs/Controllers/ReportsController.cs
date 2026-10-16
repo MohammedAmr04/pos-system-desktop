@@ -5,6 +5,7 @@ using System.Web.Http;
 using PosCs.Api;
 using PosCs.Application.Services;
 using PosCs.Attributes;
+using PosCs.Domain.Exceptions;
 
 namespace PosCs.Controllers
 {
@@ -32,11 +33,11 @@ namespace PosCs.Controllers
         [Route("sales")]
         [HttpGet]
         [RequirePermission("reports.view")]
-        public IHttpActionResult GetSales([FromUri] DateTime from, [FromUri] DateTime to)
+        public IHttpActionResult GetSales([FromUri] DateTime from, [FromUri] DateTime to, [FromUri] string branchId = null)
         {
             try
             {
-                return Ok(_service.Sales(from, EndOfDay(to)));
+                return Ok(_service.Sales(from, EndOfDay(to), branchId));
             }
             catch (Exception ex)
             {
@@ -48,11 +49,11 @@ namespace PosCs.Controllers
         [Route("purchases")]
         [HttpGet]
         [RequirePermission("reports.view")]
-        public IHttpActionResult GetPurchases([FromUri] DateTime from, [FromUri] DateTime to)
+        public IHttpActionResult GetPurchases([FromUri] DateTime from, [FromUri] DateTime to, [FromUri] string branchId = null)
         {
             try
             {
-                return Ok(_service.Purchases(from, EndOfDay(to)));
+                return Ok(_service.Purchases(from, EndOfDay(to), branchId));
             }
             catch (Exception ex)
             {
@@ -64,11 +65,11 @@ namespace PosCs.Controllers
         [Route("profit")]
         [HttpGet]
         [RequirePermission("reports.view")]
-        public IHttpActionResult GetProfit([FromUri] DateTime from, [FromUri] DateTime to)
+        public IHttpActionResult GetProfit([FromUri] DateTime from, [FromUri] DateTime to, [FromUri] string branchId = null)
         {
             try
             {
-                return Ok(_service.Profit(from, EndOfDay(to)));
+                return Ok(_service.Profit(from, EndOfDay(to), branchId));
             }
             catch (Exception ex)
             {
@@ -93,14 +94,34 @@ namespace PosCs.Controllers
             }
         }
 
-        [Route("returns")]
+        [Route("branch-stock")]
         [HttpGet]
         [RequirePermission("reports.view")]
-        public IHttpActionResult GetReturns([FromUri] DateTime from, [FromUri] DateTime to)
+        public IHttpActionResult GetBranchStock([FromUri] string branchId)
         {
             try
             {
-                return Ok(_service.Returns(from, EndOfDay(to)));
+                return Ok(_service.BranchStock(branchId));
+            }
+            catch (DomainValidationException v)
+            {
+                return BadRequest(v.Message);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[API ERR] Failed to build branch stock report: {ex}");
+                return InternalServerError(new Exception("Failed to build branch stock report"));
+            }
+        }
+
+        [Route("returns")]
+        [HttpGet]
+        [RequirePermission("reports.view")]
+        public IHttpActionResult GetReturns([FromUri] DateTime from, [FromUri] DateTime to, [FromUri] string branchId = null)
+        {
+            try
+            {
+                return Ok(_service.Returns(from, EndOfDay(to), branchId));
             }
             catch (Exception ex)
             {
@@ -112,11 +133,11 @@ namespace PosCs.Controllers
         [Route("expenses")]
         [HttpGet]
         [RequirePermission("reports.view")]
-        public IHttpActionResult GetExpensesReport([FromUri] DateTime from, [FromUri] DateTime to)
+        public IHttpActionResult GetExpensesReport([FromUri] DateTime from, [FromUri] DateTime to, [FromUri] string branchId = null)
         {
             try
             {
-                return Ok(_service.Expenses(from, EndOfDay(to)));
+                return Ok(_service.Expenses(from, EndOfDay(to), branchId));
             }
             catch (Exception ex)
             {
@@ -128,11 +149,11 @@ namespace PosCs.Controllers
         [Route("cash")]
         [HttpGet]
         [RequirePermission("reports.view")]
-        public IHttpActionResult GetCash([FromUri] DateTime from, [FromUri] DateTime to)
+        public IHttpActionResult GetCash([FromUri] DateTime from, [FromUri] DateTime to, [FromUri] string branchId = null)
         {
             try
             {
-                return Ok(_service.Cash(from, EndOfDay(to)));
+                return Ok(_service.Cash(from, EndOfDay(to), branchId));
             }
             catch (Exception ex)
             {
@@ -144,11 +165,11 @@ namespace PosCs.Controllers
         [Route("employee-performance")]
         [HttpGet]
         [RequirePermission("reports.view")]
-        public IHttpActionResult GetEmployeePerformance([FromUri] DateTime from, [FromUri] DateTime to)
+        public IHttpActionResult GetEmployeePerformance([FromUri] DateTime from, [FromUri] DateTime to, [FromUri] string branchId = null)
         {
             try
             {
-                return Ok(_service.EmployeePerformance(from, EndOfDay(to)));
+                return Ok(_service.EmployeePerformance(from, EndOfDay(to), branchId));
             }
             catch (Exception ex)
             {

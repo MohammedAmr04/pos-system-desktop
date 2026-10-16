@@ -9,14 +9,15 @@ namespace PosCs.Infrastructure.Persistence
 {
     /// <summary>Report aggregations (plan Phase 11). Reads historical snapshots only:
     /// Invoice/InvoiceDetail (FinalTotal + TotalCost FIFO COGS), SaleReturn/PurchaseReturn
-    /// stored totals, Expense, Shift close values, and CostLayer for stock valuation.</summary>
+    /// stored totals, Expense, Shift close values, and CostLayer for stock valuation.
+    /// Every aggregation accepts an optional branchId so authorized users can filter cross-branch.</summary>
     public class ReportRepository : IReportRepository
     {
-        public SalesReport GetSalesReport(DateTime from, DateTime to)
+        public SalesReport GetSalesReport(DateTime from, DateTime to, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
-                var range = new { from, to };
+                var range = new { from, to, branchId };
                 var report = new SalesReport();
 
                 var totals = conn.QueryFirstOrDefault<TotalsRow>(
@@ -29,7 +30,8 @@ namespace PosCs.Infrastructure.Persistence
                              ), 0)), 0) AS NetSales,
                              COALESCE(SUM(i.discountAmount), 0) AS Discounts
                       FROM Invoice i
-                      WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to", range);
+                      WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR i.branchId = @branchId)", range);
                 report.InvoiceCount = (int)totals.InvoiceCount;
                 report.GrossSales = Math.Round((double)totals.GrossSales, 2);
                 report.Discounts = Math.Round((double)totals.Discounts, 2);
@@ -45,6 +47,7 @@ namespace PosCs.Infrastructure.Persistence
                              COALESCE(SUM(i.discountAmount), 0) AS Discounts
                       FROM Invoice i
                       WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR i.branchId = @branchId)
                       GROUP BY date(i.createdAt) ORDER BY Day", range).ToList();
 
                 report.ByPaymentMethod = conn.Query<SalesByMethodRow>(
@@ -56,6 +59,7 @@ namespace PosCs.Infrastructure.Persistence
                              ), 0)), 0) AS Total
                       FROM Invoice i
                       WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR i.branchId = @branchId)
                       GROUP BY i.paymentMethod ORDER BY Total DESC", range).ToList();
 
                 report.TopProducts = conn.Query<TopProductRow>(
@@ -78,6 +82,7 @@ namespace PosCs.Infrastructure.Persistence
                            GROUP BY rd.invoiceDetailId
                        ) sr ON sr.invoiceDetailId = d.id
                        WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                         AND (@branchId IS NULL OR i.branchId = @branchId)
                        GROUP BY d.productId, p.name
                        ORDER BY Revenue DESC
                        LIMIT 10", range).ToList();
@@ -99,6 +104,7 @@ namespace PosCs.Infrastructure.Persistence
                       FROM Invoice i
                       LEFT JOIN User u ON u.id = i.createdBy
                       WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR i.branchId = @branchId)
                       GROUP BY u.username, i.createdBy
                       ORDER BY Total DESC", range).ToList();
 
@@ -106,7 +112,7 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public List<EmployeePerformanceRow> GetEmployeePerformance(DateTime from, DateTime to)
+        public List<EmployeePerformanceRow> GetEmployeePerformance(DateTime from, DateTime to, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
@@ -119,9 +125,10 @@ namespace PosCs.Infrastructure.Persistence
                       FROM Invoice i
                       LEFT JOIN Employee e ON e.id = i.employeeId
                       WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR i.branchId = @branchId)
                       GROUP BY i.employeeId, e.name
                       ORDER BY Total DESC",
-                    new { from, to }).ToList();
+                    new { from, to, branchId }).ToList();
                 foreach (var row in rows)
                 {
                     row.Total = Math.Round(row.Total, 2);
@@ -131,17 +138,18 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public PurchasesReport GetPurchasesReport(DateTime from, DateTime to)
+        public PurchasesReport GetPurchasesReport(DateTime from, DateTime to, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
-                var range = new { from, to };
+                var range = new { from, to, branchId };
                 var report = new PurchasesReport();
 
                 var totals = conn.QueryFirstOrDefault<TotalsRow>(
                     @"SELECT COUNT(1) AS InvoiceCount, COALESCE(SUM(total), 0) AS Total
                       FROM PurchaseInvoice
-                      WHERE status = 'posted' AND createdAt BETWEEN @from AND @to", range);
+                      WHERE status = 'posted' AND createdAt BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR branchId = @branchId)", range);
                 report.InvoiceCount = (int)totals.InvoiceCount;
                 report.Total = Math.Round((double)totals.Total, 2);
 
@@ -150,6 +158,7 @@ namespace PosCs.Infrastructure.Persistence
                              COALESCE(SUM(total), 0) AS Total
                       FROM PurchaseInvoice
                       WHERE status = 'posted' AND createdAt BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR branchId = @branchId)
                       GROUP BY date(createdAt) ORDER BY Day", range).ToList();
 
                 report.BySupplier = conn.Query<PurchasesBySupplierRow>(
@@ -159,6 +168,7 @@ namespace PosCs.Infrastructure.Persistence
                       FROM PurchaseInvoice pi
                       LEFT JOIN Supplier s ON s.id = pi.supplierId
                       WHERE pi.status = 'posted' AND pi.createdAt BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR pi.branchId = @branchId)
                       GROUP BY s.name, pi.supplierId
                       ORDER BY Total DESC", range).ToList();
 
@@ -166,11 +176,11 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public ProfitReport GetProfitReport(DateTime from, DateTime to)
+        public ProfitReport GetProfitReport(DateTime from, DateTime to, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
-                var range = new { from, to };
+                var range = new { from, to, branchId };
                 var report = new ProfitReport();
 
                 var sales = conn.QueryFirstOrDefault<TotalsRow>(
@@ -178,7 +188,8 @@ namespace PosCs.Infrastructure.Persistence
                              COALESCE(SUM(d.totalCost), 0) AS Cost
                        FROM InvoiceDetail d
                        JOIN Invoice i ON i.id = d.invoiceId
-                       WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to", range);
+                       WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                         AND (@branchId IS NULL OR i.branchId = @branchId)", range);
                 report.GrossSales = Math.Round((double)sales.Revenue, 2);
                 report.Cogs = Math.Round((double)sales.Cost, 2);
 
@@ -186,7 +197,8 @@ namespace PosCs.Infrastructure.Persistence
                     @"SELECT COALESCE(SUM(totalAmount), 0) AS Refunds,
                              COALESCE(SUM(restoredCost), 0) AS Restored
                       FROM SaleReturn
-                      WHERE date BETWEEN @from AND @to", range);
+                      WHERE date BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR branchId = @branchId)", range);
                 report.SaleRefunds = Math.Round((double)returns.Refunds, 2);
                 report.RestoredCosts = Math.Round((double)returns.Restored, 2);
 
@@ -205,6 +217,7 @@ namespace PosCs.Infrastructure.Persistence
                        FROM InvoiceDetail d
                        JOIN Invoice i ON i.id = d.invoiceId
                        WHERE i.status = 'posted' AND i.createdAt BETWEEN @from AND @to
+                         AND (@branchId IS NULL OR i.branchId = @branchId)
                        GROUP BY date(i.createdAt) ORDER BY Day", range).ToList();
                 foreach (var row in report.ByDay)
                 {
@@ -246,45 +259,72 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public ReturnsReport GetReturnsReport(DateTime from, DateTime to)
+        public List<BranchStockRow> GetBranchStock(string branchId)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
-                var range = new { from, to };
+                // Central stock is the running total of the immutable movement ledger for a
+                // branch, so it stays accurate without a stored counter that could drift.
+                var rows = conn.Query<BranchStockRow>(
+                    @"SELECT m.productId AS ProductId,
+                             p.name AS ProductName,
+                             m.branchId AS BranchId,
+                             COALESCE(SUM(m.quantity), 0) AS Quantity
+                      FROM StockMovement m
+                      LEFT JOIN Product p ON p.id = m.productId
+                      WHERE m.branchId = @branchId
+                      GROUP BY m.productId, m.branchId
+                      HAVING COALESCE(SUM(m.quantity), 0) <> 0
+                      ORDER BY p.name", new { branchId }).ToList();
+                foreach (var row in rows)
+                    row.Quantity = Math.Round(row.Quantity, 3);
+                return rows;
+            }
+        }
+
+        public ReturnsReport GetReturnsReport(DateTime from, DateTime to, string branchId = null)
+        {
+            using (var conn = DbConnectionFactory.CreateConnection())
+            {
+                var range = new { from, to, branchId };
                 var report = new ReturnsReport();
 
                 var sales = conn.QueryFirstOrDefault<TotalsRow>(
                     @"SELECT COUNT(1) AS Cnt, COALESCE(SUM(totalAmount), 0) AS Total
-                      FROM SaleReturn WHERE date BETWEEN @from AND @to", range);
+                      FROM SaleReturn WHERE date BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR branchId = @branchId)", range);
                 report.SaleReturnCount = (int)sales.Cnt;
                 report.SaleRefundTotal = Math.Round((double)sales.Total, 2);
 
                 var purchases = conn.QueryFirstOrDefault<TotalsRow>(
                     @"SELECT COUNT(1) AS Cnt, COALESCE(SUM(totalAmount), 0) AS Total
-                      FROM PurchaseReturn WHERE date BETWEEN @from AND @to", range);
+                      FROM PurchaseReturn WHERE date BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR branchId = @branchId)", range);
                 report.PurchaseReturnCount = (int)purchases.Cnt;
                 report.PurchaseRefundTotal = Math.Round((double)purchases.Total, 2);
 
                 report.SaleReturnsByDay = conn.Query<ReturnsByDayRow>(
                     @"SELECT date(date) AS Day, COUNT(1) AS Count, COALESCE(SUM(totalAmount), 0) AS Total
                       FROM SaleReturn WHERE date BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR branchId = @branchId)
                       GROUP BY date(date) ORDER BY Day", range).ToList();
 
                 return report;
             }
         }
 
-        public ExpensesReport GetExpensesReport(DateTime from, DateTime to)
+        public ExpensesReport GetExpensesReport(DateTime from, DateTime to, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
-                var range = new { from, to };
+                var range = new { from, to, branchId };
                 var report = new ExpensesReport();
 
                 var totals = conn.QueryFirstOrDefault<TotalsRow>(
                     @"SELECT COUNT(1) AS Cnt, COALESCE(SUM(amount), 0) AS Total
                       FROM Expense
-                      WHERE paymentMethod = 'cash' AND date BETWEEN @from AND @to", range);
+                      WHERE paymentMethod = 'cash' AND date BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR branchId = @branchId)", range);
                 report.Count = (int)totals.Cnt;
                 report.TotalCash = Math.Round((double)totals.Total, 2);
 
@@ -294,6 +334,7 @@ namespace PosCs.Infrastructure.Persistence
                       FROM Expense e
                       LEFT JOIN ExpenseCategory c ON c.id = e.categoryId
                       WHERE e.paymentMethod = 'cash' AND e.date BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR e.branchId = @branchId)
                       GROUP BY c.name, e.categoryId
                       ORDER BY Total DESC", range).ToList();
 
@@ -301,11 +342,11 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public CashReport GetCashReport(DateTime from, DateTime to)
+        public CashReport GetCashReport(DateTime from, DateTime to, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
-                var range = new { from, to };
+                var range = new { from, to, branchId };
                 var report = new CashReport();
 
                 var rows = conn.Query<CashShiftRow>(
@@ -314,6 +355,7 @@ namespace PosCs.Infrastructure.Persistence
                              countedCash AS CountedCash, difference AS Difference
                       FROM Shift
                       WHERE status = 'closed' AND closedAt BETWEEN @from AND @to
+                        AND (@branchId IS NULL OR branchId = @branchId)
                       ORDER BY number DESC", range).ToList();
                 report.Shifts = rows;
                 report.ShiftCount = rows.Count;

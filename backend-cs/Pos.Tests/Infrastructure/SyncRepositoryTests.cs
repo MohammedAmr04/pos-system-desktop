@@ -11,6 +11,7 @@ using Xunit;
 
 namespace PosCs.Tests.Infrastructure
 {
+    [Collection("DbConnectionFactory")]
     public class SyncRepositoryTests
     {
         [Fact]
@@ -153,6 +154,159 @@ namespace PosCs.Tests.Infrastructure
             }
         }
 
+        [Fact]
+        public void ApplyReceivedPurchaseInvoiceCreatesHeaderAndLines()
+        {
+            var dbPath = CreateMigratedDatabase();
+            try
+            {
+                DbConnectionFactory.UseDatabase(dbPath);
+                var repository = new SyncRepository();
+                var operation = BuildPurchaseInvoiceOperation("op-pi-1", "pur-1", "posted", "pi-1");
+                repository.Receive(operation);
+
+                var outcome = repository.ApplyReceived(operation.Id);
+
+                Assert.True(outcome.Applied);
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    Assert.Equal("posted", connection.ExecuteScalar<string>("SELECT status FROM PurchaseInvoice WHERE id='pur-1'"));
+                    Assert.Equal(20.0, connection.ExecuteScalar<double>("SELECT total FROM PurchaseInvoice WHERE id='pur-1'"));
+                    Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM PurchaseInvoiceItem WHERE purchaseInvoiceId='pur-1'"));
+                }
+            }
+            finally
+            {
+                Cleanup(dbPath);
+            }
+        }
+
+        [Fact]
+        public void ApplyReceivedPurchaseInvoiceUpsertReflectsCancellation()
+        {
+            var dbPath = CreateMigratedDatabase();
+            try
+            {
+                DbConnectionFactory.UseDatabase(dbPath);
+                var repository = new SyncRepository();
+                var posted = BuildPurchaseInvoiceOperation("op-pi-2", "pur-2", "posted", "pi-2");
+                repository.Receive(posted);
+                Assert.True(repository.ApplyReceived(posted.Id).Applied);
+
+                var cancelled = BuildPurchaseInvoiceOperation("op-pi-3", "pur-2", "cancelled", null);
+                repository.Receive(cancelled);
+                Assert.True(repository.ApplyReceived(cancelled.Id).Applied);
+
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    Assert.Equal("cancelled", connection.ExecuteScalar<string>("SELECT status FROM PurchaseInvoice WHERE id='pur-2'"));
+                    Assert.Equal(0, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM PurchaseInvoiceItem WHERE purchaseInvoiceId='pur-2'"));
+                }
+            }
+            finally
+            {
+                Cleanup(dbPath);
+            }
+        }
+
+        [Fact]
+        public void ApplyReceivedPurchaseReturnFailsWhenPurchaseHasNotSynced()
+        {
+            var dbPath = CreateMigratedDatabase();
+            try
+            {
+                DbConnectionFactory.UseDatabase(dbPath);
+                var repository = new SyncRepository();
+                var operation = BuildPurchaseReturnOperation("op-pr-1", "pret-1", "missing-purchase", 1);
+                repository.Receive(operation);
+
+                var outcome = repository.ApplyReceived(operation.Id);
+
+                Assert.False(outcome.Applied);
+                Assert.False(string.IsNullOrWhiteSpace(outcome.Error));
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    Assert.Equal(0, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM PurchaseReturn"));
+                }
+            }
+            finally
+            {
+                Cleanup(dbPath);
+            }
+        }
+
+        [Fact]
+        public void ApplyReceivedPurchaseReturnAppliesAndUpdatesReturnStatus()
+        {
+            var dbPath = CreateMigratedDatabase();
+            try
+            {
+                DbConnectionFactory.UseDatabase(dbPath);
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    var now = DateTime.Now;
+                    connection.Execute("INSERT INTO PurchaseInvoice (id,invoiceNumber,date,paymentMethod,status,subtotal,discount,tax,total,createdAt,updatedAt) " +
+                        "VALUES ('pur-3',3,@now,'cash','posted',20,0,0,20,@now,@now)", new { now });
+                    connection.Execute("INSERT INTO PurchaseInvoiceItem (id,purchaseInvoiceId,productId,productUnitId,unitName,quantityFactor,quantity,unitCost,lineTotal) " +
+                        "VALUES ('pi-3','pur-3','prod-1','unit-1','Piece',1,2,10,20)");
+                }
+
+                var repository = new SyncRepository();
+                var operation = BuildPurchaseReturnOperation("op-pr-2", "pret-2", "pur-3", 2);
+                repository.Receive(operation);
+
+                var outcome = repository.ApplyReceived(operation.Id);
+
+                Assert.True(outcome.Applied);
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM PurchaseReturn WHERE id='pret-2'"));
+                    Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM PurchaseReturnDetail WHERE returnId='pret-2'"));
+                    Assert.Equal("full", connection.ExecuteScalar<string>("SELECT returnStatus FROM PurchaseInvoice WHERE id='pur-3'"));
+                }
+            }
+            finally
+            {
+                Cleanup(dbPath);
+            }
+        }
+
+        [Fact]
+        public void ApplyReceivedInventoryAdjustmentCreatesHeaderAndLines()
+        {
+            var dbPath = CreateMigratedDatabase();
+            try
+            {
+                DbConnectionFactory.UseDatabase(dbPath);
+                var repository = new SyncRepository();
+                var operation = BuildAdjustmentOperation("op-adj-1", "adj-1");
+                repository.Receive(operation);
+
+                var outcome = repository.ApplyReceived(operation.Id);
+
+                Assert.True(outcome.Applied);
+                using (var connection = new SqliteConnection("Data Source=" + dbPath))
+                {
+                    connection.Open();
+                    var row = connection.QueryFirstOrDefault("SELECT branchId,status FROM InventoryAdjustment WHERE id='adj-1'");
+                    Assert.NotNull(row);
+                    Assert.Equal("posted", (string)row.status);
+                    Assert.Equal("default", (string)row.branchId);
+                    Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM InventoryAdjustmentLine WHERE adjustmentId='adj-1'"));
+                    Assert.Equal(3.0, connection.ExecuteScalar<double>("SELECT actualQuantity FROM InventoryAdjustmentLine WHERE adjustmentId='adj-1'"));
+                }
+            }
+            finally
+            {
+                Cleanup(dbPath);
+            }
+        }
+
         private static void InsertOutbox(SqliteConnection connection, string id, string status)
         {
             connection.Execute(
@@ -199,6 +353,139 @@ namespace PosCs.Tests.Infrastructure
                 EntityType = "SaleReturn",
                 EntityId = saleReturn.Id,
                 Payload = JsonConvert.SerializeObject(new { saleReturn, details, invoiceReturnStatus })
+            };
+        }
+
+        private static SyncOperation BuildPurchaseInvoiceOperation(string operationId, string purchaseId, string status, string itemId)
+        {
+            var purchaseInvoice = new PosCs.Domain.Entities.PurchaseInvoice
+            {
+                Id = purchaseId,
+                InvoiceNumber = 1,
+                SupplierInvoiceNumber = "S-1",
+                SupplierId = "sup-1",
+                Date = DateTime.Now,
+                PaymentMethod = "cash",
+                Status = status,
+                Subtotal = 20,
+                Discount = 0,
+                Tax = 0,
+                Total = 20,
+                CreatedBy = "admin",
+                CreatedAt = DateTime.Now,
+                UpdatedAt = DateTime.Now
+            };
+            var items = new List<PosCs.Domain.Entities.PurchaseInvoiceItem>();
+            if (itemId != null)
+            {
+                items.Add(new PosCs.Domain.Entities.PurchaseInvoiceItem
+                {
+                    Id = itemId,
+                    PurchaseInvoiceId = purchaseId,
+                    ProductId = "prod-1",
+                    ProductUnitId = "unit-1",
+                    UnitName = "Piece",
+                    QuantityFactor = 1,
+                    Quantity = 2,
+                    UnitCost = 10,
+                    LineTotal = 20
+                });
+            }
+
+            return new SyncOperation
+            {
+                Id = operationId,
+                BranchId = "default",
+                TerminalId = "default-terminal",
+                OperationType = "upsert",
+                EntityType = "PurchaseInvoice",
+                EntityId = purchaseId,
+                Payload = JsonConvert.SerializeObject(new { purchaseInvoice, items })
+            };
+        }
+
+        private static SyncOperation BuildPurchaseReturnOperation(string operationId, string returnId, string purchaseId, double quantity)
+        {
+            var purchaseReturn = new PosCs.Domain.Entities.PurchaseReturn
+            {
+                Id = returnId,
+                Number = 1,
+                PurchaseInvoiceId = purchaseId,
+                Date = DateTime.Now,
+                TotalAmount = quantity * 10,
+                PaymentMethod = "cash",
+                Status = "posted",
+                CreatedBy = "admin",
+                CreatedAt = DateTime.Now
+            };
+            var details = new List<PosCs.Domain.Entities.PurchaseReturnDetail>
+            {
+                new PosCs.Domain.Entities.PurchaseReturnDetail
+                {
+                    Id = "prd-" + returnId,
+                    ReturnId = returnId,
+                    PurchaseItemId = "pi-3",
+                    ProductId = "prod-1",
+                    UnitName = "Piece",
+                    Quantity = quantity,
+                    QuantityFactor = 1,
+                    UnitCost = 10,
+                    LineTotal = quantity * 10
+                }
+            };
+
+            return new SyncOperation
+            {
+                Id = operationId,
+                BranchId = "default",
+                TerminalId = "default-terminal",
+                OperationType = "upsert",
+                EntityType = "PurchaseReturn",
+                EntityId = returnId,
+                Payload = JsonConvert.SerializeObject(new { purchaseReturn, details })
+            };
+        }
+
+        private static SyncOperation BuildAdjustmentOperation(string operationId, string adjustmentId)
+        {
+            var detail = new InventoryAdjustmentDetail
+            {
+                Id = adjustmentId,
+                Number = 1,
+                Reason = "count",
+                CreatedBy = "admin",
+                CreatedAt = DateTime.Now,
+                Status = "posted",
+                PostedAt = DateTime.Now,
+                Lines = new List<InventoryAdjustmentLine>
+                {
+                    new InventoryAdjustmentLine
+                    {
+                        Id = "adjl-" + adjustmentId,
+                        ProductId = "prod-1",
+                        ProductUnitId = "unit-1",
+                        UnitName = "Piece",
+                        QuantityFactor = 1,
+                        SystemQuantity = 5,
+                        CountedQuantity = 3,
+                        CountedBaseQuantity = 3,
+                        DifferenceQuantity = -2,
+                        UnitCost = 10,
+                        IsMatched = false,
+                        UpdatedAt = DateTime.Now
+                    }
+                }
+            };
+
+            return new SyncOperation
+            {
+                Id = operationId,
+                BranchId = "default",
+                TerminalId = "default-terminal",
+                OperationType = "upsert",
+                EntityType = "InventoryAdjustment",
+                EntityId = adjustmentId,
+                Payload = JsonConvert.SerializeObject(detail)
             };
         }
 

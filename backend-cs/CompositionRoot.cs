@@ -4,6 +4,7 @@ using PosCs.Infrastructure.Devices;
 using PosCs.Infrastructure.Persistence;
 using PosCs.Infrastructure.Printing;
 using PosCs.Infrastructure.Security;
+using PosCs.Infrastructure.Sync;
 using PosCs.Infrastructure.SystemTime;
 
 namespace PosCs
@@ -75,8 +76,14 @@ namespace PosCs
         private static OperationsService _operationsService;
         private static BackupService _backupService;
         private static IBranchRepository _branches;
+        private static ITerminalRepository _terminals;
+        private static IBranchAssignmentRepository _branchAssignments;
+        private static IBranchSwitchClient _branchSwitchClient;
         private static ISyncRepository _sync;
         private static BranchService _branchService;
+        private static TerminalService _terminalService;
+        private static BranchAssignmentService _branchAssignmentService;
+        private static BranchAuthService _branchAuthService;
         private static SyncService _syncService;
         private static IPrintQueueRepository _printQueue;
         private static PrintQueueService _printQueueService;
@@ -163,8 +170,15 @@ namespace PosCs
             () => new OperationsService(OperationsRepo));
         public static BackupService BackupService => Lazy(ref _backupService, () => new BackupService());
         public static IBranchRepository BranchesRepo => Lazy(ref _branches, () => new BranchRepository());
+        public static ITerminalRepository TerminalsRepo => Lazy(ref _terminals, () => new TerminalRepository());
+        public static IBranchAssignmentRepository BranchAssignmentsRepo => Lazy(ref _branchAssignments, () => new BranchAssignmentRepository());
+        public static IBranchSwitchClient BranchSwitchClient => Lazy(ref _branchSwitchClient, () => new BranchSwitchClient());
         public static ISyncRepository SyncRepo => Lazy(ref _sync, () => new SyncRepository());
         public static BranchService BranchService => Lazy(ref _branchService, () => new BranchService(BranchesRepo));
+        public static TerminalService TerminalService => Lazy(ref _terminalService, () => new TerminalService(TerminalsRepo, BranchesRepo, BranchAssignmentsRepo));
+        public static BranchAssignmentService BranchAssignmentService => Lazy(ref _branchAssignmentService,
+            () => new BranchAssignmentService(BranchesRepo, TerminalsRepo, BranchAssignmentsRepo, SyncRepo, BranchSwitchClient, BranchAuthService));
+        public static BranchAuthService BranchAuthService => Lazy(ref _branchAuthService, () => new BranchAuthService(BranchesRepo, Hasher));
         public static SyncService SyncService => Lazy(ref _syncService, () => new SyncService(SyncRepo));
         public static IPrintQueueRepository PrintQueueRepo => Lazy(ref _printQueue, () => new PrintQueueRepository());
         public static PrintQueueService PrintQueueService => Lazy(ref _printQueueService, () => new PrintQueueService(PrintQueueRepo));

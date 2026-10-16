@@ -45,7 +45,7 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null)
+        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
@@ -76,6 +76,11 @@ namespace PosCs.Infrastructure.Persistence
                 {
                     clauses.Add("i.employeeId = @employeeId");
                     parameters.Add("employeeId", employeeId.Trim());
+                }
+                if (!string.IsNullOrWhiteSpace(branchId))
+                {
+                    clauses.Add("i.branchId = @branchId");
+                    parameters.Add("branchId", branchId.Trim());
                 }
 
                 var where = clauses.Count > 0 ? " WHERE " + string.Join(" AND ", clauses) : "";

@@ -22,6 +22,10 @@ namespace PosCs.BranchAgent
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.Token);
+            if (!string.IsNullOrWhiteSpace(_config.BranchId))
+                _http.DefaultRequestHeaders.Add("X-Branch-Id", _config.BranchId);
+            if (!string.IsNullOrWhiteSpace(_config.BranchKey))
+                _http.DefaultRequestHeaders.Add("X-Branch-Key", _config.BranchKey);
         }
 
         public void Stop()
@@ -35,6 +39,7 @@ namespace PosCs.BranchAgent
             {
                 try
                 {
+                    RefreshIdentity();
                     PushPending();
                     PullChanges();
                     RetryPrintQueue();
@@ -47,6 +52,40 @@ namespace PosCs.BranchAgent
                 if (_running) Thread.Sleep(TimeSpan.FromSeconds(_config.PollSeconds));
             }
             _http.Dispose();
+        }
+
+        /// <summary>Reloads central URL + branch credentials from the local backend so a terminal
+        /// branch switch propagates to the running agent without a restart.</summary>
+        private void RefreshIdentity()
+        {
+            try
+            {
+                var cfg = Get<BranchAgentConfigDto>(_config.LocalBaseUrl + "/api/branch/agent-config");
+                if (cfg == null) return;
+
+                var changed = !string.Equals(_config.BranchId, cfg.BranchId ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(_config.BranchKey, cfg.BranchKey ?? string.Empty, StringComparison.Ordinal)
+                    || !string.Equals(_config.Token, cfg.CentralToken ?? string.Empty, StringComparison.Ordinal)
+                    || !string.Equals(_config.CentralBaseUrl, (cfg.CentralBaseUrl ?? string.Empty).TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+                if (!changed) return;
+
+                _config.Apply(cfg.CentralBaseUrl, cfg.CentralToken, cfg.BranchId, cfg.BranchKey);
+
+                _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.Token);
+                _http.DefaultRequestHeaders.Remove("X-Branch-Id");
+                _http.DefaultRequestHeaders.Remove("X-Branch-Key");
+                if (!string.IsNullOrWhiteSpace(_config.BranchId))
+                    _http.DefaultRequestHeaders.Add("X-Branch-Id", _config.BranchId);
+                if (!string.IsNullOrWhiteSpace(_config.BranchKey))
+                    _http.DefaultRequestHeaders.Add("X-Branch-Key", _config.BranchKey);
+
+                Console.WriteLine("[AGENT] Branch identity refreshed -> " +
+                    (string.IsNullOrWhiteSpace(_config.BranchId) ? "unconfigured-branch" : _config.BranchId));
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("[AGENT WARN] Could not refresh branch identity: " + ex.Message);
+            }
         }
 
         private void PushPending()
@@ -196,6 +235,15 @@ namespace PosCs.BranchAgent
             File.WriteAllText(temp, cursor.ToString());
             if (File.Exists(_config.CursorPath)) File.Replace(temp, _config.CursorPath, null);
             else File.Move(temp, _config.CursorPath);
+        }
+
+        private sealed class BranchAgentConfigDto
+        {
+            public string CentralBaseUrl { get; set; }
+            public string CentralToken { get; set; }
+            public string BranchId { get; set; }
+            public string BranchKey { get; set; }
+            public string NodeRole { get; set; }
         }
     }
 }

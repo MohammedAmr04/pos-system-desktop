@@ -107,8 +107,25 @@ namespace PosCs.Tests.Application
         {
             public BranchRuntimeContext GetRuntimeContext() { return null; }
             public List<PosCs.Domain.Entities.Branch> GetAll(bool activeOnly) { return new List<PosCs.Domain.Entities.Branch>(); }
+            public PosCs.Application.Models.PagedResult<PosCs.Domain.Entities.Branch> GetPaged(int page, int pageSize, string query, bool activeOnly) =>
+                new PosCs.Application.Models.PagedResult<PosCs.Domain.Entities.Branch>();
             public PosCs.Domain.Entities.Branch GetById(string id) { return null; }
+            public PosCs.Domain.Entities.Branch GetByCode(string code) { return null; }
+            public PosCs.Domain.Entities.Branch Create(PosCs.Domain.Entities.Branch branch) { return branch; }
+            public PosCs.Domain.Entities.Branch Update(PosCs.Domain.Entities.Branch branch) { return branch; }
+            public void SetActive(string id, bool isActive) { }
+            public bool Delete(string id) { return false; }
+            public int CountTerminals(string branchId) { return 0; }
+            public bool HasTransactionReferences(string branchId) { return false; }
+            public List<PosCs.Domain.Entities.Terminal> GetTerminals(string branchId) { return new List<PosCs.Domain.Entities.Terminal>(); }
             public void SaveRuntimeContext(string branchId, string terminalId, string nodeRole, string centralBaseUrl) { }
+            public void SaveRuntimeCredentials(string centralToken, string centralBranchKey) { }
+            public BranchAgentConfig GetAgentConfig() { return new BranchAgentConfig(); }
+            public string GetRuntimeStatus() { return null; }
+            public void SetRuntimeStatus(string status) { }
+            public void ApplySwitch(string branchId, string terminalId, string centralBranchKey) { }
+            public string GetSecretHash(string branchId) { return null; }
+            public void SetSecretHash(string branchId, string secretHash) { }
         }
     }
 }
