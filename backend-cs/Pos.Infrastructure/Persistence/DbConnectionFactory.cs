@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.Data.Sqlite;
+using PosCs.Infrastructure.Config;
 
 namespace PosCs.Infrastructure.Persistence
 {
@@ -15,9 +16,20 @@ namespace PosCs.Infrastructure.Persistence
             {
                 if (_dbPath == null)
                 {
-                    var dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data");
-                    Directory.CreateDirectory(dataDir);
-                    _dbPath = Path.Combine(dataDir, "dev.db");
+                    var overridePath = PosConfig.Get("POS_DB_PATH");
+                    if (!string.IsNullOrWhiteSpace(overridePath))
+                    {
+                        var directory = Path.GetDirectoryName(overridePath);
+                        if (!string.IsNullOrEmpty(directory))
+                            Directory.CreateDirectory(directory);
+                        _dbPath = overridePath;
+                    }
+                    else
+                    {
+                        var dataDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data");
+                        Directory.CreateDirectory(dataDir);
+                        _dbPath = Path.Combine(dataDir, "dev.db");
+                    }
                 }
                 return _dbPath;
             }
