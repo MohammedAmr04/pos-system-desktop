@@ -98,7 +98,7 @@ namespace PosCs.Tests.Application
 
         public Invoice GetById(string id) => Existing != null && Existing.Id == id ? Existing : null;
 
-        public List<Invoice> GetRange(DateTime? from, DateTime? to) => new List<Invoice>();
+        public List<Invoice> GetRange(DateTime? from, DateTime? to, string branchId = null) => new List<Invoice>();
 
         public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null, string branchId = null) =>
             new InvoicePageResult { Items = new List<Invoice>(), Total = 0 };
@@ -124,7 +124,8 @@ namespace PosCs.Tests.Application
                 clients ?? new FakePartyLookup.StubClientRepository(),
                 suppliers ?? new FakePartyLookup.StubSupplierRepository(),
                 invoices ?? new FakeInvoiceRepository(),
-                new FakePurchaseRepository());
+                new FakePurchaseRepository(),
+                NullBranchContext.Instance);
         }
 
         [Fact]

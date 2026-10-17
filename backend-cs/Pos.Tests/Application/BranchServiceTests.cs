@@ -9,7 +9,8 @@ namespace PosCs.Tests.Application
 {
     public class BranchServiceTests
     {
-        private static BranchService Make(FakeBranchRepo repo) => new BranchService(repo);
+        private static BranchService Make(FakeBranchRepo repo) => new BranchService(repo, new FakeEnrollmentClient());
+        private static BranchService Make(FakeBranchRepo repo, FakeEnrollmentClient enrollment) => new BranchService(repo, enrollment);
 
         [Fact]
         public void Create_TrimsAndPersistsActiveBranch()
@@ -118,6 +119,95 @@ namespace PosCs.Tests.Application
         {
             var repo = new FakeBranchRepo { RuntimeStatus = "SWITCHING" };
             Assert.True(Make(repo).IsSwitching());
+        }
+
+        [Fact]
+        public void GetSetupStatus_ReflectsFlagAndRole()
+        {
+            var repo = new FakeBranchRepo
+            {
+                SetupComplete = true,
+                RuntimeContext = new BranchRuntimeContext { NodeRole = "central" }
+            };
+            var status = Make(repo).GetSetupStatus();
+            Assert.True(status.SetupComplete);
+            Assert.Equal("central", status.NodeRole);
+        }
+
+        [Fact]
+        public void Setup_Central_MarksCompleteWithoutUrl()
+        {
+            var repo = new FakeBranchRepo
+            {
+                RuntimeContext = new BranchRuntimeContext
+                {
+                    Branch = new Branch { Id = "b1", Code = "br-1", Name = "Main" },
+                    Terminal = new Terminal { Id = "t1" },
+                    NodeRole = "branch"
+                }
+            };
+            Make(repo).Setup(new BranchSetupRequest { NodeRole = "central" });
+            Assert.True(repo.SetupComplete);
+            Assert.Equal("central", repo.RuntimeContext.NodeRole);
+        }
+
+        [Fact]
+        public void Setup_Branch_VerifiesBeforePersisting()
+        {
+            var repo = new FakeBranchRepo();
+            var enrollment = new FakeEnrollmentClient();
+            Make(repo, enrollment).Setup(new BranchSetupRequest
+            {
+                NodeRole = "branch",
+                CentralBaseUrl = "https://central.example.com",
+                BranchId = "br-1",
+                TerminalId = "t1",
+                BranchKey = "key-1234567890abcd",
+                SyncToken = "token"
+            });
+
+            Assert.Equal(1, enrollment.Calls);
+            Assert.Equal("br-1", enrollment.LastBranchId);
+            Assert.True(repo.SetupComplete);
+            Assert.Single(repo.EnsuredPairs);
+            Assert.Equal("branch", repo.RuntimeContext.NodeRole);
+            Assert.Equal("token", repo.AgentConfig.CentralToken);
+        }
+
+        [Fact]
+        public void Setup_Branch_DoesNotPersistWhenCentralRejects()
+        {
+            var repo = new FakeBranchRepo();
+            var enrollment = new FakeEnrollmentClient { Reject = true };
+            Assert.Throws<DomainValidationException>(() => Make(repo, enrollment).Setup(new BranchSetupRequest
+            {
+                NodeRole = "branch",
+                CentralBaseUrl = "https://central.example.com",
+                BranchId = "br-1",
+                TerminalId = "t1",
+                SyncToken = "token"
+            }));
+
+            Assert.False(repo.SetupComplete);
+            Assert.Null(repo.RuntimeContext);
+            Assert.Empty(repo.EnsuredPairs);
+        }
+
+        [Theory]
+        [InlineData("", "t1", "token", "url")]
+        [InlineData("br-1", "", "token", "url")]
+        [InlineData("br-1", "t1", "", "url")]
+        public void Setup_Branch_RequiresBranchTerminalToken(string branchId, string terminalId, string token, string url)
+        {
+            var repo = new FakeBranchRepo();
+            Assert.Throws<DomainValidationException>(() => Make(repo).Setup(new BranchSetupRequest
+            {
+                NodeRole = "branch",
+                CentralBaseUrl = url,
+                BranchId = branchId,
+                TerminalId = terminalId,
+                SyncToken = token
+            }));
         }
     }
 }

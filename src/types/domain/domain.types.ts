@@ -785,3 +785,14 @@ export interface UpdateTerminalInput { name: string; notes?: string | null; bran
 export interface BranchSwitchInput { requestId?: string; terminalId?: string; targetBranchId: string; targetBranchKey?: string | null }
 export interface BranchRuntimeInput { branchId: string; terminalId: string; nodeRole: 'branch' | 'central'; centralBaseUrl?: string | null }
 export interface BranchCredentialsInput { centralToken?: string | null; centralBranchKey?: string | null }
+
+export interface SetupStatus { setupComplete: boolean; nodeRole: string }
+export interface BranchSetupInput {
+  nodeRole: 'branch' | 'central'
+  centralBaseUrl?: string | null
+  branchId?: string | null
+  terminalId?: string | null
+  branchKey?: string | null
+  syncToken?: string | null
+}
+export interface BranchEnrollmentResult { branchId: string | null; verified: boolean }

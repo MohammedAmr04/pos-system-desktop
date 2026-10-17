@@ -9,10 +9,12 @@ namespace PosCs.Application.Services
     public class BranchService
     {
         private readonly IBranchRepository _repository;
+        private readonly IBranchEnrollmentClient _enrollmentClient;
 
-        public BranchService(IBranchRepository repository)
+        public BranchService(IBranchRepository repository, IBranchEnrollmentClient enrollmentClient)
         {
             _repository = repository;
+            _enrollmentClient = enrollmentClient;
         }
 
         public BranchRuntimeContext GetRuntimeContext()
@@ -131,6 +133,63 @@ namespace PosCs.Application.Services
         public BranchAgentConfig GetAgentConfig()
         {
             return _repository.GetAgentConfig();
+        }
+
+        public SetupStatus GetSetupStatus()
+        {
+            var context = _repository.GetRuntimeContext();
+            return new SetupStatus
+            {
+                SetupComplete = _repository.IsSetupComplete(),
+                NodeRole = context == null || string.IsNullOrWhiteSpace(context.NodeRole) ? "branch" : context.NodeRole
+            };
+        }
+
+        public void Setup(BranchSetupRequest request)
+        {
+            if (request == null) throw new DomainValidationException("Invalid setup request");
+            var role = (request.NodeRole ?? string.Empty).Trim().ToLowerInvariant();
+            if (role != "branch" && role != "central")
+                throw new DomainValidationException("Invalid node role");
+
+            if (role == "central")
+            {
+                var existing = _repository.GetRuntimeContext();
+                var branchId = string.IsNullOrWhiteSpace(request.BranchId)
+                    ? (existing == null || existing.Branch == null ? null : existing.Branch.Id)
+                    : request.BranchId.Trim();
+                var terminalId = string.IsNullOrWhiteSpace(request.TerminalId)
+                    ? (existing == null || existing.Terminal == null ? null : existing.Terminal.Id)
+                    : request.TerminalId.Trim();
+                if (string.IsNullOrWhiteSpace(branchId) || string.IsNullOrWhiteSpace(terminalId))
+                    throw new DomainValidationException("Branch and terminal are required");
+
+                Configure(branchId, terminalId, "central", request.CentralBaseUrl);
+                _repository.MarkSetupComplete();
+                return;
+            }
+
+            var centralBaseUrl = (request.CentralBaseUrl ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(centralBaseUrl))
+                throw new DomainValidationException("Central server URL is required");
+            if (string.IsNullOrWhiteSpace(request.BranchId))
+                throw new DomainValidationException("Branch id is required");
+            if (string.IsNullOrWhiteSpace(request.TerminalId))
+                throw new DomainValidationException("Terminal id is required");
+            var syncToken = (request.SyncToken ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(syncToken))
+                throw new DomainValidationException("Sync token is required");
+            var branchKey = (request.BranchKey ?? string.Empty).Trim();
+
+            var branchIdValue = request.BranchId.Trim();
+            var terminalIdValue = request.TerminalId.Trim();
+
+            _enrollmentClient.VerifyCentral(centralBaseUrl, branchIdValue, branchKey, syncToken);
+
+            _repository.EnsureBranchAndTerminal(branchIdValue, terminalIdValue);
+            Configure(branchIdValue, terminalIdValue, "branch", centralBaseUrl);
+            SaveCredentials(syncToken, branchKey);
+            _repository.MarkSetupComplete();
         }
     }
 }

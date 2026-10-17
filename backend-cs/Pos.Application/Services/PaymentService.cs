@@ -18,22 +18,25 @@ namespace PosCs.Application.Services
         private readonly ISupplierRepository _suppliers;
         private readonly IInvoiceRepository _invoices;
         private readonly IPurchaseRepository _purchases;
+        private readonly IBranchContext _branchContext;
 
         public PaymentService(IPaymentRepository payments, IClientRepository clients,
-            ISupplierRepository suppliers, IInvoiceRepository invoices, IPurchaseRepository purchases)
+            ISupplierRepository suppliers, IInvoiceRepository invoices, IPurchaseRepository purchases,
+            IBranchContext branchContext)
         {
             _payments = payments;
             _clients = clients;
             _suppliers = suppliers;
             _invoices = invoices;
             _purchases = purchases;
+            _branchContext = branchContext;
         }
 
         public PaymentPageResult GetPaged(string clientId, string supplierId, string invoiceId, int page, int pageSize, string branchId = null)
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return _payments.GetPaged(clientId, supplierId, invoiceId, page, pageSize, branchId);
+            return _payments.GetPaged(clientId, supplierId, invoiceId, page, pageSize, _branchContext.ApplyScope(branchId));
         }
 
         /// <summary>Paid totals per invoice/purchase id; remaining + status are derived by callers

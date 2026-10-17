@@ -84,7 +84,7 @@ namespace PosCs.Tests.Application
             };
         }
 
-        private static PurchaseService ServiceWith(FakePurchaseRepository repo) => new PurchaseService(repo);
+        private static PurchaseService ServiceWith(FakePurchaseRepository repo) => new PurchaseService(repo, NullBranchContext.Instance);
 
         [Fact]
         public void Create_RequiresAtLeastOneLine()

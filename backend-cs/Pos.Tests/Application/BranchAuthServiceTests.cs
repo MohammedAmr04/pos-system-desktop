@@ -94,6 +94,9 @@ namespace PosCs.Tests.Application
             public void ApplySwitch(string branchId, string terminalId, string centralBranchKey) { }
             public string GetSecretHash(string branchId) { return _secretHash; }
             public void SetSecretHash(string branchId, string secretHash) { _secretHash = secretHash; }
+            public void EnsureBranchAndTerminal(string branchId, string terminalId) { }
+            public bool IsSetupComplete() { return false; }
+            public void MarkSetupComplete() { }
         }
     }
 }

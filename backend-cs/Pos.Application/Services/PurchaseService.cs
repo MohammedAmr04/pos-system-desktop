@@ -13,17 +13,19 @@ namespace PosCs.Application.Services
     public class PurchaseService
     {
         private readonly IPurchaseRepository _purchases;
+        private readonly IBranchContext _branchContext;
 
-        public PurchaseService(IPurchaseRepository purchases)
+        public PurchaseService(IPurchaseRepository purchases, IBranchContext branchContext)
         {
             _purchases = purchases;
+            _branchContext = branchContext;
         }
 
         public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize, string branchId = null)
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return _purchases.GetPaged(status, query, page, pageSize, branchId);
+            return _purchases.GetPaged(status, query, page, pageSize, _branchContext.ApplyScope(branchId));
         }
 
         public PurchaseInvoice GetById(string id)

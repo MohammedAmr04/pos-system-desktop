@@ -45,6 +45,10 @@ namespace PosCs.Tests.Infrastructure
                     Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='index' AND name='idx_branch_assignment_terminal'"));
                     Assert.Equal(1, connection.ExecuteScalar<int>("SELECT COUNT(1) FROM sqlite_master WHERE type='index' AND name='idx_terminal_branch'"));
 
+                    // Migration 053: first-run setup flag, incomplete on a fresh install.
+                    Assert.True(connection.Query("PRAGMA table_info('BranchRuntimeConfig')").Any(x => (string)x.name == "setupCompletedAt"));
+                    Assert.True(connection.ExecuteScalar<string>("SELECT setupCompletedAt FROM BranchRuntimeConfig WHERE id=1") == null);
+
                     connection.Execute(@"INSERT INTO Product (id,name,productType,serviceCost,buyPrice,stockQuantity,notes,allowDiscount,lowStockThreshold,isHiddenFromPOS,categoryId,brandId,createdAt,updatedAt)
                         VALUES ('product-test','Test', 'product',0,1,2,NULL,1,0,0,NULL,NULL,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
                     var payload = connection.ExecuteScalar<string>("SELECT payload FROM SyncChangeLog WHERE entityType='Product' AND entityId='product-test' ORDER BY version DESC LIMIT 1");

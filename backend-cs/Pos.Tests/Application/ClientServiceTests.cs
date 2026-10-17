@@ -33,7 +33,7 @@ namespace PosCs.Tests.Application
         public List<Invoice> Posted = new List<Invoice>();
 
         public Invoice GetById(string id) { return Posted.FirstOrDefault(i => i.Id == id); }
-        public List<Invoice> GetRange(DateTime? from, DateTime? to) { return new List<Invoice>(); }
+        public List<Invoice> GetRange(DateTime? from, DateTime? to, string branchId = null) { return new List<Invoice>(); }
 
         public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null, string branchId = null)
         {

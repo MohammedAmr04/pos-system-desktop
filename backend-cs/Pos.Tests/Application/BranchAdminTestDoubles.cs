@@ -18,6 +18,8 @@ namespace PosCs.Tests.Application
         public int TerminalCount;
         public bool HasReferences;
         public List<string> AppliedSwitches = new List<string>();
+        public bool SetupComplete;
+        public List<string> EnsuredPairs = new List<string>();
 
         public BranchRuntimeContext GetRuntimeContext() { return RuntimeContext; }
 
@@ -88,6 +90,34 @@ namespace PosCs.Tests.Application
         }
 
         public void SetSecretHash(string branchId, string secretHash) { SecretHashes[branchId] = secretHash; }
+
+        public void EnsureBranchAndTerminal(string branchId, string terminalId)
+        {
+            EnsuredPairs.Add(branchId + ":" + terminalId);
+        }
+
+        public bool IsSetupComplete() { return SetupComplete; }
+
+        public void MarkSetupComplete() { SetupComplete = true; }
+    }
+
+    internal sealed class FakeEnrollmentClient : IBranchEnrollmentClient
+    {
+        public int Calls;
+        public string LastBranchId;
+        public string LastBranchKey;
+        public string LastSyncToken;
+        public bool Reject;
+
+        public BranchEnrollmentResult VerifyCentral(string centralBaseUrl, string branchId, string branchKey, string syncToken)
+        {
+            Calls++;
+            LastBranchId = branchId;
+            LastBranchKey = branchKey;
+            LastSyncToken = syncToken;
+            if (Reject) throw new PosCs.Domain.Exceptions.DomainValidationException("Central rejected the branch enrollment");
+            return new BranchEnrollmentResult { BranchId = branchId, Verified = true };
+        }
     }
 
     internal sealed class FakeTerminalRepo : ITerminalRepository

@@ -50,7 +50,7 @@ namespace PosCs.Tests.Application
     {
         public PurchaseReturn Create(PurchaseReturn purchaseReturn, List<PurchaseReturnDetail> details) { return purchaseReturn; }
 
-        public PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId)
+        public PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId, string branchId = null)
         {
             return new PurchaseReturnPageResult { Items = new List<PurchaseReturn>(), Total = 0 };
         }

@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import {
   getBranchAgentConfig,
   getBranchContext,
+  getSetupStatus,
   listBranches,
   listBranchesPaged,
   listBranchTerminals,
@@ -20,6 +21,7 @@ export const branchesKeys = {
   terminals: (branchId: string) => ["branches", "terminals", branchId] as const,
   context: () => ["branches", "context"] as const,
   agentConfig: () => ["branches", "agent-config"] as const,
+  setupStatus: () => ["branches", "setup-status"] as const,
 }
 
 export function useBranchesPage(page: number, pageSize: number, filter: BranchesFilter = {}) {
@@ -52,4 +54,8 @@ export function useBranchContext(enabled = true) {
 
 export function useBranchAgentConfig(enabled = true) {
   return useQuery({ queryKey: branchesKeys.agentConfig(), queryFn: getBranchAgentConfig, enabled })
+}
+
+export function useSetupStatus(enabled = true) {
+  return useQuery({ queryKey: branchesKeys.setupStatus(), queryFn: getSetupStatus, enabled })
 }

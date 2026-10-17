@@ -15,6 +15,7 @@ namespace PosCs.BranchAgent
         private readonly AgentConfig _config;
         private readonly HttpClient _http;
         private volatile bool _running = true;
+        private bool _idle;
 
         public BranchSyncWorker(AgentConfig config)
         {
@@ -40,9 +41,22 @@ namespace PosCs.BranchAgent
                 try
                 {
                     RefreshIdentity();
-                    PushPending();
-                    PullChanges();
-                    RetryPrintQueue();
+                    if (IsSyncReady())
+                    {
+                        if (_idle)
+                        {
+                            _idle = false;
+                            Console.WriteLine("[AGENT] Branch identity configured; resuming sync");
+                        }
+                        PushPending();
+                        PullChanges();
+                        RetryPrintQueue();
+                    }
+                    else if (!_idle)
+                    {
+                        _idle = true;
+                        Console.WriteLine("[AGENT WARN] Agent idle — " + IdleReason());
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -66,10 +80,11 @@ namespace PosCs.BranchAgent
                 var changed = !string.Equals(_config.BranchId, cfg.BranchId ?? string.Empty, StringComparison.OrdinalIgnoreCase)
                     || !string.Equals(_config.BranchKey, cfg.BranchKey ?? string.Empty, StringComparison.Ordinal)
                     || !string.Equals(_config.Token, cfg.CentralToken ?? string.Empty, StringComparison.Ordinal)
+                    || !string.Equals(_config.NodeRole, cfg.NodeRole ?? string.Empty, StringComparison.OrdinalIgnoreCase)
                     || !string.Equals(_config.CentralBaseUrl, (cfg.CentralBaseUrl ?? string.Empty).TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
                 if (!changed) return;
 
-                _config.Apply(cfg.CentralBaseUrl, cfg.CentralToken, cfg.BranchId, cfg.BranchKey);
+                _config.Apply(cfg.CentralBaseUrl, cfg.CentralToken, cfg.BranchId, cfg.BranchKey, cfg.NodeRole);
 
                 _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.Token);
                 _http.DefaultRequestHeaders.Remove("X-Branch-Id");
@@ -187,6 +202,22 @@ namespace PosCs.BranchAgent
                     }
                 }
             }
+        }
+
+        private bool IsSyncReady()
+        {
+            if (string.Equals(_config.NodeRole, "central", StringComparison.OrdinalIgnoreCase))
+                return false;
+            return !string.IsNullOrWhiteSpace(_config.CentralBaseUrl)
+                && !string.IsNullOrWhiteSpace(_config.Token)
+                && !string.IsNullOrWhiteSpace(_config.BranchId);
+        }
+
+        private string IdleReason()
+        {
+            if (string.Equals(_config.NodeRole, "central", StringComparison.OrdinalIgnoreCase))
+                return "this node is the central server (no upstream sync)";
+            return "branch is not enrolled yet; complete first-run setup to sync";
         }
 
         private T Get<T>(string url)

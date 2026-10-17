@@ -18,9 +18,12 @@ namespace PosCs.Application.Ports
         int CountTerminals(string branchId);
         bool HasTransactionReferences(string branchId);
         List<Terminal> GetTerminals(string branchId);
+        void EnsureBranchAndTerminal(string branchId, string terminalId);
         void SaveRuntimeContext(string branchId, string terminalId, string nodeRole, string centralBaseUrl);
         void SaveRuntimeCredentials(string centralToken, string centralBranchKey);
         BranchAgentConfig GetAgentConfig();
+        bool IsSetupComplete();
+        void MarkSetupComplete();
         string GetRuntimeStatus();
         void SetRuntimeStatus(string status);
         void ApplySwitch(string branchId, string terminalId, string centralBranchKey);
@@ -54,6 +57,13 @@ namespace PosCs.Application.Ports
     {
         BranchAssignmentResult RequestCentralSwitch(BranchAgentConfig config, string currentBranchId, BranchSwitchRequest request);
         BranchAssignmentResult GetCentralAssignment(BranchAgentConfig config, string requestId);
+    }
+
+    /// <summary>First-run branch enrollment: proves central is reachable and that the supplied
+    /// branch key is accepted before the runtime config is persisted. Implemented in Infrastructure.</summary>
+    public interface IBranchEnrollmentClient
+    {
+        BranchEnrollmentResult VerifyCentral(string centralBaseUrl, string branchId, string branchKey, string syncToken);
     }
 
     public interface ISyncRepository

@@ -25,7 +25,7 @@ namespace PosCs.Tests.Application
             return saleReturn;
         }
 
-        public SaleReturnPageResult GetPaged(int page, int pageSize, string invoiceId) =>
+        public SaleReturnPageResult GetPaged(int page, int pageSize, string invoiceId, string branchId = null) =>
             new SaleReturnPageResult { Items = Stored, Total = Stored.Count };
 
         public List<SaleReturnDetail> GetDetails(string returnId) =>
@@ -61,7 +61,7 @@ namespace PosCs.Tests.Application
             };
 
         private static SaleReturnService ServiceWith(FakeInvoiceRepository invoices, FakeSaleReturnRepository returns) =>
-            new SaleReturnService(returns, invoices);
+            new SaleReturnService(returns, invoices, NullBranchContext.Instance);
 
         [Fact]
         public void Requires_At_Least_One_Item()

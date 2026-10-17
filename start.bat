@@ -28,11 +28,11 @@ echo.
 echo [INFO] Starting POS server on port 3001...
 start /min "POS Server" "%SERVER_PATH%"
 
-if exist "%AGENT_PATH%" if defined POS_CENTRAL_URL if defined POS_SYNC_TOKEN (
+if exist "%AGENT_PATH%" (
     echo [INFO] Starting branch sync and print worker...
     start /min "POS Branch Agent" "%AGENT_PATH%"
 ) else (
-    echo [WARN] Branch agent skipped. Configure branch-agent.env with POS_CENTRAL_URL and POS_SYNC_TOKEN.
+    echo [WARN] Branch agent executable not found; sync and print retry disabled.
 )
 
 echo [INFO] Waiting for server to start...

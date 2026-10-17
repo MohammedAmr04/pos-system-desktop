@@ -163,6 +163,29 @@ namespace PosCs.Infrastructure.Persistence
                     "SELECT * FROM Terminal WHERE branchId=@branchId ORDER BY name COLLATE NOCASE", new { branchId }).ToList();
         }
 
+        public void EnsureBranchAndTerminal(string branchId, string terminalId)
+        {
+            using (var connection = DbConnectionFactory.CreateConnection())
+            using (var tx = connection.BeginTransaction())
+            {
+                try
+                {
+                    var now = DateTime.Now;
+                    connection.Execute(@"INSERT OR IGNORE INTO Branch (id,code,name,isActive,createdAt,updatedAt)
+                        VALUES (@id,@id,@id,1,@now,@now)", new { id = branchId, now }, transaction: tx);
+                    connection.Execute(@"INSERT OR IGNORE INTO Terminal (id,branchId,name,isActive,createdAt,updatedAt)
+                        VALUES (@id,@branchId,@id,1,@now,@now)",
+                        new { id = terminalId, branchId, now }, transaction: tx);
+                    tx.Commit();
+                }
+                catch
+                {
+                    tx.Rollback();
+                    throw;
+                }
+            }
+        }
+
         public void SaveRuntimeContext(string branchId, string terminalId, string nodeRole, string centralBaseUrl)
         {
             using (var connection = DbConnectionFactory.CreateConnection())
@@ -200,6 +223,20 @@ namespace PosCs.Infrastructure.Persistence
                     NodeRole = config.NodeRole
                 };
             }
+        }
+
+        public bool IsSetupComplete()
+        {
+            using (var connection = DbConnectionFactory.CreateConnection())
+                return connection.ExecuteScalar<string>(
+                    "SELECT setupCompletedAt FROM BranchRuntimeConfig WHERE id=1") != null;
+        }
+
+        public void MarkSetupComplete()
+        {
+            using (var connection = DbConnectionFactory.CreateConnection())
+                connection.Execute("UPDATE BranchRuntimeConfig SET setupCompletedAt=@at, updatedAt=@at WHERE id=1",
+                    new { at = DateTime.Now });
         }
 
         public string GetRuntimeStatus()

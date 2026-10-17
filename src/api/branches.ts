@@ -6,15 +6,25 @@ import {
   BranchCredentialsInput,
   BranchRuntimeContext,
   BranchRuntimeInput,
+  BranchSetupInput,
   BranchSwitchInput,
   CreateBranchInput,
   PagedMasterData,
+  SetupStatus,
   Terminal,
   UpdateBranchInput,
 } from "@/types/domain/domain.types"
 
 export function getBranchContext() {
   return request<BranchRuntimeContext>('/api/branch/context')
+}
+
+export function getSetupStatus() {
+  return request<SetupStatus>('/api/branch/setup-status')
+}
+
+export function completeSetup(data: BranchSetupInput) {
+  return request<SetupStatus>('/api/branch/setup', { method: 'POST', body: JSON.stringify(data) })
 }
 
 export function getBranchAgentConfig() {

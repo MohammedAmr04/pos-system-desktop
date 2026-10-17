@@ -24,7 +24,7 @@ namespace PosCs.Tests.Application
             return purchaseReturn;
         }
 
-        public PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId) =>
+        public PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId, string branchId = null) =>
             new PurchaseReturnPageResult { Items = Stored, Total = Stored.Count };
 
         public Dictionary<string, double> SumReturnedByPurchase(string purchaseInvoiceId) =>
@@ -62,7 +62,7 @@ namespace PosCs.Tests.Application
             };
 
         private static PurchaseReturnService ServiceWith(FakePurchaseRepository purchases, FakePurchaseReturnRepository returns) =>
-            new PurchaseReturnService(returns, purchases);
+            new PurchaseReturnService(returns, purchases, NullBranchContext.Instance);
 
         [Fact]
         public void Requires_At_Least_One_Item()

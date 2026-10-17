@@ -20,7 +20,7 @@ namespace PosCs.Infrastructure.Persistence
                 return GetByIdCore(conn, id);
         }
 
-        public List<Invoice> GetRange(DateTime? from, DateTime? to)
+        public List<Invoice> GetRange(DateTime? from, DateTime? to, string branchId = null)
         {            using (var conn = DbConnectionFactory.CreateConnection())
             {
                 var sql = "SELECT * FROM Invoice WHERE 1=1";
@@ -35,6 +35,11 @@ namespace PosCs.Infrastructure.Persistence
                 {
                     sql += " AND createdAt <= @to";
                     parameters.Add("to", to.Value.ToString("yyyy-MM-dd HH:mm:ss"));
+                }
+                if (!string.IsNullOrWhiteSpace(branchId))
+                {
+                    sql += " AND branchId = @branchId";
+                    parameters.Add("branchId", branchId.Trim());
                 }
                 sql += " ORDER BY createdAt DESC";
 
@@ -121,10 +126,19 @@ namespace PosCs.Infrastructure.Persistence
                     {
                         invoice.Id = Guid.NewGuid().ToString("N");
                         invoice.CreatedAt = DateTime.Now;
-                        var runtime = conn.QueryFirstOrDefault<RuntimeRow>(
-                            "SELECT branchId,terminalId FROM BranchRuntimeConfig WHERE id=1", transaction: tx);
-                        invoice.BranchId = runtime == null ? null : runtime.BranchId;
-                        invoice.TerminalId = runtime == null ? null : runtime.TerminalId;
+                        var scope = BranchScope.Current;
+                        if (scope != null)
+                        {
+                            invoice.BranchId = scope.BranchId;
+                            invoice.TerminalId = scope.TerminalId;
+                        }
+                        else
+                        {
+                            var runtime = conn.QueryFirstOrDefault<RuntimeRow>(
+                                "SELECT branchId,terminalId FROM BranchRuntimeConfig WHERE id=1", transaction: tx);
+                            invoice.BranchId = runtime == null ? null : runtime.BranchId;
+                            invoice.TerminalId = runtime == null ? null : runtime.TerminalId;
+                        }
                         var isDraft = invoice.Status == "draft";
                         if (!isDraft)
                             invoice.ShiftId = RequireActiveShiftId(conn, tx);

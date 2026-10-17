@@ -20,9 +20,10 @@ namespace PosCs.Tests.Application
 
         public DateTime? LastFrom;
         public DateTime? LastTo;
+        public string LastBranchId;
 
         public SalesReport GetSalesReport(DateTime from, DateTime to, string branchId = null)
-        { LastFrom = from; LastTo = to; return SalesResult; }
+        { LastFrom = from; LastTo = to; LastBranchId = branchId; return SalesResult; }
 
         public PurchasesReport GetPurchasesReport(DateTime from, DateTime to, string branchId = null)
         { return PurchasesResult; }
@@ -34,7 +35,7 @@ namespace PosCs.Tests.Application
         { return InventoryResult; }
 
         public List<BranchStockRow> GetBranchStock(string branchId)
-        { return InventoryResult.Select(r => new BranchStockRow { ProductId = r.ProductId, Quantity = r.StockQuantity }).ToList(); }
+        { LastBranchId = branchId; return InventoryResult.Select(r => new BranchStockRow { ProductId = r.ProductId, Quantity = r.StockQuantity }).ToList(); }
 
         public ReturnsReport GetReturnsReport(DateTime from, DateTime to, string branchId = null)
         { return ReturnsResult; }
@@ -70,7 +71,7 @@ namespace PosCs.Tests.Application
     public class ReportsServiceTests
     {
         private static ReportsService MakeService(FakeReportRepository repo) =>
-            new ReportsService(new FakeProductsRepository(), repo);
+            new ReportsService(new FakeProductsRepository(), repo, NullBranchContext.Instance);
 
         [Fact]
         public void LowStock_Filters_By_Policy()
@@ -79,7 +80,7 @@ namespace PosCs.Tests.Application
             products.Stored.Add(new Product { Name = "low", StockQuantity = 1, LowStockThreshold = 5 });
             products.Stored.Add(new Product { Name = "ok", StockQuantity = 10, LowStockThreshold = 5 });
 
-            var result = new ReportsService(products, new FakeReportRepository()).LowStock();
+            var result = new ReportsService(products, new FakeReportRepository(), NullBranchContext.Instance).LowStock();
 
             Assert.Single(result);
             Assert.Equal("low", result[0].Name);

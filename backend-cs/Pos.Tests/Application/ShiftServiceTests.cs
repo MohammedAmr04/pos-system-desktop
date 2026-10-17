@@ -81,7 +81,7 @@ namespace PosCs.Tests.Application
         public void Negative_Opening_Cash_Is_Rejected()
         {
             var ex = Assert.Throws<DomainValidationException>(() =>
-                new ShiftService(new FakeShiftRepository()).Open(new OpenShiftRequest { OpeningCash = -1 }, "u"));
+                new ShiftService(new FakeShiftRepository(), NullBranchContext.Instance).Open(new OpenShiftRequest { OpeningCash = -1 }, "u"));
             Assert.Contains("cannot be negative", ex.Message);
         }
 
@@ -89,7 +89,7 @@ namespace PosCs.Tests.Application
         public void Opening_Cash_Defaults_To_Zero_And_Rounds()
         {
             var repo = new FakeShiftRepository();
-            var shift = new ShiftService(repo).Open(new OpenShiftRequest(), "u1");
+            var shift = new ShiftService(repo, NullBranchContext.Instance).Open(new OpenShiftRequest(), "u1");
 
             Assert.Equal(0, shift.OpeningCash);
             Assert.Equal("u1", shift.OpenedBy);
@@ -99,7 +99,7 @@ namespace PosCs.Tests.Application
         [Fact]
         public void Second_Open_Shift_Is_Rejected()
         {
-            var service = new ShiftService(new FakeShiftRepository());
+            var service = new ShiftService(new FakeShiftRepository(), NullBranchContext.Instance);
             service.Open(new OpenShiftRequest { OpeningCash = 100 }, "u");
 
             Assert.Throws<DomainValidationException>(() =>
@@ -110,7 +110,7 @@ namespace PosCs.Tests.Application
         public void Negative_Counted_Cash_Is_Rejected()
         {
             var repo = new FakeShiftRepository();
-            var service = new ShiftService(repo);
+            var service = new ShiftService(repo, NullBranchContext.Instance);
             var shift = service.Open(new OpenShiftRequest(), "u");
 
             Assert.Throws<DomainValidationException>(() =>
@@ -121,7 +121,7 @@ namespace PosCs.Tests.Application
         public void Close_Passes_Counted_Cash_To_Repository()
         {
             var repo = new FakeShiftRepository();
-            var service = new ShiftService(repo);
+            var service = new ShiftService(repo, NullBranchContext.Instance);
             var shift = service.Open(new OpenShiftRequest { OpeningCash = 250 }, "u");
 
             var closed = service.Close(shift.Id, new CloseShiftRequest { CountedCash = 300 }, "u");
@@ -134,7 +134,7 @@ namespace PosCs.Tests.Application
         public void Closing_An_Already_Closed_Shift_Fails()
         {
             var repo = new FakeShiftRepository();
-            var service = new ShiftService(repo);
+            var service = new ShiftService(repo, NullBranchContext.Instance);
             var shift = service.Open(new OpenShiftRequest(), "u");
             service.Close(shift.Id, new CloseShiftRequest { CountedCash = 10 }, "u");
 
@@ -146,7 +146,7 @@ namespace PosCs.Tests.Application
         public void Shift_Invoices_Clamp_Page_Size()
         {
             var repo = new FakeShiftRepository();
-            var service = new ShiftService(repo);
+            var service = new ShiftService(repo, NullBranchContext.Instance);
 
             var result = service.GetShiftInvoices("sid", 0, 500);
 

@@ -70,7 +70,7 @@ namespace PosCs.Tests.Application
         public void BranchServiceRejectsUnknownNodeRole()
         {
             var repo = new FakeBranchRepository();
-            var service = new BranchService(repo);
+            var service = new BranchService(repo, new FakeEnrollmentClient());
 
             Assert.Throws<PosCs.Domain.Exceptions.DomainValidationException>(() =>
                 service.Configure("branch-1", "terminal-1", "worker", null));
@@ -126,6 +126,9 @@ namespace PosCs.Tests.Application
             public void ApplySwitch(string branchId, string terminalId, string centralBranchKey) { }
             public string GetSecretHash(string branchId) { return null; }
             public void SetSecretHash(string branchId, string secretHash) { }
+            public void EnsureBranchAndTerminal(string branchId, string terminalId) { }
+            public bool IsSetupComplete() { return false; }
+            public void MarkSetupComplete() { }
         }
     }
 }

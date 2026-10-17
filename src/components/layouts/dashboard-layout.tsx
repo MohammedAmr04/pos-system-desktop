@@ -230,7 +230,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const appT = useTranslations("App")
   const { session, hasAccess, logout } = useAuth()
 
-  if (pathname === '/pos/') {
+  if (pathname === '/pos/' || pathname === '/setup/') {
     return <>{children}</>
   }
 

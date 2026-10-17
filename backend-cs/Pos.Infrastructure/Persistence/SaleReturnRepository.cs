@@ -196,15 +196,17 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public SaleReturnPageResult GetPaged(int page, int pageSize, string invoiceId)
+        public SaleReturnPageResult GetPaged(int page, int pageSize, string invoiceId, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
                 var where = " WHERE r.status = 'posted'";
                 if (!string.IsNullOrWhiteSpace(invoiceId))
                     where += " AND r.invoiceId = @invoiceId";
+                if (!string.IsNullOrWhiteSpace(branchId))
+                    where += " AND r.branchId = @branchId";
 
-                var parameters = new { invoiceId, pageSize, offset = (page - 1) * pageSize };
+                var parameters = new { invoiceId, branchId, pageSize, offset = (page - 1) * pageSize };
 
                 var total = conn.ExecuteScalar<int>(
                     $"SELECT COUNT(1) FROM SaleReturn r{where}", parameters);

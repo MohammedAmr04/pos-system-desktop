@@ -46,6 +46,31 @@ namespace PosCs.Application.Models
         public string CentralBranchKey { get; set; }
     }
 
+    /// <summary>First-run node setup: the operator picks the role and, for a branch, supplies the
+    /// central URL and the credentials used to enroll with central.</summary>
+    public sealed class BranchSetupRequest
+    {
+        public string NodeRole { get; set; }
+        public string CentralBaseUrl { get; set; }
+        public string BranchId { get; set; }
+        public string TerminalId { get; set; }
+        public string BranchKey { get; set; }
+        public string SyncToken { get; set; }
+    }
+
+    /// <summary>Result of the central connection test performed during branch setup.</summary>
+    public sealed class BranchEnrollmentResult
+    {
+        public string BranchId { get; set; }
+        public bool Verified { get; set; }
+    }
+
+    public sealed class SetupStatus
+    {
+        public bool SetupComplete { get; set; }
+        public string NodeRole { get; set; }
+    }
+
     public sealed class BranchAssignmentResult
     {
         public string RequestId { get; set; }

@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Threading.Tasks;
 using Microsoft.Owin;
+using PosCs.Application.Ports;
 using PosCs.Application.Services;
 
 namespace PosCs.Middleware
@@ -24,6 +25,12 @@ namespace PosCs.Middleware
 
             if (isApi && !IsPublicEndpoint(path))
             {
+                if (IsLoopbackOnlyEndpoint(path) && IsLoopbackRequest(context))
+                {
+                    await Next.Invoke(context);
+                    return;
+                }
+
                 var userId = TryAuthenticate(context);
                 if (string.IsNullOrEmpty(userId))
                 {
@@ -32,6 +39,8 @@ namespace PosCs.Middleware
                     await context.Response.WriteAsync("{\"error\":\"Authentication required\"}");
                     return;
                 }
+
+                SetBranchScope(userId);
             }
 
             await Next.Invoke(context);
@@ -63,13 +72,44 @@ namespace PosCs.Middleware
             }
         }
 
+        /// <summary>Resolves the terminal's branch scope for this request. Cashier operations are
+        /// forced to this branch; only users with <c>branches.view</c> (admin/manager) cross branches.</summary>
+        private static void SetBranchScope(string userId)
+        {
+            var runtime = CompositionRoot.BranchesRepo.GetRuntimeContext();
+            var canCrossBranch = CompositionRoot.Access.HasPermission(userId, "branches.view");
+            BranchScope.Set(
+                runtime == null || runtime.Branch == null ? null : runtime.Branch.Id,
+                runtime == null || runtime.Terminal == null ? null : runtime.Terminal.Id,
+                canCrossBranch);
+        }
+
         private static bool IsPublicEndpoint(string path)
         {
             if (path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase))
                 return true;
             if (path.Equals("/api/license", StringComparison.OrdinalIgnoreCase))
                 return true;
+            if (path.Equals("/api/health", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (path.Equals("/api/branch/setup-status", StringComparison.OrdinalIgnoreCase))
+                return true;
             return false;
+        }
+
+        /// <summary>The branch agent runs on the same machine and reads its central credentials
+        /// from here, so no bearer token is available. Never expose this off-box.</summary>
+        private static bool IsLoopbackOnlyEndpoint(string path)
+        {
+            return path.Equals("/api/branch/agent-config", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsLoopbackRequest(IOwinContext context)
+        {
+            var address = context.Request.RemoteIpAddress;
+            if (string.IsNullOrWhiteSpace(address)) return false;
+            IPAddress parsed;
+            return IPAddress.TryParse(address, out parsed) && IPAddress.IsLoopback(parsed);
         }
     }
 }

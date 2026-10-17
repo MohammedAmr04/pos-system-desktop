@@ -11,6 +11,63 @@ namespace PosCs.Controllers
     [RoutePrefix("api/branch")]
     public class BranchController : ApiController
     {
+        [Route("setup-status")]
+        [HttpGet]
+        public HttpResponseMessage SetupStatus()
+        {
+            try
+            {
+                return Request.CreateResponse(HttpStatusCode.OK, CompositionRoot.BranchService.GetSetupStatus());
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[API ERR] Failed to load setup status: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to load setup status");
+            }
+        }
+
+        [Route("setup")]
+        [HttpPost]
+        [RequirePermission("branches.manage")]
+        public HttpResponseMessage Setup([FromBody] BranchSetupRequest request)
+        {
+            try
+            {
+                if (request == null) return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Invalid setup request");
+                CompositionRoot.BranchService.Setup(request);
+                Console.WriteLine($"[API] Completed first-run setup as {request.NodeRole}");
+                return Request.CreateResponse(HttpStatusCode.OK, CompositionRoot.BranchService.GetSetupStatus());
+            }
+            catch (Exception ex)
+            {
+                if (ApiErrors.IsHandled(ex)) return ApiErrors.From(Request, ex, null);
+                Console.Error.WriteLine($"[API ERR] Failed to complete setup: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to complete setup");
+            }
+        }
+
+        [Route("enroll")]
+        [HttpGet]
+        [RequireBranchKey]
+        public HttpResponseMessage Enroll()
+        {
+            try
+            {
+                var authenticated = AuthenticatedBranch();
+                var branchId = authenticated ?? Header("X-Branch-Id");
+                return Request.CreateResponse(HttpStatusCode.OK, new BranchEnrollmentResult
+                {
+                    BranchId = branchId,
+                    Verified = authenticated != null
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[API ERR] Failed to verify branch enrollment: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to verify branch enrollment");
+            }
+        }
+
         [Route("context")]
         [HttpGet]
         [RequirePermission]
@@ -316,6 +373,12 @@ namespace PosCs.Controllers
             return Request.Properties.TryGetValue(RequireBranchKeyAttribute.BranchIdProperty, out value)
                 ? value as string
                 : null;
+        }
+
+        private string Header(string name)
+        {
+            System.Collections.Generic.IEnumerable<string> values;
+            return Request.Headers.TryGetValues(name, out values) ? System.Linq.Enumerable.FirstOrDefault(values) : null;
         }
     }
 }

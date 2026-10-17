@@ -1,6 +1,7 @@
 import { queryClient } from "@/lib/query-client"
 import {
   activateBranch,
+  completeSetup,
   configureBranchRuntime,
   createBranch,
   deactivateBranch,
@@ -14,6 +15,7 @@ import { branchesKeys } from "@/hooks/use-branches"
 import {
   BranchCredentialsInput,
   BranchRuntimeInput,
+  BranchSetupInput,
   BranchSwitchInput,
   CreateBranchInput,
   UpdateBranchInput,
@@ -67,6 +69,12 @@ export async function configureBranchRuntimeAction(data: BranchRuntimeInput) {
 
 export async function requestBranchSwitchAction(data: BranchSwitchInput) {
   const result = await requestBranchSwitch(data)
+  await invalidateBranches()
+  return result
+}
+
+export async function completeSetupAction(data: BranchSetupInput) {
+  const result = await completeSetup(data)
   await invalidateBranches()
   return result
 }
