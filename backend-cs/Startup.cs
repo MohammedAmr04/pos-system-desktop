@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using Microsoft.Owin.Hosting;
 using PosCs.Api;
+using PosCs.Infrastructure.Config;
 using PosCs.Infrastructure.Persistence;
 using PosCs.Infrastructure.Data;
 using PosCs.Middleware;
@@ -27,6 +28,9 @@ namespace PosCs
 
         public void Configuration(IAppBuilder app)
         {
+            PosConfig.SyncToEnvironment();
+            ConsoleLog.Install();
+
             try
             {
                 using (var conn = DbConnectionFactory.CreateConnection())
@@ -35,7 +39,18 @@ namespace PosCs
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[API ERR] Migration failed: {ex}");
-                Environment.Exit(1);
+                try
+                {
+                    var dataDir = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data");
+                    System.IO.Directory.CreateDirectory(dataDir);
+                    System.IO.File.WriteAllText(
+                        System.IO.Path.Combine(dataDir, "startup-error.txt"),
+                        DateTime.UtcNow.ToString("o") + Environment.NewLine + ex);
+                }
+                catch
+                {
+                }
+                throw new InvalidOperationException("Database migration failed.", ex);
             }
 
             var config = new HttpConfiguration();
@@ -52,7 +67,7 @@ namespace PosCs
             // CORS is only enabled when POS_ENABLE_CORS is set. The production
             // self-hosted build serves the SPA same-origin, so cross-origin
             // requests should be blocked by default.
-            var enableCors = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("POS_ENABLE_CORS"));
+            var enableCors = !string.IsNullOrEmpty(PosConfig.Get("POS_ENABLE_CORS"));
             if (enableCors)
             {
                 app.UseCors(new CorsOptions
@@ -83,8 +98,25 @@ namespace PosCs
             // Authenticate bearer tokens before any controller runs.
             app.Use<ApiAuthMiddleware>();
 
+            var sensitivePrefixes = new[] { "/bin/", "/data/", "/migrations/", "/license.secret" };
+            app.Use(async (ctx, next) =>
+            {
+                var p = ctx.Request.Path.Value ?? "";
+                foreach (var prefix in sensitivePrefixes)
+                {
+                    if (p.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ctx.Response.StatusCode = 403;
+                        return;
+                    }
+                }
+                await next();
+            });
+
             var wwwroot = System.IO.Path.Combine(
                 System.AppDomain.CurrentDomain.BaseDirectory, "wwwroot");
+            if (!System.IO.Directory.Exists(wwwroot))
+                wwwroot = System.AppDomain.CurrentDomain.BaseDirectory;
 
             if (System.IO.Directory.Exists(wwwroot))
             {
@@ -150,15 +182,30 @@ namespace PosCs
 
             app.UseWebApi(config);
 
+            if (PosConfig.GetBool("POS_BACKUP_WORKER", false))
+                EnsureBackupWorker();
+
             Console.WriteLine("[API] Server started on port 3001");
+        }
+
+        private static readonly object BackupWorkerLock = new object();
+        private static CloudBackupWorker _backupWorker;
+
+        private static void EnsureBackupWorker()
+        {
+            lock (BackupWorkerLock)
+            {
+                if (_backupWorker != null) return;
+                _backupWorker = new CloudBackupWorker(CompositionRoot.BackupService, new CloudinaryBackupUploader());
+            }
         }
 
         public static void Start()
         {
             var url = $"http://localhost:{Environment.GetEnvironmentVariable("API_PORT") ?? "3001"}";
             using (WebApp.Start<Startup>(url))
-            using (var cloudBackupWorker = new CloudBackupWorker(CompositionRoot.BackupService, new CloudinaryBackupUploader()))
             {
+                EnsureBackupWorker();
                 Console.WriteLine($"[API] Listening on {url}");
                 Console.WriteLine("[API] Press Ctrl+C to stop");
                 System.Threading.Thread.Sleep(System.Threading.Timeout.Infinite);

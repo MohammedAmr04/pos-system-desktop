@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File build-static.ps1",
-    "start": "echo Frontend is served by backend-cs\\bin\\Release\\net48\\pos-server.exe. Run 'start.bat' in V8-Portable/ instead.",
+    "dev": "node init && next dev",
+    "build": "node init && powershell -NoProfile -ExecutionPolicy Bypass -File build-static.ps1",
+    "start": "node init && echo Frontend is served by backend-cs\\bin\\Release\\net48\\pos-server.exe. Run 'start.bat' in V8-Portable/ instead.",
     "lint": "eslint",
     "test": "vitest run"
   },
