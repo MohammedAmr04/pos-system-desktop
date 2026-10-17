@@ -13,17 +13,19 @@ namespace PosCs.Application.Services
     public class PurchaseService
     {
         private readonly IPurchaseRepository _purchases;
+        private readonly IBranchContext _branchContext;
 
-        public PurchaseService(IPurchaseRepository purchases)
+        public PurchaseService(IPurchaseRepository purchases, IBranchContext branchContext)
         {
             _purchases = purchases;
+            _branchContext = branchContext;
         }
 
-        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize)
+        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize, string branchId = null)
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return _purchases.GetPaged(status, query, page, pageSize);
+            return _purchases.GetPaged(status, query, page, pageSize, _branchContext.ApplyScope(branchId));
         }
 
         public PurchaseInvoice GetById(string id)
@@ -102,7 +104,7 @@ namespace PosCs.Application.Services
                     ProductId = i.ProductId,
                     ProductUnitId = i.ProductUnitId,
                     Quantity = i.Quantity,
-                    UnitCost = i.UnitCost,
+                    UnitCost = i.UnitCost * (i.QuantityFactor > 0 ? i.QuantityFactor : 1),
                     NewRetailPrice = i.NewRetailPrice,
                     NewWholesalePrice = i.NewWholesalePrice
                 }).ToList()

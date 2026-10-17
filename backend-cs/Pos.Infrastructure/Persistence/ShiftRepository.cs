@@ -80,7 +80,7 @@ namespace PosCs.Infrastructure.Persistence
                 return GetByIdCore(conn, id);
         }
 
-        public ShiftPageResult GetPaged(string status, int page, int pageSize)
+        public ShiftPageResult GetPaged(string status, int page, int pageSize, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
@@ -91,6 +91,11 @@ namespace PosCs.Infrastructure.Persistence
                 {
                     clauses.Add("status = @status");
                     parameters.Add("status", status);
+                }
+                if (!string.IsNullOrWhiteSpace(branchId))
+                {
+                    clauses.Add("branchId = @branchId");
+                    parameters.Add("branchId", branchId.Trim());
                 }
                 parameters.Add("pageSize", pageSize);
                 parameters.Add("offset", (page - 1) * pageSize);

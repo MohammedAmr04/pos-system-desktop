@@ -30,7 +30,7 @@ namespace PosCs.Tests.Application
             return expense;
         }
 
-        public ExpensePageResult GetPaged(string categoryId, DateTime? from, DateTime? to, int page, int pageSize)
+        public ExpensePageResult GetPaged(string categoryId, DateTime? from, DateTime? to, int page, int pageSize, string branchId = null)
         {
             IEnumerable<Expense> q = Stored;
             if (!string.IsNullOrEmpty(categoryId)) q = q.Where(e => e.CategoryId == categoryId);
@@ -69,7 +69,7 @@ namespace PosCs.Tests.Application
         [Fact]
         public void Non_Positive_Amount_Is_Rejected()
         {
-            var service = new ExpenseService(new FakeExpenseRepository());
+            var service = new ExpenseService(new FakeExpenseRepository(), NullBranchContext.Instance);
             Assert.Throws<DomainValidationException>(() =>
                 service.Create(new CreateExpenseRequest { CategoryId = "cat-1", Amount = 0 }, "u"));
             Assert.Throws<DomainValidationException>(() =>
@@ -80,7 +80,7 @@ namespace PosCs.Tests.Application
         public void Unknown_Category_Is_Rejected()
         {
             Assert.Throws<NotFoundException>(() =>
-                new ExpenseService(new FakeExpenseRepository()).Create(
+                new ExpenseService(new FakeExpenseRepository(), NullBranchContext.Instance).Create(
                     new CreateExpenseRequest { CategoryId = "missing", Amount = 5 }, "u"));
         }
 
@@ -88,7 +88,7 @@ namespace PosCs.Tests.Application
         public void Inactive_Category_Is_Rejected()
         {
             Assert.Throws<DomainValidationException>(() =>
-                new ExpenseService(new FakeExpenseRepository()).Create(
+                new ExpenseService(new FakeExpenseRepository(), NullBranchContext.Instance).Create(
                     new CreateExpenseRequest { CategoryId = "cat-off", Amount = 5 }, "u"));
         }
 
@@ -96,7 +96,7 @@ namespace PosCs.Tests.Application
         public void Invalid_Payment_Method_Is_Rejected_And_Defaults_To_Cash()
         {
             var repo = new FakeExpenseRepository();
-            var service = new ExpenseService(repo);
+            var service = new ExpenseService(repo, NullBranchContext.Instance);
 
             Assert.Throws<DomainValidationException>(() =>
                 service.Create(new CreateExpenseRequest { CategoryId = "cat-1", Amount = 5, PaymentMethod = "barter" }, "u"));
@@ -110,7 +110,7 @@ namespace PosCs.Tests.Application
         public void Create_Trims_Fields_And_Keeps_User()
         {
             var repo = new FakeExpenseRepository();
-            var expense = new ExpenseService(repo).Create(
+            var expense = new ExpenseService(repo, NullBranchContext.Instance).Create(
                 new CreateExpenseRequest
                 {
                     CategoryId = "cat-1",
@@ -129,7 +129,7 @@ namespace PosCs.Tests.Application
         public void Category_Crud_Validates_Name_And_Toggles_Active()
         {
             var repo = new FakeExpenseRepository();
-            var service = new ExpenseService(repo);
+            var service = new ExpenseService(repo, NullBranchContext.Instance);
 
             Assert.Throws<DomainValidationException>(() =>
                 service.CreateCategory(new SaveExpenseCategoryRequest { Name = "  " }));

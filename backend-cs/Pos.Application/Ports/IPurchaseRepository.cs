@@ -8,7 +8,7 @@ namespace PosCs.Application.Ports
     /// append-only on the ledger — posted rows are never deleted (spec §12/§13).</summary>
     public interface IPurchaseRepository
     {
-        PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize);
+        PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize, string branchId = null);
 
         PurchaseInvoice GetById(string id);
 

@@ -20,7 +20,7 @@ namespace PosCs.Infrastructure.Persistence
                 return GetByIdCore(conn, id);
         }
 
-        public List<Invoice> GetRange(DateTime? from, DateTime? to)
+        public List<Invoice> GetRange(DateTime? from, DateTime? to, string branchId = null)
         {            using (var conn = DbConnectionFactory.CreateConnection())
             {
                 var sql = "SELECT * FROM Invoice WHERE 1=1";
@@ -36,6 +36,11 @@ namespace PosCs.Infrastructure.Persistence
                     sql += " AND createdAt <= @to";
                     parameters.Add("to", to.Value.ToString("yyyy-MM-dd HH:mm:ss"));
                 }
+                if (!string.IsNullOrWhiteSpace(branchId))
+                {
+                    sql += " AND branchId = @branchId";
+                    parameters.Add("branchId", branchId.Trim());
+                }
                 sql += " ORDER BY createdAt DESC";
 
                 var invoices = conn.Query<Invoice>(sql, parameters).ToList();
@@ -45,7 +50,7 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null)
+        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string employeeId = null, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
@@ -76,6 +81,11 @@ namespace PosCs.Infrastructure.Persistence
                 {
                     clauses.Add("i.employeeId = @employeeId");
                     parameters.Add("employeeId", employeeId.Trim());
+                }
+                if (!string.IsNullOrWhiteSpace(branchId))
+                {
+                    clauses.Add("i.branchId = @branchId");
+                    parameters.Add("branchId", branchId.Trim());
                 }
 
                 var where = clauses.Count > 0 ? " WHERE " + string.Join(" AND ", clauses) : "";
@@ -116,12 +126,25 @@ namespace PosCs.Infrastructure.Persistence
                     {
                         invoice.Id = Guid.NewGuid().ToString("N");
                         invoice.CreatedAt = DateTime.Now;
+                        var scope = BranchScope.Current;
+                        if (scope != null)
+                        {
+                            invoice.BranchId = scope.BranchId;
+                            invoice.TerminalId = scope.TerminalId;
+                        }
+                        else
+                        {
+                            var runtime = conn.QueryFirstOrDefault<RuntimeRow>(
+                                "SELECT branchId,terminalId FROM BranchRuntimeConfig WHERE id=1", transaction: tx);
+                            invoice.BranchId = runtime == null ? null : runtime.BranchId;
+                            invoice.TerminalId = runtime == null ? null : runtime.TerminalId;
+                        }
                         var isDraft = invoice.Status == "draft";
                         if (!isDraft)
                             invoice.ShiftId = RequireActiveShiftId(conn, tx);
 
                         conn.Execute(@"
-                            INSERT INTO Invoice (id, invoiceNumber, totalAmount, discount, discountType, discountValue, discountAmount, priceMode, status, clientId, employeeId, paymentMethod, createdBy, shiftId, createdAt)
+                            INSERT INTO Invoice (id, invoiceNumber, totalAmount, discount, discountType, discountValue, discountAmount, priceMode, status, clientId, employeeId, paymentMethod, createdBy, shiftId, branchId, terminalId, createdAt)
                             VALUES (
                                 @id,
                                 (SELECT COALESCE(MAX(invoiceNumber), 0) + 1 FROM Invoice),
@@ -137,6 +160,8 @@ namespace PosCs.Infrastructure.Persistence
                                 @paymentMethod,
                                 @createdBy,
                                 @shiftId,
+                                @branchId,
+                                @terminalId,
                                 @createdAt
                             )",
                             new
@@ -154,6 +179,8 @@ namespace PosCs.Infrastructure.Persistence
                                 paymentMethod = invoice.PaymentMethod ?? "cash",
                                 createdBy = invoice.CreatedBy,
                                 shiftId = string.IsNullOrEmpty(invoice.ShiftId) ? null : invoice.ShiftId,
+                                branchId = invoice.BranchId,
+                                terminalId = invoice.TerminalId,
                                 createdAt = invoice.CreatedAt
                             }, transaction: tx);
 
@@ -164,6 +191,9 @@ namespace PosCs.Infrastructure.Persistence
 
                         if (!isDraft && invoice.PaymentMethod != "credit")
                             InsertAutoPayment(conn, (SqliteTransaction)tx, invoice);
+
+                        SyncOutboxWriter.Enqueue(conn, (SqliteTransaction)tx, "upsert", "Invoice", invoice.Id,
+                            new { invoice, lines = items });
 
                         tx.Commit();
                     }
@@ -575,6 +605,12 @@ namespace PosCs.Infrastructure.Persistence
                 detail.Product = conn.QueryFirstOrDefault<Product>(
                     "SELECT * FROM Product WHERE id = @id", new { id = detail.ProductId });
             }
+        }
+
+        private sealed class RuntimeRow
+        {
+            public string BranchId { get; set; }
+            public string TerminalId { get; set; }
         }
 
         private static string EscapeLike(string input)

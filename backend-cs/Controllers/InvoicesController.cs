@@ -50,11 +50,11 @@ namespace PosCs.Controllers
         [Route("paged")]
         [HttpGet]
         [RequirePermission("invoices.view")]
-        public HttpResponseMessage GetPaged(int page = 1, int pageSize = 20, string from = null, string to = null, string q = null, string status = null, string range = null, string employeeId = null)
+        public HttpResponseMessage GetPaged(int page = 1, int pageSize = 20, string from = null, string to = null, string q = null, string status = null, string range = null, string employeeId = null, string branchId = null)
         {
             try
             {
-                var result = _service.GetPaged(page, pageSize, from, to, q, status, range, employeeId);
+                var result = _service.GetPaged(page, pageSize, from, to, q, status, range, employeeId, branchId);
                 return Request.CreateResponse(HttpStatusCode.OK, new
                 {
                     items = result.Items,

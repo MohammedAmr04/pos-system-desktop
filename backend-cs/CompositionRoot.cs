@@ -4,6 +4,7 @@ using PosCs.Infrastructure.Devices;
 using PosCs.Infrastructure.Persistence;
 using PosCs.Infrastructure.Printing;
 using PosCs.Infrastructure.Security;
+using PosCs.Infrastructure.Sync;
 using PosCs.Infrastructure.SystemTime;
 
 namespace PosCs
@@ -74,6 +75,20 @@ namespace PosCs
         private static IOperationsRepository _operations;
         private static OperationsService _operationsService;
         private static BackupService _backupService;
+        private static IBranchRepository _branches;
+        private static ITerminalRepository _terminals;
+        private static IBranchAssignmentRepository _branchAssignments;
+        private static IBranchSwitchClient _branchSwitchClient;
+        private static IBranchEnrollmentClient _branchEnrollmentClient;
+        private static IBranchContext _branchContext;
+        private static ISyncRepository _sync;
+        private static BranchService _branchService;
+        private static TerminalService _terminalService;
+        private static BranchAssignmentService _branchAssignmentService;
+        private static BranchAuthService _branchAuthService;
+        private static SyncService _syncService;
+        private static IPrintQueueRepository _printQueue;
+        private static PrintQueueService _printQueueService;
 
         public static IClock Clock => Lazy(ref _clock, () => new SystemClock());
         public static IPasswordHasher Hasher => Lazy(ref _hasher, () => new PasswordHasher());
@@ -88,7 +103,7 @@ namespace PosCs
         public static IUnitRepository MasterUnitsRepo => Lazy(ref _masterUnits, () => new UnitRepository());
         public static ISupplierRepository SuppliersRepo => Lazy(ref _suppliers, () => new SupplierRepository());
         public static PurchaseService PurchaseService => Lazy(ref _purchaseService,
-            () => new PurchaseService(PurchasesRepo));
+            () => new PurchaseService(PurchasesRepo, BranchContext));
         public static IClientRepository ClientsRepo => Lazy(ref _clients, () => new ClientRepository());
         public static IEmployeeRepository EmployeesRepo => Lazy(ref _employees, () => new EmployeeRepository());
         public static IInvoiceRepository Invoices => Lazy(ref _invoices, () => new InvoiceRepository());
@@ -130,17 +145,17 @@ namespace PosCs
         public static EmployeeService EmployeeService => Lazy(ref _employeeService,
             () => new EmployeeService(EmployeesRepo));
         public static PaymentService PaymentService => Lazy(ref _paymentService,
-            () => new PaymentService(PaymentsRepo, ClientsRepo, SuppliersRepo, Invoices, PurchasesRepo));
+            () => new PaymentService(PaymentsRepo, ClientsRepo, SuppliersRepo, Invoices, PurchasesRepo, BranchContext));
         public static InvoiceService InvoiceService => Lazy(ref _invoiceService,
-            () => new InvoiceService(Invoices, Products, Units, Access, Clock, ClientsRepo, EmployeesRepo, PaymentsRepo));
+            () => new InvoiceService(Invoices, Products, Units, Access, Clock, ClientsRepo, EmployeesRepo, PaymentsRepo, BranchContext));
         public static SaleReturnService SaleReturnService => Lazy(ref _saleReturnService,
-            () => new SaleReturnService(SaleReturnsRepo, Invoices));
+            () => new SaleReturnService(SaleReturnsRepo, Invoices, BranchContext));
         public static PurchaseReturnService PurchaseReturnService => Lazy(ref _purchaseReturnService,
-            () => new PurchaseReturnService(PurchaseReturnsRepo, PurchasesRepo));
+            () => new PurchaseReturnService(PurchaseReturnsRepo, PurchasesRepo, BranchContext));
         public static ShiftService ShiftService => Lazy(ref _shiftService,
-            () => new ShiftService(ShiftsRepo));
+            () => new ShiftService(ShiftsRepo, BranchContext));
         public static ExpenseService ExpenseService => Lazy(ref _expenseService,
-            () => new ExpenseService(ExpensesRepo));
+            () => new ExpenseService(ExpensesRepo, BranchContext));
         public static UsersService UsersService => Lazy(ref _usersService,
             () => new UsersService(UsersRepo, Auth, RolesRepo, Hasher, Access));
         public static RolesService RolesService => Lazy(ref _rolesService,
@@ -150,12 +165,27 @@ namespace PosCs
         public static LicenseService LicenseService => Lazy(ref _licenseService,
             () => new LicenseService(LicenseRepo, MachineId, Clock));
         public static ReportsService ReportsService => Lazy(ref _reportsService,
-            () => new ReportsService(Products, ReportsRepo));
+            () => new ReportsService(Products, ReportsRepo, BranchContext));
         public static PrintingService PrintingService => Lazy(ref _printingService,
             () => new PrintingService(Receipts, BarcodeLabels));
         public static OperationsService OperationsService => Lazy(ref _operationsService,
             () => new OperationsService(OperationsRepo));
         public static BackupService BackupService => Lazy(ref _backupService, () => new BackupService());
+        public static IBranchRepository BranchesRepo => Lazy(ref _branches, () => new BranchRepository());
+        public static ITerminalRepository TerminalsRepo => Lazy(ref _terminals, () => new TerminalRepository());
+        public static IBranchAssignmentRepository BranchAssignmentsRepo => Lazy(ref _branchAssignments, () => new BranchAssignmentRepository());
+        public static IBranchSwitchClient BranchSwitchClient => Lazy(ref _branchSwitchClient, () => new BranchSwitchClient());
+        public static IBranchEnrollmentClient BranchEnrollmentClient => Lazy(ref _branchEnrollmentClient, () => new CentralEnrollmentClient());
+        public static IBranchContext BranchContext => Lazy(ref _branchContext, () => AmbientBranchContext.Instance);
+        public static ISyncRepository SyncRepo => Lazy(ref _sync, () => new SyncRepository());
+        public static BranchService BranchService => Lazy(ref _branchService, () => new BranchService(BranchesRepo, BranchEnrollmentClient));
+        public static TerminalService TerminalService => Lazy(ref _terminalService, () => new TerminalService(TerminalsRepo, BranchesRepo, BranchAssignmentsRepo));
+        public static BranchAssignmentService BranchAssignmentService => Lazy(ref _branchAssignmentService,
+            () => new BranchAssignmentService(BranchesRepo, TerminalsRepo, BranchAssignmentsRepo, SyncRepo, BranchSwitchClient, BranchAuthService));
+        public static BranchAuthService BranchAuthService => Lazy(ref _branchAuthService, () => new BranchAuthService(BranchesRepo, Hasher));
+        public static SyncService SyncService => Lazy(ref _syncService, () => new SyncService(SyncRepo));
+        public static IPrintQueueRepository PrintQueueRepo => Lazy(ref _printQueue, () => new PrintQueueRepository());
+        public static PrintQueueService PrintQueueService => Lazy(ref _printQueueService, () => new PrintQueueService(PrintQueueRepo));
 
         private static T Lazy<T>(ref T field, System.Func<T> factory) where T : class
         {

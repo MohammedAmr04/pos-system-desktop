@@ -22,10 +22,11 @@ namespace PosCs.Application.Services
         private readonly IClientRepository _clients;
         private readonly IEmployeeRepository _employees;
         private readonly IPaymentRepository _payments;
+        private readonly IBranchContext _branchContext;
 
         public InvoiceService(IInvoiceRepository invoices, IProductRepository products,
             IProductUnitRepository units, IAccessControl access, IClock clock, IClientRepository clients,
-            IEmployeeRepository employees, IPaymentRepository payments)
+            IEmployeeRepository employees, IPaymentRepository payments, IBranchContext branchContext)
         {
             _invoices = invoices;
             _products = products;
@@ -35,13 +36,14 @@ namespace PosCs.Application.Services
             _clients = clients;
             _employees = employees;
             _payments = payments;
+            _branchContext = branchContext;
         }
 
-        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize)
+        public InvoicePageResult GetPaged(DateTime? from, DateTime? to, string query, string status, int page, int pageSize, string branchId = null)
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return WithPaid(_invoices.GetPaged(from, to, query, status, page, pageSize));
+            return WithPaid(_invoices.GetPaged(from, to, query, status, page, pageSize, null, _branchContext.ApplyScope(branchId)));
         }
 
         public Invoice Post(string id)
@@ -105,6 +107,8 @@ namespace PosCs.Application.Services
                 var product = _products.GetById(item.ProductId);
                 if (product == null)
                     throw new DomainValidationException($"Product not found: '{item.Name}'");
+
+                ValidateBundleAvailability(product, item.Quantity);
 
                 var unit = _units.GetById(item.ProductUnitId);
                 if (unit == null || unit.ProductId != product.Id)
@@ -261,6 +265,22 @@ namespace PosCs.Application.Services
             return Tuple.Create(invoice, lineDetails);
         }
 
+        private static void ValidateBundleAvailability(Product product, double quantity)
+        {
+            if (product.ProductType != "bundle") return;
+            if (product.BundleComponents == null || product.BundleComponents.Count == 0)
+                throw new DomainValidationException($"Bundle '{product.Name}' is not available");
+
+            foreach (var component in product.BundleComponents)
+            {
+                if (component.Product == null || component.Quantity <= 0)
+                    throw new DomainValidationException($"Bundle '{product.Name}' is not available");
+                if (component.Product.ProductType != "service" &&
+                    component.Product.StockQuantity < component.Quantity * quantity)
+                    throw new DomainValidationException($"Bundle '{product.Name}' is not available");
+            }
+        }
+
         /// <summary>Salesperson attribution must reference an existing, active employee.
         /// Posted invoices are immutable (only drafts pass through BuildInvoice).</summary>
         private void ValidateEmployee(string employeeId)
@@ -287,21 +307,21 @@ namespace PosCs.Application.Services
         public List<Invoice> GetToday()
         {
             var today = _clock.Today;
-            return _invoices.GetRange(today, today.AddDays(1).AddSeconds(-1));
+            return _invoices.GetRange(today, today.AddDays(1).AddSeconds(-1), _branchContext.ApplyScope(null));
         }
 
         public List<Invoice> GetFiltered(string from, string to)
         {
             ResolveRange(from, to, false, out var fromDate, out var toDate);
-            return _invoices.GetRange(fromDate, toDate);
+            return _invoices.GetRange(fromDate, toDate, _branchContext.ApplyScope(null));
         }
 
-        public InvoicePageResult GetPaged(int page, int pageSize, string from, string to, string q, string status = null, string range = null, string employeeId = null)
+        public InvoicePageResult GetPaged(int page, int pageSize, string from, string to, string q, string status = null, string range = null, string employeeId = null, string branchId = null)
         {
             page = Math.Max(1, page);
             pageSize = Math.Max(1, Math.Min(pageSize, 100));
             ResolveRange(from, to, range == "all", out var fromDate, out var toDate);
-            return WithAllocatedPaid(_invoices.GetPaged(fromDate, toDate, q, status, page, pageSize, employeeId));
+            return WithAllocatedPaid(_invoices.GetPaged(fromDate, toDate, q, status, page, pageSize, employeeId, _branchContext.ApplyScope(branchId)));
         }
 
         /// <summary>Attaches invoice-linked payment totals for payment-status badges.</summary>
@@ -354,6 +374,8 @@ namespace PosCs.Application.Services
         {
             var invoice = _invoices.GetById(id);
             if (invoice == null)
+                throw new NotFoundException("Invoice not found");
+            if (!_branchContext.CanCrossBranch && !string.Equals(invoice.BranchId, _branchContext.BranchId, StringComparison.OrdinalIgnoreCase))
                 throw new NotFoundException("Invoice not found");
             return invoice;
         }

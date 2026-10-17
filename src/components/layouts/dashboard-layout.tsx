@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname } from "@/i18n/navigation"
-import { Package, ShoppingCart, FileText, LayoutDashboard, AlertTriangle, LogOut, Settings, Users, Shield, SlidersHorizontal, KeyRound, FolderTree, Tags, Ruler, Truck, UsersRound, Boxes, Wallet, Undo2, Timer, Receipt, BarChart3, Printer, ClipboardList, Bell, History, Contact, ArchiveRestore, ShieldCheck } from "lucide-react"
+import { Package, ShoppingCart, FileText, LayoutDashboard, AlertTriangle, LogOut, Settings, Users, Shield, SlidersHorizontal, KeyRound, FolderTree, Tags, Ruler, Truck, UsersRound, Boxes, Wallet, Undo2, Timer, Receipt, BarChart3, Printer, ClipboardList, Bell, History, Contact, ArchiveRestore, ShieldCheck, RefreshCw, Building2, MonitorSmartphone } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
 import { useAuth } from "@/components/common/auth-context"
@@ -195,6 +195,27 @@ const sidebarNavItems: SidebarNavItem[] = [
     section: "settings",
   },
   {
+    key: "settingsSync",
+    href: "/settings/sync/",
+    icon: RefreshCw,
+    permission: PERMISSIONS.SETTINGS_VIEW,
+    section: "settings",
+  },
+  {
+    key: "settingsBranches",
+    href: "/settings/branches/",
+    icon: Building2,
+    permission: PERMISSIONS.BRANCHES_VIEW,
+    section: "settings",
+  },
+  {
+    key: "settingsTerminals",
+    href: "/settings/terminals/",
+    icon: MonitorSmartphone,
+    permission: PERMISSIONS.BRANCHES_VIEW,
+    section: "settings",
+  },
+  {
     key: "settingsLicense",
     href: "/settings/license/",
     icon: ShieldCheck,
@@ -209,7 +230,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const appT = useTranslations("App")
   const { session, hasAccess, logout } = useAuth()
 
-  if (pathname === '/pos/') {
+  if (pathname === '/pos/' || pathname === '/setup/') {
     return <>{children}</>
   }
 

@@ -15,7 +15,7 @@ namespace PosCs.Application.Ports
         /// restore consumed FIFO layers (spec §24), auto refund payment for cash sales,
         /// and update the original invoice's returnStatus.</summary>
         SaleReturn Create(SaleReturn saleReturn, List<SaleReturnDetail> details);
-        SaleReturnPageResult GetPaged(int page, int pageSize, string invoiceId);
+        SaleReturnPageResult GetPaged(int page, int pageSize, string invoiceId, string branchId = null);
         List<SaleReturnDetail> GetDetails(string returnId);
         /// <summary>Returned quantity per invoice detail id, across all returns of that invoice.</summary>
         Dictionary<string, double> SumReturnedByInvoice(string invoiceId);

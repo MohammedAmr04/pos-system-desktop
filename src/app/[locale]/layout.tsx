@@ -1,6 +1,7 @@
 import { DashboardLayout } from "@/components/layouts/dashboard-layout";
 import { LicenseGate } from "@/components/common/license-lock";
 import { AuthGate } from "@/components/common/auth-gate";
+import { SetupGate } from "@/components/common/setup-gate";
 import { AuthProvider } from "@/components/common/auth-context";
 import { QueryProvider } from "@/components/common/query-provider";
 
@@ -17,11 +18,13 @@ export default function LocaleLayout({
     <QueryProvider>
       <AuthProvider>
         <AuthGate>
-          <LicenseGate>
-            <DashboardLayout>
-              {children}
-            </DashboardLayout>
-          </LicenseGate>
+          <SetupGate>
+            <LicenseGate>
+              <DashboardLayout>
+                {children}
+              </DashboardLayout>
+            </LicenseGate>
+          </SetupGate>
         </AuthGate>
       </AuthProvider>
     </QueryProvider>

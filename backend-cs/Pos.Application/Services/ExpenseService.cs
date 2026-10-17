@@ -13,10 +13,12 @@ namespace PosCs.Application.Services
         private static readonly string[] AllowedMethods = { "cash", "card", "bank_transfer" };
 
         private readonly IExpenseRepository _expenses;
+        private readonly IBranchContext _branchContext;
 
-        public ExpenseService(IExpenseRepository expenses)
+        public ExpenseService(IExpenseRepository expenses, IBranchContext branchContext)
         {
             _expenses = expenses;
+            _branchContext = branchContext;
         }
 
         public Expense Create(CreateExpenseRequest request, string userId)
@@ -47,7 +49,7 @@ namespace PosCs.Application.Services
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return _expenses.GetPaged(categoryId, from, to, page, pageSize);
+            return _expenses.GetPaged(categoryId, from, to, page, pageSize, _branchContext.ApplyScope(null));
         }
 
         public System.Collections.Generic.List<ExpenseCategory> GetCategories(bool includeInactive)

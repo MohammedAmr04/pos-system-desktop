@@ -29,6 +29,7 @@ interface ProductFormProps {
   initialData?: Product | null
   defaultBarcode?: string
   onSuccess?: (product?: Product) => void
+  onSubmittingChange?: (submitting: boolean) => void
 }
 
 export const PRODUCT_FORM_ID = "product-form"
@@ -80,7 +81,7 @@ function FieldError({ message }: { message?: string }) {
   return <p className={errorClass}>{message}</p>
 }
 
-export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductFormProps) {
+export function ProductForm({ initialData, defaultBarcode, onSuccess, onSubmittingChange }: ProductFormProps) {
   const t = useTranslations("Products")
   const resolveError = useApiError()
   const { data: categories = [] } = useAllCategories()
@@ -146,6 +147,7 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
       return
     }
     try {
+      onSubmittingChange?.(true)
       if (initialData) {
         await updateProduct(initialData.id, {
           name: values.name,
@@ -189,6 +191,8 @@ export function ProductForm({ initialData, defaultBarcode, onSuccess }: ProductF
       }
     } catch (e) {
       toast.error(resolveError(e) || t("createError"))
+    } finally {
+      onSubmittingChange?.(false)
     }
   }
 

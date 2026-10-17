@@ -68,6 +68,7 @@ export function EditorClient() {
   const [lines, setLines] = useState<EditorLine[]>([emptyLine()])
   const [lastHydratedId, setLastHydratedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [productSaving, setProductSaving] = useState(false)
   const [productSheetOpen, setProductSheetOpen] = useState(false)
 
   const { data: products = [] } = useAllProducts()
@@ -94,7 +95,7 @@ export function EditorClient() {
         productId: item.productId,
         productUnitId: item.productUnitId,
         quantity: String(item.quantity),
-        unitCost: String(item.unitCost),
+        unitCost: String(item.unitCost * (item.quantityFactor || 1)),
         newRetailPrice: item.newRetailPrice != null ? String(item.newRetailPrice) : "",
         newWholesalePrice: item.newWholesalePrice != null ? String(item.newWholesalePrice) : "",
       }))
@@ -139,6 +140,7 @@ export function EditorClient() {
   })
 
   const handleSave = async (targetStatus: "draft" | "posted") => {
+    if (saving) return
     if (!buildRequest(targetStatus).lines.length) {
       toast.error(t("addLine"))
       return
@@ -252,12 +254,13 @@ export function EditorClient() {
           title={t("addNewProduct")}
           description={t("addNewProductDescription")}
           footer={
-            <Button type="submit" form={PRODUCT_FORM_ID}>
+            <Button type="submit" form={PRODUCT_FORM_ID} disabled={productSaving}>
+              {productSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {t("save")}
             </Button>
           }
         >
-          <ProductForm onSuccess={handleNewProduct} />
+          <ProductForm onSuccess={handleNewProduct} onSubmittingChange={setProductSaving} />
         </ResponsiveSheet>
       )}
 

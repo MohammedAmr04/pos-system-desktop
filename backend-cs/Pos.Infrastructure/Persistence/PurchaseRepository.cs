@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 using PosCs.Application.Ports;
 using PosCs.Domain.Entities;
 using PosCs.Domain.Exceptions;
+using PosCs.Application.Services;
 
 namespace PosCs.Infrastructure.Persistence
 {
@@ -14,7 +15,7 @@ namespace PosCs.Infrastructure.Persistence
         private const string Columns =
             "id, invoiceNumber, supplierInvoiceNumber, supplierId, date, paymentMethod, status, subtotal, discount, tax, total, notes, createdBy, createdAt, updatedAt";
 
-        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize)
+        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
@@ -30,6 +31,11 @@ namespace PosCs.Infrastructure.Persistence
                 {
                     clauses.Add("(CAST(invoiceNumber AS TEXT) LIKE @like OR supplierInvoiceNumber LIKE @like)");
                     parameters.Add("like", $"%{EscapeLike(query.Trim())}%");
+                }
+                if (!string.IsNullOrWhiteSpace(branchId))
+                {
+                    clauses.Add("branchId = @branchId");
+                    parameters.Add("branchId", branchId.Trim());
                 }
 
                 var where = clauses.Count > 0 ? " WHERE " + string.Join(" AND ", clauses) : "";
@@ -73,8 +79,6 @@ namespace PosCs.Infrastructure.Persistence
                     try
                     {
                         var now = DateTime.Now;
-                        RecalculateTotals(invoice, items);
-
                         var existing = conn.QueryFirstOrDefault<PurchaseInvoice>(
                             "SELECT * FROM PurchaseInvoice WHERE id = @id", new { id = invoice.Id }, transaction: tx);
 
@@ -93,7 +97,10 @@ namespace PosCs.Infrastructure.Persistence
                                 throw new DomainValidationException($"Invalid unit for product '{item.ProductId}'");
                             item.UnitName = unit.UnitName;
                             item.QuantityFactor = unit.QuantityFactor;
+                            item.UnitCost = PurchaseCost.PerBaseUnit(item.UnitCost, item.QuantityFactor);
                         }
+
+                        RecalculateTotals(invoice, items);
 
                         bool isNew = existing == null;
                         if (isNew)
@@ -200,6 +207,9 @@ namespace PosCs.Infrastructure.Persistence
                             }
                         }
 
+                        SyncOutboxWriter.Enqueue(conn, tx, "upsert", "PurchaseInvoice", invoice.Id,
+                            new { purchaseInvoice = invoice, items });
+
                         tx.Commit();
                     }
                     catch
@@ -242,6 +252,13 @@ namespace PosCs.Infrastructure.Persistence
                             "SELECT DISTINCT productId FROM PurchaseInvoiceItem WHERE purchaseInvoiceId = @id",
                             new { id }, transaction: tx))
                             SyncBuyPrice(conn, tx, pid);
+
+                        invoice.Status = "cancelled";
+                        var cancelItems = conn.Query<PurchaseInvoiceItem>(
+                            "SELECT * FROM PurchaseInvoiceItem WHERE purchaseInvoiceId = @id",
+                            new { id }, transaction: tx).ToList();
+                        SyncOutboxWriter.Enqueue(conn, tx, "upsert", "PurchaseInvoice", invoice.Id,
+                            new { purchaseInvoice = invoice, items = cancelItems });
 
                         tx.Commit();
                     }
@@ -350,7 +367,7 @@ namespace PosCs.Infrastructure.Persistence
         private static void RecalculateTotals(PurchaseInvoice invoice, List<PurchaseInvoiceItem> items)
         {
             foreach (var item in items)
-                item.LineTotal = Math.Round(item.Quantity * item.UnitCost, 2);
+                item.LineTotal = PurchaseCost.LineTotal(item.Quantity, item.UnitCost, item.QuantityFactor);
             invoice.Subtotal = Math.Round(items.Sum(i => i.LineTotal), 2);
             invoice.Total = Math.Round(invoice.Subtotal - invoice.Discount + invoice.Tax, 2);
         }

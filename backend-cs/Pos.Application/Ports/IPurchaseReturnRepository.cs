@@ -10,7 +10,7 @@ namespace PosCs.Application.Ports
     {
         PurchaseReturn Create(PurchaseReturn purchaseReturn, List<PurchaseReturnDetail> details);
 
-        PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId);
+        PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId, string branchId = null);
 
         /// <summary>Returned quantity per purchase line id across all posted returns.</summary>
         Dictionary<string, double> SumReturnedByPurchase(string purchaseInvoiceId);

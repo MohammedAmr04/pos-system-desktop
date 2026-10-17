@@ -1,7 +1,17 @@
 using System.Collections.Generic;
+using PosCs.Application.Models;
 
 namespace PosCs.Application.Ports
 {
+    public interface IPrintQueueRepository
+    {
+        void Enqueue(string jobType, string payload);
+        List<PrintJob> GetPending(int limit);
+        void MarkAttempt(string id, string error);
+        void MarkPrinted(string id);
+        PrintQueueStatus GetStatus();
+    }
+
     /// <summary>Outcome of a print operation. Message is user-facing and must be returned verbatim.
     /// Status is the HTTP status the endpoint should respond with.</summary>
     public sealed class PrintOutcome

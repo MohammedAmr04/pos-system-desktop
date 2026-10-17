@@ -142,6 +142,9 @@ namespace PosCs.Infrastructure.Persistence
 
                         UpdateReturnStatus(conn, tx, invoice);
 
+                        SyncOutboxWriter.Enqueue(conn, tx, "upsert", "PurchaseReturn", purchaseReturn.Id,
+                            new { purchaseReturn, details });
+
                         tx.Commit();
                     }
                     catch
@@ -155,15 +158,17 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId)
+        public PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
                 var where = " WHERE r.status = 'posted'";
                 if (!string.IsNullOrWhiteSpace(purchaseInvoiceId))
                     where += " AND r.purchaseInvoiceId = @purchaseInvoiceId";
+                if (!string.IsNullOrWhiteSpace(branchId))
+                    where += " AND r.branchId = @branchId";
 
-                var parameters = new { purchaseInvoiceId, pageSize, offset = (page - 1) * pageSize };
+                var parameters = new { purchaseInvoiceId, branchId, pageSize, offset = (page - 1) * pageSize };
 
                 var total = conn.ExecuteScalar<int>($"SELECT COUNT(1) FROM PurchaseReturn r{where}", parameters);
                 var items = conn.Query<PurchaseReturn>(

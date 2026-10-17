@@ -15,11 +15,13 @@ namespace PosCs.Application.Services
     {
         private readonly IPurchaseReturnRepository _returns;
         private readonly IPurchaseRepository _purchases;
+        private readonly IBranchContext _branchContext;
 
-        public PurchaseReturnService(IPurchaseReturnRepository returns, IPurchaseRepository purchases)
+        public PurchaseReturnService(IPurchaseReturnRepository returns, IPurchaseRepository purchases, IBranchContext branchContext)
         {
             _returns = returns;
             _purchases = purchases;
+            _branchContext = branchContext;
         }
 
         public PurchaseReturn Create(string purchaseInvoiceId, CreatePurchaseReturnRequest dto, string userId)
@@ -82,7 +84,7 @@ namespace PosCs.Application.Services
 
         public PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId)
         {
-            return _returns.GetPaged(page, pageSize, purchaseInvoiceId);
+            return _returns.GetPaged(page, pageSize, purchaseInvoiceId, _branchContext.ApplyScope(null));
         }
     }
 }

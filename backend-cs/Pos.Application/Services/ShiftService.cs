@@ -11,10 +11,12 @@ namespace PosCs.Application.Services
     public class ShiftService
     {
         private readonly IShiftRepository _shifts;
+        private readonly IBranchContext _branchContext;
 
-        public ShiftService(IShiftRepository shifts)
+        public ShiftService(IShiftRepository shifts, IBranchContext branchContext)
         {
             _shifts = shifts;
+            _branchContext = branchContext;
         }
 
         public Shift Open(OpenShiftRequest request, string userId)
@@ -52,11 +54,11 @@ namespace PosCs.Application.Services
             return _shifts.GetById(id);
         }
 
-        public ShiftPageResult GetPaged(string status, int page, int pageSize)
+        public ShiftPageResult GetPaged(string status, int page, int pageSize, string branchId = null)
         {
             if (pageSize > 100) pageSize = 100;
             if (page < 1) page = 1;
-            return _shifts.GetPaged(status, page, pageSize);
+            return _shifts.GetPaged(status, page, pageSize, _branchContext.ApplyScope(branchId));
         }
 
         public ShiftReport GetReport(string id)

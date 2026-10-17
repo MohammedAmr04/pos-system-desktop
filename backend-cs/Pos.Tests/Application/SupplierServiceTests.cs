@@ -31,7 +31,7 @@ namespace PosCs.Tests.Application
     {
         public List<PurchaseInvoice> Posted = new List<PurchaseInvoice>();
 
-        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize)
+        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize, string branchId = null)
         {
             return new PurchaseInvoicePageResult { Items = new List<PurchaseInvoice>(), Total = 0 };
         }
@@ -50,7 +50,7 @@ namespace PosCs.Tests.Application
     {
         public PurchaseReturn Create(PurchaseReturn purchaseReturn, List<PurchaseReturnDetail> details) { return purchaseReturn; }
 
-        public PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId)
+        public PurchaseReturnPageResult GetPaged(int page, int pageSize, string purchaseInvoiceId, string branchId = null)
         {
             return new PurchaseReturnPageResult { Items = new List<PurchaseReturn>(), Total = 0 };
         }

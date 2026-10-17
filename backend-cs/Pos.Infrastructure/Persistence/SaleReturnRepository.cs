@@ -178,7 +178,10 @@ namespace PosCs.Infrastructure.Persistence
                                 }, transaction: tx);
                         }
 
-                        UpdateReturnStatus(conn, tx, invoice);
+                        var invoiceReturnStatus = UpdateReturnStatus(conn, tx, invoice);
+
+                        SyncOutboxWriter.Enqueue(conn, tx, "upsert", "SaleReturn", saleReturn.Id,
+                            new { saleReturn, details, invoiceReturnStatus });
 
                         tx.Commit();
                     }
@@ -193,15 +196,17 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public SaleReturnPageResult GetPaged(int page, int pageSize, string invoiceId)
+        public SaleReturnPageResult GetPaged(int page, int pageSize, string invoiceId, string branchId = null)
         {
             using (var conn = DbConnectionFactory.CreateConnection())
             {
                 var where = " WHERE r.status = 'posted'";
                 if (!string.IsNullOrWhiteSpace(invoiceId))
                     where += " AND r.invoiceId = @invoiceId";
+                if (!string.IsNullOrWhiteSpace(branchId))
+                    where += " AND r.branchId = @branchId";
 
-                var parameters = new { invoiceId, pageSize, offset = (page - 1) * pageSize };
+                var parameters = new { invoiceId, branchId, pageSize, offset = (page - 1) * pageSize };
 
                 var total = conn.ExecuteScalar<int>(
                     $"SELECT COUNT(1) FROM SaleReturn r{where}", parameters);
@@ -283,7 +288,7 @@ namespace PosCs.Infrastructure.Persistence
 
         /// <summary>'partial' when some sellable quantity remains out, 'full' when every line
         /// has been completely returned.</summary>
-        private static void UpdateReturnStatus(SqliteConnection conn, SqliteTransaction tx, Invoice invoice)
+        private static string UpdateReturnStatus(SqliteConnection conn, SqliteTransaction tx, Invoice invoice)
         {
             var rows = conn.Query<StatusRow>(
                 "SELECT d.quantity AS Sold, " +
@@ -300,6 +305,7 @@ namespace PosCs.Infrastructure.Persistence
             if (status != null)
                 conn.Execute("UPDATE Invoice SET returnStatus = @status WHERE id = @id",
                     new { status, id = invoice.Id }, transaction: tx);
+            return status;
         }
 
         private static List<SaleReturnDetail> AttachDetails(SqliteConnection conn, SaleReturn saleReturn)

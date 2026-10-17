@@ -10,7 +10,7 @@ namespace PosCs.Application.Ports
     {
         Payment Create(Payment payment);
 
-        PaymentPageResult GetPaged(string clientId, string supplierId, string invoiceId, int page, int pageSize);
+        PaymentPageResult GetPaged(string clientId, string supplierId, string invoiceId, int page, int pageSize, string branchId = null);
 
         /// <summary>Total paid against one invoice/purchase id.</summary>
         double SumByInvoice(string invoiceId);

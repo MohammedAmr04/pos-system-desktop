@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using PosCs.Application.Ports;
 using PosCs.Application.Services;
 using PosCs.Domain.Entities;
@@ -19,29 +20,33 @@ namespace PosCs.Tests.Application
 
         public DateTime? LastFrom;
         public DateTime? LastTo;
+        public string LastBranchId;
 
-        public SalesReport GetSalesReport(DateTime from, DateTime to)
-        { LastFrom = from; LastTo = to; return SalesResult; }
+        public SalesReport GetSalesReport(DateTime from, DateTime to, string branchId = null)
+        { LastFrom = from; LastTo = to; LastBranchId = branchId; return SalesResult; }
 
-        public PurchasesReport GetPurchasesReport(DateTime from, DateTime to)
+        public PurchasesReport GetPurchasesReport(DateTime from, DateTime to, string branchId = null)
         { return PurchasesResult; }
 
-        public ProfitReport GetProfitReport(DateTime from, DateTime to)
+        public ProfitReport GetProfitReport(DateTime from, DateTime to, string branchId = null)
         { return ProfitResult; }
 
         public List<InventoryValuationRow> GetInventoryValuation()
         { return InventoryResult; }
 
-        public ReturnsReport GetReturnsReport(DateTime from, DateTime to)
+        public List<BranchStockRow> GetBranchStock(string branchId)
+        { LastBranchId = branchId; return InventoryResult.Select(r => new BranchStockRow { ProductId = r.ProductId, Quantity = r.StockQuantity }).ToList(); }
+
+        public ReturnsReport GetReturnsReport(DateTime from, DateTime to, string branchId = null)
         { return ReturnsResult; }
 
-        public ExpensesReport GetExpensesReport(DateTime from, DateTime to)
+        public ExpensesReport GetExpensesReport(DateTime from, DateTime to, string branchId = null)
         { return ExpensesResult; }
 
-        public CashReport GetCashReport(DateTime from, DateTime to)
+        public CashReport GetCashReport(DateTime from, DateTime to, string branchId = null)
         { return CashResult; }
 
-        public List<EmployeePerformanceRow> GetEmployeePerformance(DateTime from, DateTime to)
+        public List<EmployeePerformanceRow> GetEmployeePerformance(DateTime from, DateTime to, string branchId = null)
         { return new List<EmployeePerformanceRow>(); }
     }
 
@@ -66,7 +71,7 @@ namespace PosCs.Tests.Application
     public class ReportsServiceTests
     {
         private static ReportsService MakeService(FakeReportRepository repo) =>
-            new ReportsService(new FakeProductsRepository(), repo);
+            new ReportsService(new FakeProductsRepository(), repo, NullBranchContext.Instance);
 
         [Fact]
         public void LowStock_Filters_By_Policy()
@@ -75,7 +80,7 @@ namespace PosCs.Tests.Application
             products.Stored.Add(new Product { Name = "low", StockQuantity = 1, LowStockThreshold = 5 });
             products.Stored.Add(new Product { Name = "ok", StockQuantity = 10, LowStockThreshold = 5 });
 
-            var result = new ReportsService(products, new FakeReportRepository()).LowStock();
+            var result = new ReportsService(products, new FakeReportRepository(), NullBranchContext.Instance).LowStock();
 
             Assert.Single(result);
             Assert.Equal("low", result[0].Name);
@@ -93,6 +98,14 @@ namespace PosCs.Tests.Application
             Assert.Equal(100, report.NetSales);
             Assert.Equal(from, repo.LastFrom);
             Assert.Equal(to, repo.LastTo);
+        }
+
+        [Fact]
+        public void BranchStock_Requires_Branch()
+        {
+            var service = MakeService(new FakeReportRepository());
+
+            Assert.Throws<PosCs.Domain.Exceptions.DomainValidationException>(() => service.BranchStock("  "));
         }
 
         [Fact]

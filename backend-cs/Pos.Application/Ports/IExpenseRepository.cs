@@ -10,7 +10,7 @@ namespace PosCs.Application.Ports
     {
         Expense Create(Expense expense);
 
-        ExpensePageResult GetPaged(string categoryId, DateTime? from, DateTime? to, int page, int pageSize);
+        ExpensePageResult GetPaged(string categoryId, DateTime? from, DateTime? to, int page, int pageSize, string branchId = null);
 
         // Categories
         ExpenseCategory CreateCategory(ExpenseCategory category);

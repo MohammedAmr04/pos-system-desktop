@@ -20,11 +20,12 @@ namespace PosCs.Controllers
         [HttpGet]
         [RequirePermission("payments.view")]
         public HttpResponseMessage GetPaged([FromUri] int page = 1, [FromUri] int pageSize = 20,
-            [FromUri] string clientId = null, [FromUri] string supplierId = null, [FromUri] string invoiceId = null)
+            [FromUri] string clientId = null, [FromUri] string supplierId = null, [FromUri] string invoiceId = null,
+            [FromUri] string branchId = null)
         {
             try
             {
-                var result = _service.GetPaged(clientId, supplierId, invoiceId, page, pageSize);
+                var result = _service.GetPaged(clientId, supplierId, invoiceId, page, pageSize, branchId);
                 return Request.CreateResponse(HttpStatusCode.OK, new
                 {
                     items = result.Items,

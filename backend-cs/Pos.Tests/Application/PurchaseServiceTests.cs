@@ -15,7 +15,7 @@ namespace PosCs.Tests.Application
         public PurchaseInvoice LastSavedInvoice;
         public List<PurchaseInvoiceItem> LastSavedItems;
 
-        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize) =>
+        public PurchaseInvoicePageResult GetPaged(string status, string query, int page, int pageSize, string branchId = null) =>
             new PurchaseInvoicePageResult { Items = new List<PurchaseInvoice>(), Total = 0 };
 
         public PurchaseInvoice GetById(string id)
@@ -57,6 +57,13 @@ namespace PosCs.Tests.Application
 
     public class PurchaseServiceTests
     {
+        [Fact]
+        public void PurchaseCost_ConvertsSelectedUnitCostToBaseUnitCost()
+        {
+            Assert.Equal(3, PurchaseCost.PerBaseUnit(36, 12));
+            Assert.Equal(36, PurchaseCost.LineTotal(1, 3, 12));
+        }
+
         private static SavePurchaseRequest ValidRequest(string paymentMethod = "cash", string supplierId = null, string status = "draft")
         {
             return new SavePurchaseRequest
@@ -77,7 +84,7 @@ namespace PosCs.Tests.Application
             };
         }
 
-        private static PurchaseService ServiceWith(FakePurchaseRepository repo) => new PurchaseService(repo);
+        private static PurchaseService ServiceWith(FakePurchaseRepository repo) => new PurchaseService(repo, NullBranchContext.Instance);
 
         [Fact]
         public void Create_RequiresAtLeastOneLine()

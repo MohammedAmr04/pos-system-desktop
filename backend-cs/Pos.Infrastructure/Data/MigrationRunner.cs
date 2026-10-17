@@ -17,7 +17,7 @@ namespace PosCs.Infrastructure.Data
             var mutex = AcquireLock();
             try
             {
-                ApplyPendingLocked(conn);
+                ApplyPendingLocked(conn, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Migrations"));
             }
             finally
             {
@@ -30,6 +30,11 @@ namespace PosCs.Infrastructure.Data
                 }
                 mutex.Dispose();
             }
+        }
+
+        public static void ApplyPending(SqliteConnection conn, string migrationsDir)
+        {
+            ApplyPendingLocked(conn, migrationsDir);
         }
 
         private static Mutex AcquireLock()
@@ -63,7 +68,7 @@ namespace PosCs.Infrastructure.Data
             return mutex;
         }
 
-        private static void ApplyPendingLocked(SqliteConnection conn)
+        private static void ApplyPendingLocked(SqliteConnection conn, string migrationsDir)
         {
             // Create tracking table
             conn.Execute(@"
@@ -77,7 +82,6 @@ namespace PosCs.Infrastructure.Data
                 StringComparer.OrdinalIgnoreCase
             );
 
-            var migrationsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Migrations");
             if (!Directory.Exists(migrationsDir))
             {
                 Console.WriteLine("[MIGRATIONS] No migrations directory found");
@@ -128,16 +132,22 @@ namespace PosCs.Infrastructure.Data
         {
             var statements = new List<string>();
             var current = new System.Text.StringBuilder();
+            var inTrigger = false;
             foreach (var line in sql.Split('\n'))
             {
                 var trimmed = line.Trim();
                 if (trimmed.StartsWith("--") || trimmed.StartsWith("#"))
                     continue;
                 current.AppendLine(line);
-                if (trimmed.EndsWith(";"))
+                if (!inTrigger && trimmed.StartsWith("CREATE TRIGGER", StringComparison.OrdinalIgnoreCase))
+                    inTrigger = true;
+
+                var endsTrigger = inTrigger && string.Equals(trimmed, "END;", StringComparison.OrdinalIgnoreCase);
+                if ((!inTrigger && trimmed.EndsWith(";")) || endsTrigger)
                 {
                     statements.Add(current.ToString().Trim());
                     current.Clear();
+                    inTrigger = false;
                 }
             }
             if (current.ToString().Trim().Length > 0)
