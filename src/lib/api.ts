@@ -1,6 +1,7 @@
 import { clearStoredSession, getStoredToken } from "@/lib/auth-storage"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const rawApiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+const API_BASE = rawApiBase === '__SAME_ORIGIN__' ? '' : rawApiBase
 
 export const AUTH_EXPIRED_EVENT = 'pos:auth-expired'
 
