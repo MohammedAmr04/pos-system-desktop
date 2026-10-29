@@ -5,29 +5,32 @@ It pushes pending local operations to the central API and pulls central change-l
 the branch. It persists its pull cursor in `data/sync-cursor.txt`, so restarting the machine does
 not lose progress.
 
-Required environment variables:
+The agent authenticates with the branch key only. There is no user access token and no refresh
+cycle. It reads its central URL, branch id, and branch key from the local backend every loop, so a
+branch configured through the setup screen starts syncing without editing environment variables or
+restarting the agent.
+
+## Branch setup
+
+1. On the central node, create the branch. The central generates the branch key once and optionally
+   creates the first terminal.
+2. Copy the setup code shown after branch creation.
+3. On the branch computer, complete the first-run setup and paste the setup code. The code fills the
+   central URL, branch id, terminal id, and branch key.
+4. `start.bat` starts `pos-branch-agent.exe` automatically. The agent idles until setup is complete,
+   then begins pushing and pulling.
+
+Optional environment overrides:
 
 ```text
 POS_CENTRAL_URL=https://central.example.com
-POS_SYNC_TOKEN=<dedicated service token>
-```
-
-Optional variables:
-
-```text
 POS_BRANCH_LOCAL_URL=http://localhost:3001
 POS_SYNC_POLL_SECONDS=5
 ```
 
-For the Friboles branch, create `branch-agent.env` beside `start.bat` from
-`branch-agent.env.example`, set the central URL and branch service token, and
-use `POS_BRANCH_ID=friboles` as the installation label.
+The local agent endpoints (`/api/local-agent/*`) are loopback-only. The central branch endpoints
+(`/api/branch-sync/*`) require `X-Branch-Id` and `X-Branch-Key`.
 
-`start.bat` starts the local POS server first and then starts the BranchAgent
-when the required central URL and token are present. The agent also retries
-receipt jobs stored in the local `PrintQueue`; a retry uses a private request
-header so a failed retry does not create a second queue entry.
-
-The central URL must use HTTPS in production. The token should be dedicated to the branch agent,
-rotated periodically, and never committed to source control. Branch filtering on central change
-pulls and a dedicated branch-key handshake remain production hardening work.
+The central URL must use HTTPS in production so the long-lived branch key is not sent in clear
+text. Rotate a branch key from Settings → Branches if it is lost or exposed; the old key stops
+working immediately.
