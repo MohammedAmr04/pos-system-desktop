@@ -722,6 +722,7 @@ export interface Branch {
   name: string
   address: string | null
   isActive: boolean
+  hasSyncKey: boolean
   createdAt: string
   updatedAt: string
 }
@@ -747,7 +748,6 @@ export interface BranchRuntimeContext {
 
 export interface BranchAgentConfig {
   centralBaseUrl: string | null
-  centralToken: string | null
   branchId: string | null
   branchKey: string | null
   nodeRole: string | null
@@ -778,13 +778,24 @@ export interface BranchAssignmentResult {
   outcome: string
 }
 
-export interface CreateBranchInput { code: string; name: string; address?: string | null }
+export interface CreateBranchInput {
+  code: string
+  name: string
+  address?: string | null
+  createFirstTerminal?: boolean
+  terminalName?: string | null
+}
+export interface CreateBranchResult {
+  branch: Branch
+  terminal: Terminal | null
+  syncKey: string
+}
 export interface UpdateBranchInput { code: string; name: string; address?: string | null }
 export interface CreateTerminalInput { branchId: string; name: string; notes?: string | null }
 export interface UpdateTerminalInput { name: string; notes?: string | null; branchId?: string }
 export interface BranchSwitchInput { requestId?: string; terminalId?: string; targetBranchId: string; targetBranchKey?: string | null }
 export interface BranchRuntimeInput { branchId: string; terminalId: string; nodeRole: 'branch' | 'central'; centralBaseUrl?: string | null }
-export interface BranchCredentialsInput { centralToken?: string | null; centralBranchKey?: string | null }
+export interface BranchCredentialsInput { centralBranchKey?: string | null }
 
 export interface SetupStatus { setupComplete: boolean; nodeRole: string }
 export interface BranchSetupInput {
@@ -793,6 +804,5 @@ export interface BranchSetupInput {
   branchId?: string | null
   terminalId?: string | null
   branchKey?: string | null
-  syncToken?: string | null
 }
 export interface BranchEnrollmentResult { branchId: string | null; verified: boolean }

@@ -7,11 +7,13 @@ import {
   deactivateBranch,
   deleteBranch,
   requestBranchSwitch,
+  resetBranchSecret,
   saveBranchCredentials,
   setBranchSecret,
   updateBranch,
 } from "@/api/branches"
 import { branchesKeys } from "@/hooks/use-branches"
+import { terminalsKeys } from "@/hooks/use-terminals"
 import {
   BranchCredentialsInput,
   BranchRuntimeInput,
@@ -23,6 +25,7 @@ import {
 
 async function invalidateBranches() {
   await queryClient.invalidateQueries({ queryKey: branchesKeys.all })
+  await queryClient.invalidateQueries({ queryKey: terminalsKeys.all })
 }
 
 export async function createBranchAction(data: CreateBranchInput) {
@@ -51,6 +54,12 @@ export async function deleteBranchAction(id: string) {
 
 export async function setBranchSecretAction(id: string, key: string) {
   const result = await setBranchSecret(id, key)
+  await invalidateBranches()
+  return result
+}
+
+export async function resetBranchSecretAction(id: string) {
+  const result = await resetBranchSecret(id)
   await invalidateBranches()
   return result
 }

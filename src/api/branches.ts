@@ -9,6 +9,7 @@ import {
   BranchSetupInput,
   BranchSwitchInput,
   CreateBranchInput,
+  CreateBranchResult,
   PagedMasterData,
   SetupStatus,
   Terminal,
@@ -48,7 +49,7 @@ export function listBranchTerminals(id: string) {
 }
 
 export function createBranch(data: CreateBranchInput) {
-  return request<Branch>('/api/branch', { method: 'POST', body: JSON.stringify(data) })
+  return request<CreateBranchResult>('/api/branch', { method: 'POST', body: JSON.stringify(data) })
 }
 
 export function updateBranch(id: string, data: UpdateBranchInput) {
@@ -69,6 +70,10 @@ export function deleteBranch(id: string) {
 
 export function setBranchSecret(id: string, key: string) {
   return request<{ success: boolean }>(`/api/branch/${id}/secret`, { method: 'POST', body: JSON.stringify({ key }) })
+}
+
+export function resetBranchSecret(id: string) {
+  return request<{ success: boolean; key: string }>(`/api/branch/${id}/secret/reset`, { method: 'POST' })
 }
 
 export function saveBranchCredentials(data: BranchCredentialsInput) {

@@ -51,7 +51,6 @@ function RuntimeForm({ context }: { context: BranchRuntimeContext | null }) {
   const [branchId, setBranchId] = useState(context?.branch?.id ?? "")
   const [terminalId, setTerminalId] = useState(context?.terminal?.id ?? "")
   const [centralBaseUrl, setCentralBaseUrl] = useState(context?.centralBaseUrl ?? "")
-  const [centralToken, setCentralToken] = useState("")
   const [centralBranchKey, setCentralBranchKey] = useState("")
   const [isSaving, setIsSaving] = useState(false)
   const [isSavingSecrets, setIsSavingSecrets] = useState(false)
@@ -80,10 +79,8 @@ function RuntimeForm({ context }: { context: BranchRuntimeContext | null }) {
     setIsSavingSecrets(true)
     try {
       await saveBranchCredentialsAction({
-        centralToken: centralToken.trim() || null,
         centralBranchKey: centralBranchKey.trim() || null,
       })
-      setCentralToken("")
       setCentralBranchKey("")
       toast.success(t("credentialsSaved"))
     } catch (e) {
@@ -167,15 +164,6 @@ function RuntimeForm({ context }: { context: BranchRuntimeContext | null }) {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <label className="text-sm font-medium">{t("centralToken")}</label>
-            <Input
-              value={centralToken}
-              onChange={(e) => setCentralToken(e.target.value)}
-              placeholder={t("unchanged")}
-              dir="ltr"
-            />
-          </div>
-          <div className="space-y-2">
             <label className="text-sm font-medium">{t("centralBranchKey")}</label>
             <Input
               value={centralBranchKey}
@@ -188,7 +176,7 @@ function RuntimeForm({ context }: { context: BranchRuntimeContext | null }) {
         <Button
           variant="outline"
           onClick={handleSaveSecrets}
-          disabled={isSavingSecrets || (!centralToken.trim() && !centralBranchKey.trim())}
+          disabled={isSavingSecrets || !centralBranchKey.trim()}
         >
           {isSavingSecrets ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           {t("saveCredentials")}

@@ -116,6 +116,21 @@ export function BranchesClient() {
       ),
     },
     {
+      key: "syncKey",
+      header: t("syncKey"),
+      cell: (branch) => (
+        <span
+          className={
+            branch.hasSyncKey
+              ? "inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600"
+              : "inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600"
+          }
+        >
+          {branch.hasSyncKey ? t("syncKeyConfigured") : t("syncKeyMissing")}
+        </span>
+      ),
+    },
+    {
       key: "actions",
       header: t("actions"),
       headClassName: "w-40",
@@ -182,6 +197,7 @@ export function BranchesClient() {
       />
 
       <BranchSecretDialog
+        key={secretBranch?.id ?? "none"}
         branch={secretBranch}
         onOpenChange={(open) => !open && setSecretBranch(null)}
       />

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -24,8 +25,7 @@ function makeSchema(t: (key: string) => string) {
       .refine((v) => /^https?:\/\//i.test(v), invalidUrl),
     branchId: z.string().trim().min(1, required),
     terminalId: z.string().trim().min(1, required),
-    branchKey: z.string().trim(),
-    syncToken: z.string().trim().min(1, required),
+    branchKey: z.string().trim().min(16, t("branchKeyMin")),
   })
 }
 
@@ -34,10 +34,12 @@ type BranchSetupValues = z.infer<ReturnType<typeof makeSchema>>
 export function BranchSetupForm({ onBack }: { onBack: () => void }) {
   const t = useTranslations("Setup")
   const resolveError = useApiError()
+  const [setupCode, setSetupCode] = useState("")
 
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<BranchSetupValues>({
     resolver: zodResolver(makeSchema(t as (key: string) => string)),
@@ -46,9 +48,23 @@ export function BranchSetupForm({ onBack }: { onBack: () => void }) {
       branchId: "",
       terminalId: "",
       branchKey: "",
-      syncToken: "",
     },
   })
+
+  function applySetupCode() {
+    try {
+      const raw = setupCode.trim()
+      const json = raw.startsWith("{") ? raw : atob(raw)
+      const data = JSON.parse(json) as Partial<BranchSetupValues>
+      if (data.centralBaseUrl) setValue("centralBaseUrl", data.centralBaseUrl)
+      if (data.branchId) setValue("branchId", data.branchId)
+      if (data.terminalId) setValue("terminalId", data.terminalId)
+      if (data.branchKey) setValue("branchKey", data.branchKey)
+      toast.success(t("setupCodeApplied"))
+    } catch {
+      toast.error(t("setupCodeInvalid"))
+    }
+  }
 
   async function onSubmit(values: BranchSetupValues) {
     try {
@@ -57,8 +73,7 @@ export function BranchSetupForm({ onBack }: { onBack: () => void }) {
         centralBaseUrl: values.centralBaseUrl.trim(),
         branchId: values.branchId.trim(),
         terminalId: values.terminalId.trim(),
-        branchKey: values.branchKey.trim() || null,
-        syncToken: values.syncToken.trim(),
+        branchKey: values.branchKey.trim(),
       })
       toast.success(t("completeTitle"))
     } catch (e) {
@@ -74,6 +89,21 @@ export function BranchSetupForm({ onBack }: { onBack: () => void }) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+            <label className="text-sm font-medium">{t("setupCode")}</label>
+            <div className="flex gap-2">
+              <Input
+                dir="ltr"
+                value={setupCode}
+                onChange={(e) => setSetupCode(e.target.value)}
+                placeholder={t("setupCodePlaceholder")}
+              />
+              <Button type="button" variant="outline" onClick={applySetupCode} disabled={!setupCode.trim()}>
+                {t("applySetupCode")}
+              </Button>
+            </div>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <label className="text-sm font-medium">{t("centralBaseUrl")}</label>
@@ -96,12 +126,7 @@ export function BranchSetupForm({ onBack }: { onBack: () => void }) {
             <div className="space-y-2">
               <label className="text-sm font-medium">{t("branchKey")}</label>
               <Input dir="ltr" placeholder={t("branchKeyPlaceholder")} {...register("branchKey")} />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{t("syncToken")}</label>
-              <Input dir="ltr" placeholder={t("syncTokenPlaceholder")} {...register("syncToken")} />
-              {errors.syncToken && <p className="text-sm text-destructive">{errors.syncToken.message}</p>}
+              {errors.branchKey && <p className="text-sm text-destructive">{errors.branchKey.message}</p>}
             </div>
           </div>
 
