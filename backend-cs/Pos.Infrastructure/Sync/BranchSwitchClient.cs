@@ -1,7 +1,6 @@
 using System;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using Newtonsoft.Json;
 using PosCs.Application.Models;
@@ -16,20 +15,18 @@ namespace PosCs.Infrastructure.Sync
         {
             if (config == null || string.IsNullOrWhiteSpace(config.CentralBaseUrl))
                 throw new DomainValidationException("Central server is not configured for this terminal");
-            if (string.IsNullOrWhiteSpace(config.CentralToken))
-                throw new DomainValidationException("Central sync credentials are not configured for this terminal");
+            if (string.IsNullOrWhiteSpace(config.BranchKey))
+                throw new DomainValidationException("Central branch key is not configured for this terminal");
 
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
 
             using (var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) })
             {
-                http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", config.CentralToken);
                 if (!string.IsNullOrWhiteSpace(currentBranchId))
                     http.DefaultRequestHeaders.Add("X-Branch-Id", currentBranchId);
-                if (!string.IsNullOrWhiteSpace(config.BranchKey))
-                    http.DefaultRequestHeaders.Add("X-Branch-Key", config.BranchKey);
+                http.DefaultRequestHeaders.Add("X-Branch-Key", config.BranchKey);
 
-                var url = config.CentralBaseUrl.TrimEnd('/') + "/api/branch/switch";
+                var url = config.CentralBaseUrl.TrimEnd('/') + "/api/branch-sync/switch";
                 var json = JsonConvert.SerializeObject(request);
                 using (var content = new StringContent(json, Encoding.UTF8, "application/json"))
                 using (var response = http.PostAsync(url, content).GetAwaiter().GetResult())
@@ -48,20 +45,18 @@ namespace PosCs.Infrastructure.Sync
         {
             if (config == null || string.IsNullOrWhiteSpace(config.CentralBaseUrl))
                 throw new DomainValidationException("Central server is not configured for this terminal");
-            if (string.IsNullOrWhiteSpace(config.CentralToken))
-                throw new DomainValidationException("Central sync credentials are not configured for this terminal");
+            if (string.IsNullOrWhiteSpace(config.BranchKey))
+                throw new DomainValidationException("Central branch key is not configured for this terminal");
 
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
 
             using (var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) })
             {
-                http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", config.CentralToken);
                 if (!string.IsNullOrWhiteSpace(config.BranchId))
                     http.DefaultRequestHeaders.Add("X-Branch-Id", config.BranchId);
-                if (!string.IsNullOrWhiteSpace(config.BranchKey))
-                    http.DefaultRequestHeaders.Add("X-Branch-Key", config.BranchKey);
+                http.DefaultRequestHeaders.Add("X-Branch-Key", config.BranchKey);
 
-                var url = config.CentralBaseUrl.TrimEnd('/') + "/api/branch/switch/" + Uri.EscapeDataString(requestId);
+                var url = config.CentralBaseUrl.TrimEnd('/') + "/api/branch-sync/switch/" + Uri.EscapeDataString(requestId);
                 using (var response = http.GetAsync(url).GetAwaiter().GetResult())
                 {
                     var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();

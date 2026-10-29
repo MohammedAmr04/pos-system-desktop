@@ -145,6 +145,37 @@ namespace PosCs.Tests.Application
         }
 
         [Fact]
+        public void CentralSwitch_RejectsTerminalFromAnotherBranchForBranchKeyCaller()
+        {
+            var branches = new FakeBranchRepo();
+            var terminals = new FakeTerminalRepo();
+            SeedCentral(branches, terminals, enrollKey: false);
+            var service = Make(branches, terminals, new FakeAssignmentRepo(), new FakeSyncRepo(), new FakeSwitchClient(), Auth(branches));
+
+            Assert.Throws<DomainValidationException>(() => service.CentralSwitch("b2", "branch-agent", new BranchSwitchRequest
+            {
+                RequestId = "req-1",
+                TerminalId = "t1",
+                TargetBranchId = "b1"
+            }));
+        }
+
+        [Fact]
+        public void GetCentralAssignmentForBranch_AllowsSourceAndTargetOnly()
+        {
+            var branches = new FakeBranchRepo();
+            var terminals = new FakeTerminalRepo();
+            var history = new FakeAssignmentRepo();
+            SeedCentral(branches, terminals, enrollKey: false);
+            var service = Make(branches, terminals, history, new FakeSyncRepo(), new FakeSwitchClient(), Auth(branches));
+            service.CentralSwitch("b1", "admin", new BranchSwitchRequest { RequestId = "req-1", TerminalId = "t1", TargetBranchId = "b2" });
+
+            Assert.Equal("b2", service.GetCentralAssignmentForBranch("req-1", "b1").BranchId);
+            Assert.Equal("b2", service.GetCentralAssignmentForBranch("req-1", "b2").BranchId);
+            Assert.Throws<NotFoundException>(() => service.GetCentralAssignmentForBranch("req-1", "b3"));
+        }
+
+        [Fact]
         public void LocalSwitch_BlocksWhenOutboxNotDrained()
         {
             var branches = new FakeBranchRepo();

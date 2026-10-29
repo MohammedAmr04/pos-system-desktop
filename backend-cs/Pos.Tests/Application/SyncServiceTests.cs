@@ -119,7 +119,7 @@ namespace PosCs.Tests.Application
             public bool HasTransactionReferences(string branchId) { return false; }
             public List<PosCs.Domain.Entities.Terminal> GetTerminals(string branchId) { return new List<PosCs.Domain.Entities.Terminal>(); }
             public void SaveRuntimeContext(string branchId, string terminalId, string nodeRole, string centralBaseUrl) { }
-            public void SaveRuntimeCredentials(string centralToken, string centralBranchKey) { }
+            public void SaveRuntimeCredentials(string centralBranchKey) { }
             public BranchAgentConfig GetAgentConfig() { return new BranchAgentConfig(); }
             public string GetRuntimeStatus() { return null; }
             public void SetRuntimeStatus(string status) { }

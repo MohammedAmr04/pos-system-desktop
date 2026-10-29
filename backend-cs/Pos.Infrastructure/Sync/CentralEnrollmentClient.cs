@@ -1,7 +1,6 @@
 using System;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using Newtonsoft.Json;
 using PosCs.Application.Models;
 using PosCs.Application.Ports;
@@ -13,7 +12,7 @@ namespace PosCs.Infrastructure.Sync
     /// the terminal persists any enrollment. Failures throw so setup does not save bad config.</summary>
     public class CentralEnrollmentClient : IBranchEnrollmentClient
     {
-        public BranchEnrollmentResult VerifyCentral(string centralBaseUrl, string branchId, string branchKey, string syncToken)
+        public BranchEnrollmentResult VerifyCentral(string centralBaseUrl, string branchId, string branchKey)
         {
             if (string.IsNullOrWhiteSpace(centralBaseUrl))
                 throw new DomainValidationException("Central server URL is required");
@@ -40,8 +39,6 @@ namespace PosCs.Infrastructure.Sync
                     throw new DomainValidationException("Central server is unreachable: " + ex.Message);
                 }
 
-                if (!string.IsNullOrWhiteSpace(syncToken))
-                    http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", syncToken.Trim());
                 if (!string.IsNullOrWhiteSpace(branchId))
                     http.DefaultRequestHeaders.Add("X-Branch-Id", branchId.Trim());
                 if (!string.IsNullOrWhiteSpace(branchKey))

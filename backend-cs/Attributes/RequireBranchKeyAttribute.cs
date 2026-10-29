@@ -22,6 +22,8 @@ namespace PosCs.Attributes
     {
         public const string BranchIdProperty = "PosCs.SyncBranchId";
 
+        public bool Strict { get; set; }
+
         public bool AllowMultiple => false;
 
         public Task<HttpResponseMessage> ExecuteAuthorizationFilterAsync(
@@ -29,14 +31,29 @@ namespace PosCs.Attributes
             CancellationToken cancellationToken,
             Func<Task<HttpResponseMessage>> continuation)
         {
-            if (!IsCentralNode())
-                return continuation();
-
             var request = actionContext.Request;
+            if (!IsCentralNode())
+            {
+                if (!Strict)
+                    return continuation();
+                var wrongNode = request.CreateResponse(HttpStatusCode.Unauthorized,
+                    new { error = "Branch key authentication is only available on the central node" });
+                return Task.FromResult(wrongNode);
+            }
+
             var branchId = Header(request, "X-Branch-Id");
             var key = Header(request, "X-Branch-Key");
 
             var state = CompositionRoot.BranchAuthService.VerifyKey(branchId, key);
+            if (Strict && state != BranchSecretState.Valid)
+            {
+                var message = state == BranchSecretState.NotConfigured
+                    ? "Branch key is not configured"
+                    : "Invalid branch key";
+                var denied = request.CreateResponse(HttpStatusCode.Unauthorized, new { error = message });
+                return Task.FromResult(denied);
+            }
+
             if (state == BranchSecretState.Invalid)
             {
                 var denied = request.CreateResponse(HttpStatusCode.Unauthorized,

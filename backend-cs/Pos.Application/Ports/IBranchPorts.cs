@@ -20,7 +20,7 @@ namespace PosCs.Application.Ports
         List<Terminal> GetTerminals(string branchId);
         void EnsureBranchAndTerminal(string branchId, string terminalId);
         void SaveRuntimeContext(string branchId, string terminalId, string nodeRole, string centralBaseUrl);
-        void SaveRuntimeCredentials(string centralToken, string centralBranchKey);
+        void SaveRuntimeCredentials(string centralBranchKey);
         BranchAgentConfig GetAgentConfig();
         bool IsSetupComplete();
         void MarkSetupComplete();
@@ -63,7 +63,7 @@ namespace PosCs.Application.Ports
     /// branch key is accepted before the runtime config is persisted. Implemented in Infrastructure.</summary>
     public interface IBranchEnrollmentClient
     {
-        BranchEnrollmentResult VerifyCentral(string centralBaseUrl, string branchId, string branchKey, string syncToken);
+        BranchEnrollmentResult VerifyCentral(string centralBaseUrl, string branchId, string branchKey);
     }
 
     public interface ISyncRepository

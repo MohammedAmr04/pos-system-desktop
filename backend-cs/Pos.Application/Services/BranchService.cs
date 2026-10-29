@@ -124,10 +124,9 @@ namespace PosCs.Application.Services
             _repository.SaveRuntimeContext(branchId.Trim(), terminalId.Trim(), nodeRole, centralBaseUrl == null ? null : centralBaseUrl.Trim());
         }
 
-        public void SaveCredentials(string centralToken, string centralBranchKey)
+        public void SaveCredentials(string centralBranchKey)
         {
-            _repository.SaveRuntimeCredentials(centralToken == null ? null : centralToken.Trim(),
-                centralBranchKey == null ? null : centralBranchKey.Trim());
+            _repository.SaveRuntimeCredentials(centralBranchKey == null ? null : centralBranchKey.Trim());
         }
 
         public BranchAgentConfig GetAgentConfig()
@@ -176,19 +175,18 @@ namespace PosCs.Application.Services
                 throw new DomainValidationException("Branch id is required");
             if (string.IsNullOrWhiteSpace(request.TerminalId))
                 throw new DomainValidationException("Terminal id is required");
-            var syncToken = (request.SyncToken ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(syncToken))
-                throw new DomainValidationException("Sync token is required");
             var branchKey = (request.BranchKey ?? string.Empty).Trim();
+            if (branchKey.Length < BranchAuthService.MinimumKeyLength)
+                throw new DomainValidationException($"Branch key must be at least {BranchAuthService.MinimumKeyLength} characters");
 
             var branchIdValue = request.BranchId.Trim();
             var terminalIdValue = request.TerminalId.Trim();
 
-            _enrollmentClient.VerifyCentral(centralBaseUrl, branchIdValue, branchKey, syncToken);
+            _enrollmentClient.VerifyCentral(centralBaseUrl, branchIdValue, branchKey);
 
             _repository.EnsureBranchAndTerminal(branchIdValue, terminalIdValue);
             Configure(branchIdValue, terminalIdValue, "branch", centralBaseUrl);
-            SaveCredentials(syncToken, branchKey);
+            SaveCredentials(branchKey);
             _repository.MarkSetupComplete();
         }
     }

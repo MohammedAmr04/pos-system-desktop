@@ -162,8 +162,7 @@ namespace PosCs.Tests.Application
                 CentralBaseUrl = "https://central.example.com",
                 BranchId = "br-1",
                 TerminalId = "t1",
-                BranchKey = "key-1234567890abcd",
-                SyncToken = "token"
+                BranchKey = "key-1234567890abcd"
             });
 
             Assert.Equal(1, enrollment.Calls);
@@ -171,7 +170,7 @@ namespace PosCs.Tests.Application
             Assert.True(repo.SetupComplete);
             Assert.Single(repo.EnsuredPairs);
             Assert.Equal("branch", repo.RuntimeContext.NodeRole);
-            Assert.Equal("token", repo.AgentConfig.CentralToken);
+            Assert.Equal("key-1234567890abcd", repo.AgentConfig.BranchKey);
         }
 
         [Fact]
@@ -185,7 +184,7 @@ namespace PosCs.Tests.Application
                 CentralBaseUrl = "https://central.example.com",
                 BranchId = "br-1",
                 TerminalId = "t1",
-                SyncToken = "token"
+                BranchKey = "key-1234567890abcd"
             }));
 
             Assert.False(repo.SetupComplete);
@@ -194,10 +193,11 @@ namespace PosCs.Tests.Application
         }
 
         [Theory]
-        [InlineData("", "t1", "token", "url")]
-        [InlineData("br-1", "", "token", "url")]
+        [InlineData("", "t1", "key-1234567890abcd", "url")]
+        [InlineData("br-1", "", "key-1234567890abcd", "url")]
         [InlineData("br-1", "t1", "", "url")]
-        public void Setup_Branch_RequiresBranchTerminalToken(string branchId, string terminalId, string token, string url)
+        [InlineData("br-1", "t1", "short", "url")]
+        public void Setup_Branch_RequiresBranchTerminalAndKey(string branchId, string terminalId, string branchKey, string url)
         {
             var repo = new FakeBranchRepo();
             Assert.Throws<DomainValidationException>(() => Make(repo).Setup(new BranchSetupRequest
@@ -206,7 +206,7 @@ namespace PosCs.Tests.Application
                 CentralBaseUrl = url,
                 BranchId = branchId,
                 TerminalId = terminalId,
-                SyncToken = token
+                BranchKey = branchKey
             }));
         }
     }

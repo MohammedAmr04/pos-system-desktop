@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Threading;
 using Newtonsoft.Json;
 using PosCs.Application.Models;
@@ -22,7 +21,6 @@ namespace PosCs.BranchAgent
             _config = config;
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             _http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.Token);
             if (!string.IsNullOrWhiteSpace(_config.BranchId))
                 _http.DefaultRequestHeaders.Add("X-Branch-Id", _config.BranchId);
             if (!string.IsNullOrWhiteSpace(_config.BranchKey))
@@ -74,19 +72,17 @@ namespace PosCs.BranchAgent
         {
             try
             {
-                var cfg = Get<BranchAgentConfigDto>(_config.LocalBaseUrl + "/api/branch/agent-config");
+                var cfg = Get<BranchAgentConfigDto>(_config.LocalBaseUrl + "/api/local-agent/config");
                 if (cfg == null) return;
 
                 var changed = !string.Equals(_config.BranchId, cfg.BranchId ?? string.Empty, StringComparison.OrdinalIgnoreCase)
                     || !string.Equals(_config.BranchKey, cfg.BranchKey ?? string.Empty, StringComparison.Ordinal)
-                    || !string.Equals(_config.Token, cfg.CentralToken ?? string.Empty, StringComparison.Ordinal)
                     || !string.Equals(_config.NodeRole, cfg.NodeRole ?? string.Empty, StringComparison.OrdinalIgnoreCase)
                     || !string.Equals(_config.CentralBaseUrl, (cfg.CentralBaseUrl ?? string.Empty).TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
                 if (!changed) return;
 
-                _config.Apply(cfg.CentralBaseUrl, cfg.CentralToken, cfg.BranchId, cfg.BranchKey, cfg.NodeRole);
+                _config.Apply(cfg.CentralBaseUrl, cfg.BranchId, cfg.BranchKey, cfg.NodeRole);
 
-                _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _config.Token);
                 _http.DefaultRequestHeaders.Remove("X-Branch-Id");
                 _http.DefaultRequestHeaders.Remove("X-Branch-Key");
                 if (!string.IsNullOrWhiteSpace(_config.BranchId))
@@ -105,10 +101,10 @@ namespace PosCs.BranchAgent
 
         private void PushPending()
         {
-            var pending = Get<List<SyncOperation>>(_config.LocalBaseUrl + "/api/sync/pending?limit=50");
+            var pending = Get<List<SyncOperation>>(_config.LocalBaseUrl + "/api/local-agent/sync/pending?limit=50");
             if (pending == null || pending.Count == 0) return;
 
-            var result = Post<SyncReceiveResult>(_config.CentralBaseUrl + "/api/sync/receive", new SyncPushRequest { Operations = pending });
+            var result = Post<SyncReceiveResult>(_config.CentralBaseUrl + "/api/branch-sync/receive", new SyncPushRequest { Operations = pending });
             if (result == null)
             {
                 Console.Error.WriteLine("[AGENT ERR] Central receive returned no result; not acknowledging " + pending.Count + " operation(s)");
@@ -129,12 +125,12 @@ namespace PosCs.BranchAgent
                 string error;
                 if (failures.TryGetValue(operation.Id, out error))
                 {
-                    Post(_config.LocalBaseUrl + "/api/sync/" + Uri.EscapeDataString(operation.Id) + "/attempt",
+                    Post(_config.LocalBaseUrl + "/api/local-agent/sync/" + Uri.EscapeDataString(operation.Id) + "/attempt",
                         new { error = string.IsNullOrWhiteSpace(error) ? "Central apply failed" : error });
                 }
                 else
                 {
-                    Post(_config.LocalBaseUrl + "/api/sync/" + Uri.EscapeDataString(operation.Id) + "/ack", new { });
+                    Post(_config.LocalBaseUrl + "/api/local-agent/sync/" + Uri.EscapeDataString(operation.Id) + "/ack", new { });
                 }
             }
 
@@ -147,7 +143,7 @@ namespace PosCs.BranchAgent
             var branchQuery = string.IsNullOrWhiteSpace(_config.BranchId)
                 ? string.Empty
                 : "&branchId=" + Uri.EscapeDataString(_config.BranchId);
-            var changes = Get<List<SyncChange>>(_config.CentralBaseUrl + "/api/sync/changes?afterVersion=" + cursor + "&limit=100" + branchQuery);
+            var changes = Get<List<SyncChange>>(_config.CentralBaseUrl + "/api/branch-sync/changes?afterVersion=" + cursor + "&limit=100" + branchQuery);
             if (changes == null || changes.Count == 0) return;
 
             var operations = new List<SyncOperation>();
@@ -165,7 +161,7 @@ namespace PosCs.BranchAgent
                     OccurredAt = change.CreatedAt
                 });
             }
-            var applied = Post<SyncReceiveResult>(_config.LocalBaseUrl + "/api/sync/receive", new SyncPushRequest { Operations = operations });
+            var applied = Post<SyncReceiveResult>(_config.LocalBaseUrl + "/api/local-agent/sync/apply", new SyncPushRequest { Operations = operations });
             if (applied == null || !applied.Success)
             {
                 var failedCount = applied == null ? changes.Count : applied.Failed.Count;
@@ -178,7 +174,7 @@ namespace PosCs.BranchAgent
 
         private void RetryPrintQueue()
         {
-            var jobs = Get<List<PrintJob>>(_config.LocalBaseUrl + "/api/printing/queue/pending?limit=10");
+            var jobs = Get<List<PrintJob>>(_config.LocalBaseUrl + "/api/local-agent/printing/queue/pending?limit=10");
             if (jobs == null || jobs.Count == 0) return;
 
             foreach (var job in jobs)
@@ -186,15 +182,15 @@ namespace PosCs.BranchAgent
                 try
                 {
                     var payload = JsonConvert.DeserializeObject<object>(job.Payload);
-                    Post(_config.LocalBaseUrl + "/api/printing/print", payload, true);
-                    Post(_config.LocalBaseUrl + "/api/printing/queue/" + Uri.EscapeDataString(job.Id) + "/printed", new { });
+                    Post(_config.LocalBaseUrl + "/api/local-agent/printing/print", payload, true);
+                    Post(_config.LocalBaseUrl + "/api/local-agent/printing/queue/" + Uri.EscapeDataString(job.Id) + "/printed", new { });
                     Console.WriteLine("[AGENT] Printed queued job " + job.Id);
                 }
                 catch (Exception ex)
                 {
                     try
                     {
-                        Post(_config.LocalBaseUrl + "/api/printing/queue/" + Uri.EscapeDataString(job.Id) + "/failed", new { error = ex.Message });
+                        Post(_config.LocalBaseUrl + "/api/local-agent/printing/queue/" + Uri.EscapeDataString(job.Id) + "/failed", new { error = ex.Message });
                     }
                     catch (Exception markError)
                     {
@@ -209,8 +205,8 @@ namespace PosCs.BranchAgent
             if (string.Equals(_config.NodeRole, "central", StringComparison.OrdinalIgnoreCase))
                 return false;
             return !string.IsNullOrWhiteSpace(_config.CentralBaseUrl)
-                && !string.IsNullOrWhiteSpace(_config.Token)
-                && !string.IsNullOrWhiteSpace(_config.BranchId);
+                && !string.IsNullOrWhiteSpace(_config.BranchId)
+                && !string.IsNullOrWhiteSpace(_config.BranchKey);
         }
 
         private string IdleReason()
@@ -271,7 +267,6 @@ namespace PosCs.BranchAgent
         private sealed class BranchAgentConfigDto
         {
             public string CentralBaseUrl { get; set; }
-            public string CentralToken { get; set; }
             public string BranchId { get; set; }
             public string BranchKey { get; set; }
             public string NodeRole { get; set; }

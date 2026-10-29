@@ -25,7 +25,28 @@ namespace PosCs.Middleware
 
             if (isApi && !IsPublicEndpoint(path))
             {
-                if (IsLoopbackOnlyEndpoint(path) && IsLoopbackRequest(context))
+                if (IsBranchAgentEndpoint(path))
+                {
+                    await Next.Invoke(context);
+                    return;
+                }
+
+                if (IsLocalAgentEndpoint(path))
+                {
+                    if (!IsLoopbackRequest(context))
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsync("{\"error\":\"Local agent endpoints are loopback only\"}");
+                        return;
+                    }
+
+                    context.Set("PosCs.LocalAgent", true);
+                    await Next.Invoke(context);
+                    return;
+                }
+
+                if (IsEnrollmentEndpoint(path))
                 {
                     await Next.Invoke(context);
                     return;
@@ -97,11 +118,19 @@ namespace PosCs.Middleware
             return false;
         }
 
-        /// <summary>The branch agent runs on the same machine and reads its central credentials
-        /// from here, so no bearer token is available. Never expose this off-box.</summary>
-        private static bool IsLoopbackOnlyEndpoint(string path)
+        private static bool IsBranchAgentEndpoint(string path)
         {
-            return path.Equals("/api/branch/agent-config", StringComparison.OrdinalIgnoreCase);
+            return path.StartsWith("/api/branch-sync/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsLocalAgentEndpoint(string path)
+        {
+            return path.StartsWith("/api/local-agent/", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsEnrollmentEndpoint(string path)
+        {
+            return path.Equals("/api/branch/enroll", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsLoopbackRequest(IOwinContext context)

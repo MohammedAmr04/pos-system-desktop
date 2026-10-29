@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using PosCs.Application.Models;
 using PosCs.Application.Ports;
 using PosCs.Domain.Exceptions;
@@ -57,6 +58,21 @@ namespace PosCs.Application.Services
                 throw new NotFoundException("Branch not found");
 
             _branches.SetSecretHash(branchId, _hasher.Hash(key.Trim()));
+        }
+
+        public string GenerateKey(string branchId)
+        {
+            if (string.IsNullOrWhiteSpace(branchId))
+                throw new DomainValidationException("Branch is required");
+            if (_branches.GetById(branchId) == null)
+                throw new NotFoundException("Branch not found");
+
+            var bytes = new byte[32];
+            using (var rng = new RNGCryptoServiceProvider())
+                rng.GetBytes(bytes);
+            var key = BitConverter.ToString(bytes).Replace("-", string.Empty).ToLowerInvariant();
+            _branches.SetSecretHash(branchId, _hasher.Hash(key));
+            return key;
         }
 
         /// <summary>Rejects a push that contains an operation belonging to a different branch than

@@ -9,6 +9,7 @@ namespace PosCs.Domain.Entities
         public string Name { get; set; }
         public string Address { get; set; }
         public bool IsActive { get; set; }
+        public bool HasSyncKey { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

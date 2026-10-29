@@ -11,6 +11,9 @@ namespace PosCs.Infrastructure.Persistence
 {
     public class BranchRepository : IBranchRepository
     {
+        private const string BranchSelect =
+            "SELECT *, CASE WHEN secretHash IS NULL OR secretHash='' THEN 0 ELSE 1 END AS hasSyncKey FROM Branch";
+
         public BranchRuntimeContext GetRuntimeContext()
         {
             using (var connection = DbConnectionFactory.CreateConnection())
@@ -35,7 +38,7 @@ namespace PosCs.Infrastructure.Persistence
         {
             using (var connection = DbConnectionFactory.CreateConnection())
             {
-                var sql = activeOnly ? "SELECT * FROM Branch WHERE isActive=1 ORDER BY name" : "SELECT * FROM Branch ORDER BY name";
+                var sql = activeOnly ? BranchSelect + " WHERE isActive=1 ORDER BY name" : BranchSelect + " ORDER BY name";
                 return connection.Query<Branch>(sql).ToList();
             }
         }
@@ -58,7 +61,7 @@ namespace PosCs.Infrastructure.Persistence
 
                 var total = connection.ExecuteScalar<int>($"SELECT COUNT(1) FROM Branch {where}", parameters);
                 var items = connection.Query<Branch>(
-                    $"SELECT * FROM Branch {where} ORDER BY name COLLATE NOCASE LIMIT @pageSize OFFSET @offset",
+                    $"{BranchSelect} {where} ORDER BY name COLLATE NOCASE LIMIT @pageSize OFFSET @offset",
                     parameters).ToList();
                 return new PagedResult<Branch> { Items = items, Total = total };
             }
@@ -67,13 +70,13 @@ namespace PosCs.Infrastructure.Persistence
         public Branch GetById(string id)
         {
             using (var connection = DbConnectionFactory.CreateConnection())
-                return connection.QueryFirstOrDefault<Branch>("SELECT * FROM Branch WHERE id=@id", new { id });
+                return connection.QueryFirstOrDefault<Branch>(BranchSelect + " WHERE id=@id", new { id });
         }
 
         public Branch GetByCode(string code)
         {
             using (var connection = DbConnectionFactory.CreateConnection())
-                return connection.QueryFirstOrDefault<Branch>("SELECT * FROM Branch WHERE code=@code COLLATE NOCASE", new { code });
+                return connection.QueryFirstOrDefault<Branch>(BranchSelect + " WHERE code=@code COLLATE NOCASE", new { code });
         }
 
         public Branch Create(Branch branch)
@@ -199,12 +202,12 @@ namespace PosCs.Infrastructure.Persistence
             }
         }
 
-        public void SaveRuntimeCredentials(string centralToken, string centralBranchKey)
+        public void SaveRuntimeCredentials(string centralBranchKey)
         {
             using (var connection = DbConnectionFactory.CreateConnection())
                 connection.Execute(@"UPDATE BranchRuntimeConfig
-                    SET centralToken=@centralToken, centralBranchKey=@centralBranchKey, updatedAt=@updatedAt WHERE id=1",
-                    new { centralToken, centralBranchKey, updatedAt = DateTime.Now });
+                    SET centralToken=NULL, centralBranchKey=@centralBranchKey, updatedAt=@updatedAt WHERE id=1",
+                    new { centralBranchKey, updatedAt = DateTime.Now });
         }
 
         public BranchAgentConfig GetAgentConfig()
@@ -212,12 +215,11 @@ namespace PosCs.Infrastructure.Persistence
             using (var connection = DbConnectionFactory.CreateConnection())
             {
                 var config = connection.QueryFirstOrDefault<AgentRow>(
-                    "SELECT branchId,nodeRole,centralBaseUrl,centralToken,centralBranchKey FROM BranchRuntimeConfig WHERE id=1");
+                    "SELECT branchId,nodeRole,centralBaseUrl,centralBranchKey FROM BranchRuntimeConfig WHERE id=1");
                 if (config == null) return null;
                 return new BranchAgentConfig
                 {
                     CentralBaseUrl = config.CentralBaseUrl,
-                    CentralToken = config.CentralToken,
                     BranchId = config.BranchId,
                     BranchKey = config.CentralBranchKey,
                     NodeRole = config.NodeRole
@@ -312,7 +314,6 @@ namespace PosCs.Infrastructure.Persistence
             public string BranchId { get; set; }
             public string NodeRole { get; set; }
             public string CentralBaseUrl { get; set; }
-            public string CentralToken { get; set; }
             public string CentralBranchKey { get; set; }
         }
     }

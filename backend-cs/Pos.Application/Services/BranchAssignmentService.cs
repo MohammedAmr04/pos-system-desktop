@@ -55,6 +55,9 @@ namespace PosCs.Application.Services
             var terminal = _terminals.GetById(request.TerminalId.Trim());
             if (terminal == null) throw new NotFoundException("Terminal not found");
             if (!terminal.IsActive) throw new DomainValidationException("Terminal is disabled");
+            if (!string.IsNullOrWhiteSpace(authenticatedBranchId) &&
+                !string.Equals(terminal.BranchId, authenticatedBranchId, StringComparison.Ordinal))
+                throw new DomainValidationException("Terminal does not belong to the authenticated branch");
 
             var keyState = _branchAuth.VerifyKey(target.Id, request.TargetBranchKey);
             if (keyState == BranchSecretState.Invalid)
@@ -139,6 +142,18 @@ namespace PosCs.Application.Services
                 throw new DomainValidationException("Switch request id is required");
             var entry = _history.GetByRequestId(requestId.Trim());
             if (entry == null) throw new NotFoundException("Switch request not found");
+            return BuildResult(entry);
+        }
+
+        public BranchAssignmentResult GetCentralAssignmentForBranch(string requestId, string authenticatedBranchId)
+        {
+            if (string.IsNullOrWhiteSpace(requestId))
+                throw new DomainValidationException("Switch request id is required");
+            var entry = _history.GetByRequestId(requestId.Trim());
+            if (entry == null) throw new NotFoundException("Switch request not found");
+            if (!string.Equals(entry.FromBranchId, authenticatedBranchId, StringComparison.Ordinal) &&
+                !string.Equals(entry.ToBranchId, authenticatedBranchId, StringComparison.Ordinal))
+                throw new NotFoundException("Switch request not found");
             return BuildResult(entry);
         }
 

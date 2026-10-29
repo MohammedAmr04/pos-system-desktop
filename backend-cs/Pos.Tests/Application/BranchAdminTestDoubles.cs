@@ -62,9 +62,8 @@ namespace PosCs.Tests.Application
             };
         }
 
-        public void SaveRuntimeCredentials(string centralToken, string centralBranchKey)
+        public void SaveRuntimeCredentials(string centralBranchKey)
         {
-            AgentConfig.CentralToken = centralToken;
             AgentConfig.BranchKey = centralBranchKey;
         }
 
@@ -106,15 +105,13 @@ namespace PosCs.Tests.Application
         public int Calls;
         public string LastBranchId;
         public string LastBranchKey;
-        public string LastSyncToken;
         public bool Reject;
 
-        public BranchEnrollmentResult VerifyCentral(string centralBaseUrl, string branchId, string branchKey, string syncToken)
+        public BranchEnrollmentResult VerifyCentral(string centralBaseUrl, string branchId, string branchKey)
         {
             Calls++;
             LastBranchId = branchId;
             LastBranchKey = branchKey;
-            LastSyncToken = syncToken;
             if (Reject) throw new PosCs.Domain.Exceptions.DomainValidationException("Central rejected the branch enrollment");
             return new BranchEnrollmentResult { BranchId = branchId, Verified = true };
         }

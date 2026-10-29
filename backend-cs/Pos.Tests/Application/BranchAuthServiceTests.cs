@@ -46,6 +46,20 @@ namespace PosCs.Tests.Application
         }
 
         [Fact]
+        public void GenerateKeyStoresAVerifiableLongKey()
+        {
+            var repo = new FakeBranchRepository();
+            repo.Branches.Add(new Branch { Id = "b1" });
+            var service = new BranchAuthService(repo, new PasswordHasher());
+
+            var key = service.GenerateKey("b1");
+
+            Assert.Equal(64, key.Length);
+            Assert.Equal(BranchSecretState.Valid, service.VerifyKey("b1", key));
+            Assert.DoesNotContain(key, repo.GetSecretHash("b1"));
+        }
+
+        [Fact]
         public void EnsureOperationsBelongToBranchRejectsCrossBranchPush()
         {
             var service = new BranchAuthService(new FakeBranchRepository(), new PasswordHasher());
@@ -87,7 +101,7 @@ namespace PosCs.Tests.Application
             public bool HasTransactionReferences(string branchId) { return false; }
             public List<Terminal> GetTerminals(string branchId) { return new List<Terminal>(); }
             public void SaveRuntimeContext(string branchId, string terminalId, string nodeRole, string centralBaseUrl) { }
-            public void SaveRuntimeCredentials(string centralToken, string centralBranchKey) { }
+            public void SaveRuntimeCredentials(string centralBranchKey) { }
             public BranchAgentConfig GetAgentConfig() { return new BranchAgentConfig(); }
             public string GetRuntimeStatus() { return null; }
             public void SetRuntimeStatus(string status) { }

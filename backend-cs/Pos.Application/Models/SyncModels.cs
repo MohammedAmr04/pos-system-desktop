@@ -16,7 +16,6 @@ namespace PosCs.Application.Models
     public sealed class BranchAgentConfig
     {
         public string CentralBaseUrl { get; set; }
-        public string CentralToken { get; set; }
         public string BranchId { get; set; }
         public string BranchKey { get; set; }
         public string NodeRole { get; set; }

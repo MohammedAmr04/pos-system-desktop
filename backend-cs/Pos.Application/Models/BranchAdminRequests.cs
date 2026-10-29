@@ -5,6 +5,15 @@ namespace PosCs.Application.Models
         public string Code { get; set; }
         public string Name { get; set; }
         public string Address { get; set; }
+        public bool CreateFirstTerminal { get; set; }
+        public string TerminalName { get; set; }
+    }
+
+    public sealed class CreateBranchResult
+    {
+        public PosCs.Domain.Entities.Branch Branch { get; set; }
+        public PosCs.Domain.Entities.Terminal Terminal { get; set; }
+        public string SyncKey { get; set; }
     }
 
     public sealed class UpdateBranchRequest
@@ -42,7 +51,6 @@ namespace PosCs.Application.Models
 
     public sealed class BranchCredentialsRequest
     {
-        public string CentralToken { get; set; }
         public string CentralBranchKey { get; set; }
     }
 
@@ -55,7 +63,6 @@ namespace PosCs.Application.Models
         public string BranchId { get; set; }
         public string TerminalId { get; set; }
         public string BranchKey { get; set; }
-        public string SyncToken { get; set; }
     }
 
     /// <summary>Result of the central connection test performed during branch setup.</summary>

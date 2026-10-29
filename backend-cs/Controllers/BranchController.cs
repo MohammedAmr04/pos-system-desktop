@@ -5,6 +5,7 @@ using System.Web.Http;
 using PosCs.Api;
 using PosCs.Application.Models;
 using PosCs.Attributes;
+using PosCs.Domain.Entities;
 
 namespace PosCs.Controllers
 {
@@ -48,7 +49,7 @@ namespace PosCs.Controllers
 
         [Route("enroll")]
         [HttpGet]
-        [RequireBranchKey]
+        [RequireBranchKey(Strict = true)]
         public HttpResponseMessage Enroll()
         {
             try
@@ -184,8 +185,25 @@ namespace PosCs.Controllers
             try
             {
                 var branch = CompositionRoot.BranchService.Create(request);
+                var syncKey = CompositionRoot.BranchAuthService.GenerateKey(branch.Id);
+                branch.HasSyncKey = true;
+                Terminal terminal = null;
+                if (request.CreateFirstTerminal)
+                {
+                    terminal = CompositionRoot.TerminalService.Create(new CreateTerminalRequest
+                    {
+                        BranchId = branch.Id,
+                        Name = string.IsNullOrWhiteSpace(request.TerminalName) ? "Main" : request.TerminalName,
+                        Notes = null
+                    });
+                }
                 Console.WriteLine($"[API] Created branch: {branch.Id} ({branch.Code})");
-                return Request.CreateResponse(HttpStatusCode.OK, branch);
+                return Request.CreateResponse(HttpStatusCode.OK, new CreateBranchResult
+                {
+                    Branch = branch,
+                    Terminal = terminal,
+                    SyncKey = syncKey
+                });
             }
             catch (Exception ex)
             {
@@ -268,6 +286,25 @@ namespace PosCs.Controllers
             }
         }
 
+        [Route("{id}/secret/reset")]
+        [HttpPost]
+        [RequirePermission("branches.manage")]
+        public HttpResponseMessage ResetSecret(string id)
+        {
+            try
+            {
+                var key = CompositionRoot.BranchAuthService.GenerateKey(id);
+                Console.WriteLine($"[API] Reset sync key for branch: {id}");
+                return Request.CreateResponse(HttpStatusCode.OK, new { success = true, key });
+            }
+            catch (Exception ex)
+            {
+                if (ApiErrors.IsHandled(ex)) return ApiErrors.From(Request, ex, null);
+                Console.Error.WriteLine($"[API ERR] Failed to reset branch secret {id}: {ex}");
+                return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, "Failed to reset branch key");
+            }
+        }
+
         [Route("credentials")]
         [HttpPost]
         [RequirePermission("branches.manage")]
@@ -276,7 +313,7 @@ namespace PosCs.Controllers
             try
             {
                 if (request == null) return Request.CreateErrorResponse(HttpStatusCode.BadRequest, "Invalid branch credentials");
-                CompositionRoot.BranchService.SaveCredentials(request.CentralToken, request.CentralBranchKey);
+                CompositionRoot.BranchService.SaveCredentials(request.CentralBranchKey);
                 return Request.CreateResponse(HttpStatusCode.OK, new { success = true });
             }
             catch (Exception ex)
