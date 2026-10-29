@@ -196,5 +196,6 @@ export default defineConfig([
     "next-env.d.ts",
     "backend-cs/bin/**",
     "deploy/iis/payload/**",
+    "deploy/iis/pos-site/**",
   ]),
 ]);

@@ -58,8 +58,10 @@ vitamins.pdf
 /v1.0.0-fixed/
 /v1.0.1/
 /POS-App-v*.zip
+/POS-App-v*/
 
 # iis deployment payload
 /deploy/iis/payload/
+/deploy/iis/pos-site/
 /deploy/iis/pos-site.zip
 /deploy/iis/payload.zip
