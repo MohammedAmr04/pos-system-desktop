@@ -197,5 +197,6 @@ export default defineConfig([
     "backend-cs/bin/**",
     "deploy/iis/payload/**",
     "deploy/iis/pos-site/**",
+    "POS-App-v*/**",
   ]),
 ]);
