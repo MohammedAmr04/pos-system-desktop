@@ -49,6 +49,19 @@ finally {
     Pop-Location
 }
 
+# Build branch agent so the desktop package can sync without a separate download
+Write-Host "[BUILD] Building branch agent..."
+Push-Location $root
+try {
+    dotnet build (Join-Path $root "backend-cs\BranchAgent\BranchAgent.csproj") --configuration Release
+    if ($LASTEXITCODE -ne 0) {
+        throw "Branch agent build failed."
+    }
+}
+finally {
+    Pop-Location
+}
+
 if (-not (Test-Path -LiteralPath $srcDir)) {
     throw "Backend release directory not found: $srcDir"
 }
@@ -69,9 +82,10 @@ $include = @(
 )
 foreach ($pattern in $include) {
     $source = Join-Path $srcDir $pattern
-    if (Test-Path -LiteralPath $source) {
-        $dest = Join-Path $tempDir $pattern
-        Copy-Item -LiteralPath $source -Destination $dest -Recurse -Force
+    if (Test-Path -Path $source) {
+        $hasWildcard = $pattern -match '[*?]'
+        $dest = if ($hasWildcard) { $tempDir } else { Join-Path $tempDir $pattern }
+        Copy-Item -Path $source -Destination $dest -Recurse -Force
     }
 }
 
@@ -87,6 +101,21 @@ Ensure-Dir (Join-Path $tempDir "data")
 $startBat = Join-Path $root "start.bat"
 if (Test-Path -LiteralPath $startBat) {
     Copy-Item -LiteralPath $startBat -Destination (Join-Path $tempDir "start.bat") -Force
+}
+
+# Copy branch agent executable; its shared dependencies already ship with the backend
+$agentDir = Join-Path $root "backend-cs\BranchAgent\bin\Release\net48"
+foreach ($agentFile in @("pos-branch-agent.exe", "pos-branch-agent.exe.config")) {
+    $source = Join-Path $agentDir $agentFile
+    if (-not (Test-Path -LiteralPath $source)) {
+        throw "Branch agent output not found: $source"
+    }
+    Copy-Item -LiteralPath $source -Destination (Join-Path $tempDir $agentFile) -Force
+}
+
+$agentEnv = Join-Path $root "branch-agent.env.example"
+if (Test-Path -LiteralPath $agentEnv) {
+    Copy-Item -LiteralPath $agentEnv -Destination (Join-Path $tempDir "branch-agent.env.example") -Force
 }
 
 # Copy license tools
