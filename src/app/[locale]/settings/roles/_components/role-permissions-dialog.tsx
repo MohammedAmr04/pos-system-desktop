@@ -92,13 +92,13 @@ export function RolePermissionsDialog({ role, onOpenChange, onSaved }: RolePermi
                 {perms.map((p) => (
                   <label
                     key={p.key}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted"
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-all hover:bg-muted/50 hover:border-border/80 data-[selected=true]:bg-muted/30 data-[selected=true]:border-primary/30"
                   >
                     <Checkbox
                       checked={selected.includes(p.key)}
                       onCheckedChange={() => togglePermission(p.key)}
                     />
-                    <span>{PERMISSION_LABELS[p.key] ?? p.name}</span>
+                    <span className="font-medium">{PERMISSION_LABELS[p.key] ?? p.name}</span>
                   </label>
                 ))}
               </div>

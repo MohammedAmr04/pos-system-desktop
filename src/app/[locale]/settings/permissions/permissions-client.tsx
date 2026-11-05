@@ -38,7 +38,8 @@ export function PermissionsClient() {
   )
 
   const selected = useMemo(() => {
-    if (!selectedRoleId || isAdmin) return []
+    if (!selectedRoleId) return []
+    if (isAdmin) return []
     if (edited && edited.roleId === selectedRoleId) return edited.perms
     return currentPerms?.permissionIds ?? []
   }, [selectedRoleId, isAdmin, edited, currentPerms])
@@ -152,14 +153,14 @@ export function PermissionsClient() {
                       {perms.map((p) => (
                         <label
                           key={p.key}
-                          className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted"
+                          className="flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-all hover:bg-muted/50 hover:border-border/80 data-[selected=true]:bg-muted/30 data-[selected=true]:border-primary/30"
                         >
                           <Checkbox
                             checked={selected.includes(p.key)}
                             onCheckedChange={() => toggle(p.key)}
                             disabled={isAdmin}
                           />
-                          <span>{PERMISSION_LABELS[p.key] ?? p.name}</span>
+                          <span className="font-medium">{PERMISSION_LABELS[p.key] ?? p.name}</span>
                         </label>
                       ))}
                     </div>
