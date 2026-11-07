@@ -16,7 +16,6 @@ build
 obj
 bin
 .vs/
-.vscode/
 .idea/
 # database
 *.db
@@ -38,7 +37,6 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files
-.env*
 !.env.example
 
 # license signing secret
@@ -55,6 +53,7 @@ vitamins.pdf
 /src/generated/prisma
 
 # release packages (build output)
+/release/
 /v1.0.0-fixed/
 /v1.0.1/
 /POS-App-v*.zip
@@ -65,3 +64,4 @@ vitamins.pdf
 /deploy/iis/pos-site/
 /deploy/iis/pos-site.zip
 /deploy/iis/payload.zip
+config.bat
