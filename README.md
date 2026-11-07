@@ -419,6 +419,28 @@ The backend serves the static frontend, so there is no separate web server.
 `npm run build` runs `next build` (output → `out/`) and automatically copies
 the result into `backend-cs/bin/Release/net48/wwwroot` (preserving `logo.jpeg`).
 
+For the complete PC test / production runbook — prerequisites, one-command
+build, instant copy to a production PC, upgrade, verification, and rollback —
+see [`PREPARE-VERSION.md`](PREPARE-VERSION.md).
+
+### Portable PC package (recommended)
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\prepare-version.ps1 -Version client-version -Channel Test
+```
+
+This creates `release\POS-App-client-version-Test\` and a matching ZIP. To copy
+a prepared package to a production PC without rebuilding:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\copy-to-production.ps1 -Destination "D:\POS" -Version client-version -Channel Production
+```
+
+The copy script preserves `data\`, `license.secret`, `.env`, and
+`branch-agent.env`, and backs up the live database before updating.
+
+### Legacy v2 package script
+
 1. Build and verify everything:
 
    ```powershell
@@ -457,6 +479,8 @@ the result into `backend-cs/bin/Release/net48/wwwroot` (preserving `logo.jpeg`).
 | `npm test` | Run vitest unit tests |
 | `dotnet build backend-cs/pos-cs.csproj --configuration Release` | Build the backend |
 | `dotnet test backend-cs/Pos.Tests/Pos.Tests.csproj --configuration Release` | Run backend tests |
+| `.\prepare-version.ps1 -Version client-version -Channel Test` | Build a portable PC package (folder + ZIP) |
+| `.\copy-to-production.ps1 -Destination D:\POS -Version client-version -Channel Production` | Copy a prepared package to production, preserving data/secrets |
 | `.\package-release.ps1 -Version v2` | Build and package the v2 release |
 
 ---
